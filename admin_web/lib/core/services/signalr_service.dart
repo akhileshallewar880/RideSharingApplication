@@ -1,0 +1,183 @@
+import 'package:signalr_netcore/signalr_client.dart';
+import 'package:flutter/foundation.dart';
+import '../constants/app_constants.dart';
+import '../services/admin_auth_service.dart';
+
+class SignalRService {
+  HubConnection? _hubConnection;
+  final AdminAuthService _authService;
+  bool _isConnected = false;
+  
+  // Callback handlers
+  Function(String rideId, double latitude, double longitude)? onLocationUpdate;
+  Function(String rideId, String status)? onRideStatusUpdate;
+  Function(Map<String, dynamic> notification)? onNotificationReceived;
+  
+  SignalRService(this._authService);
+  
+  /// Check if connected to SignalR hub
+  bool get isConnected => _isConnected;
+  
+  /// Initialize SignalR connection
+  Future<void> initialize() async {
+    if (_hubConnection != null && _isConnected) {
+      debugPrint('SignalR: Already connected');
+      return;
+    }
+    
+    try {
+      final token = await _authService.getToken();
+      if (token == null) {
+        debugPrint('SignalR: No auth token available');
+        return;
+      }
+      
+      // Create hub connection
+      _hubConnection = HubConnectionBuilder()
+          .withUrl(
+            '${AppConstants.baseUrl.replaceAll('/api/v1', '')}/tracking',
+            options: HttpConnectionOptions(
+              accessTokenFactory: () async => token,
+            ),
+          )
+          .withAutomaticReconnect()
+          .build();
+      
+      // Register event handlers
+      _registerEventHandlers();
+      
+      // Start connection
+      await _hubConnection!.start();
+      _isConnected = true;
+      debugPrint('SignalR: Connected successfully');
+    } catch (e) {
+      debugPrint('SignalR: Connection error: $e');
+      _isConnected = false;
+    }
+  }
+  
+  /// Register event handlers for SignalR messages
+  void _registerEventHandlers() {
+    if (_hubConnection == null) return;
+    
+    // Location update handler
+    _hubConnection!.on('ReceiveLocationUpdate', (arguments) {
+      if (arguments != null && arguments.length >= 3) {
+        final rideId = arguments[0] as String;
+        final latitude = (arguments[1] as num).toDouble();
+        final longitude = (arguments[2] as num).toDouble();
+        
+        debugPrint('SignalR: Location update - Ride: $rideId, Lat: $latitude, Lng: $longitude');
+        onLocationUpdate?.call(rideId, latitude, longitude);
+      }
+    });
+    
+    // Ride status update handler
+    _hubConnection!.on('ReceiveRideStatusUpdate', (arguments) {
+      if (arguments != null && arguments.length >= 2) {
+        final rideId = arguments[0] as String;
+        final status = arguments[1] as String;
+        
+        debugPrint('SignalR: Ride status update - Ride: $rideId, Status: $status');
+        onRideStatusUpdate?.call(rideId, status);
+      }
+    });
+    
+    // Notification handler
+    _hubConnection!.on('ReceiveNotification', (arguments) {
+      if (arguments != null && arguments.isNotEmpty) {
+        final notification = arguments[0] as Map<String, dynamic>;
+        
+        debugPrint('SignalR: Notification received - ${notification['title']}');
+        onNotificationReceived?.call(notification);
+      }
+    });
+  }
+  
+  /// Join a ride tracking room
+  Future<void> joinRideRoom(String rideId) async {
+    if (_hubConnection == null || !_isConnected) {
+      debugPrint('SignalR: Not connected, cannot join ride room');
+      await initialize();
+    }
+    
+    try {
+      await _hubConnection!.invoke('JoinRideRoom', args: [rideId]);
+      debugPrint('SignalR: Joined ride room: $rideId');
+    } catch (e) {
+      debugPrint('SignalR: Error joining ride room: $e');
+    }
+  }
+  
+  /// Leave a ride tracking room
+  Future<void> leaveRideRoom(String rideId) async {
+    if (_hubConnection == null || !_isConnected) return;
+    
+    try {
+      await _hubConnection!.invoke('LeaveRideRoom', args: [rideId]);
+      debugPrint('SignalR: Left ride room: $rideId');
+    } catch (e) {
+      debugPrint('SignalR: Error leaving ride room: $e');
+    }
+  }
+  
+  /// Join all active rides room (admin monitoring)
+  Future<void> joinAllRidesRoom() async {
+    if (_hubConnection == null || !_isConnected) {
+      debugPrint('SignalR: Not connected, cannot join all rides room');
+      await initialize();
+    }
+    
+    try {
+      await _hubConnection!.invoke('JoinAllRidesRoom');
+      debugPrint('SignalR: Joined all rides monitoring room');
+    } catch (e) {
+      debugPrint('SignalR: Error joining all rides room: $e');
+    }
+  }
+  
+  /// Send admin notification to user
+  Future<void> sendNotificationToUser({
+    required String userId,
+    required String title,
+    required String message,
+  }) async {
+    if (_hubConnection == null || !_isConnected) return;
+    
+    try {
+      await _hubConnection!.invoke('SendNotificationToUser', args: [
+        userId,
+        {
+          'title': title,
+          'message': message,
+          'timestamp': DateTime.now().toIso8601String(),
+        }
+      ]);
+      debugPrint('SignalR: Notification sent to user: $userId');
+    } catch (e) {
+      debugPrint('SignalR: Error sending notification: $e');
+    }
+  }
+  
+  /// Disconnect from SignalR hub
+  Future<void> disconnect() async {
+    if (_hubConnection != null && _isConnected) {
+      try {
+        await _hubConnection!.stop();
+        _isConnected = false;
+        debugPrint('SignalR: Disconnected');
+      } catch (e) {
+        debugPrint('SignalR: Error disconnecting: $e');
+      }
+    }
+  }
+  
+  /// Dispose and clean up
+  void dispose() {
+    disconnect();
+    _hubConnection = null;
+    onLocationUpdate = null;
+    onRideStatusUpdate = null;
+    onNotificationReceived = null;
+  }
+}

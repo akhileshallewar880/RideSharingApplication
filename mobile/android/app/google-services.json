@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "657234227532",
+    "project_id": "vanyatra-69e38",
+    "storage_bucket": "vanyatra-69e38.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:657234227532:android:6de0f950897774b199dfe9",
+        "android_client_info": {
+          "package_name": "com.allapalli.allapalli_ride"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA-3oBOl-D-ErM5JyFKGHWEGtORMo4iBn8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
