@@ -1,0 +1,266 @@
+Using launch settings from /Users/akhileshallewar/project_dev/taxi-booking-app/server/ride_sharing_application/RideSharing.API/Properties/launchSettings.json...
+Building...
+[14:36:59 INF] ✅ Firebase Admin SDK initialized successfully
+[14:36:59 INF] User profile is available. Using '/Users/akhileshallewar/.aspnet/DataProtection-Keys' as key repository; keys will not be encrypted at rest.
+[14:36:59 INF] Ride Auto-Cancellation Service started. Daily run time: 23:30
+[14:36:59 INF] Next auto-cancellation check scheduled in 8 hours and 53 minutes
+[14:36:59 INF] Booking No-Show Service started. Check interval: 00:10:00
+[14:36:59 WRN] No store type was specified for the decimal property 'Rating' on entity type 'UserProfile'. This will cause values to be silently truncated if they do not fit in the default precision and scale. Explicitly specify the SQL server column type that can accommodate all the values in 'OnModelCreating' using 'HasColumnType', specify precision and scale using 'HasPrecision', or configure a value converter using 'HasConversion'.
+[14:37:00 INF] Now listening on: http://0.0.0.0:5056
+[14:37:00 INF] Application started. Press Ctrl+C to shut down.
+[14:37:00 INF] Hosting environment: Development
+[14:37:00 INF] Content root path: /Users/akhileshallewar/project_dev/taxi-booking-app/server/ride_sharing_application/RideSharing.API
+[14:37:00 INF] Executed DbCommand (17ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+SELECT [b].[Id], [b].[BookingNumber], [b].[CancellationReason], [b].[CancellationType], [b].[CancelledAt], [b].[CreatedAt], [b].[DropoffLatitude], [b].[DropoffLocation], [b].[DropoffLongitude], [b].[IsVerified], [b].[OTP], [b].[PassengerCount], [b].[PassengerId], [b].[PaymentMethod], [b].[PaymentStatus], [b].[PickupLatitude], [b].[PickupLocation], [b].[PickupLongitude], [b].[PlatformFee], [b].[PricePerSeat], [b].[QRCode], [b].[RideId], [b].[SeatNumbers], [b].[SeatingArrangementImage], [b].[SelectedSeats], [b].[Status], [b].[TotalAmount], [b].[TotalFare], [b].[UpdatedAt], [b].[VerifiedAt], [r].[Id], [r].[ActualArrivalTime], [r].[ActualDepartureTime], [r].[AdminNotes], [r].[BookedSeats], [r].[CancellationReason], [r].[CreatedAt], [r].[DepartureTime], [r].[Distance], [r].[DriverId], [r].[DropoffLatitude], [r].[DropoffLocation], [r].[DropoffLongitude], [r].[Duration], [r].[EstimatedArrivalTime], [r].[IntermediateStops], [r].[IsReturnTrip], [r].[LinkedReturnRideId], [r].[PickupLatitude], [r].[PickupLocation], [r].[PickupLongitude], [r].[PricePerSeat], [r].[RideNumber], [r].[Route], [r].[SegmentPrices], [r].[Status], [r].[TotalSeats], [r].[TravelDate], [r].[UpdatedAt], [r].[VehicleId], [r].[VehicleModelId]
+FROM [Bookings] AS [b]
+INNER JOIN [Rides] AS [r] ON [b].[RideId] = [r].[Id]
+WHERE [r].[Status] = N'completed' AND [b].[Status] IN (N'confirmed', N'active') AND [b].[IsVerified] = CAST(0 AS bit)
+[14:37:13 INF] Request starting HTTP/1.1 GET http://localhost:5056/swagger/index.html - null null
+[14:37:13 INF] Request finished HTTP/1.1 GET http://localhost:5056/swagger/index.html - 200 null text/html;charset=utf-8 55.9476ms
+[14:38:44 INF] Request starting HTTP/1.1 OPTIONS http://localhost:5056/api/v1/admin/auth/login - null null
+[14:38:44 INF] CORS policy execution successful.
+[14:38:44 INF] Request finished HTTP/1.1 OPTIONS http://localhost:5056/api/v1/admin/auth/login - 204 null null 31.9117ms
+[14:38:44 INF] Request starting HTTP/1.1 POST http://localhost:5056/api/v1/admin/auth/login - application/json 65
+[14:38:44 INF] CORS policy execution successful.
+[14:38:44 WRN] Failed to determine the https port for redirect.
+[14:38:44 INF] Executing endpoint 'RideSharing.API.Controllers.AdminController.AdminLogin (RideSharing.API)'
+[14:38:44 INF] Route matched with {action = "AdminLogin", controller = "Admin"}. Executing controller action with signature System.Threading.Tasks.Task`1[Microsoft.AspNetCore.Mvc.IActionResult] AdminLogin(RideSharing.API.Controllers.AdminLoginDto) on controller RideSharing.API.Controllers.AdminController (RideSharing.API).
+[14:38:44 INF] === Admin Login Request Received ===
+[14:38:44 INF] Email: akhileshallewar880@gmail.com
+[14:38:44 INF] Request Body: {"Email":"akhileshallewar880@gmail.com","Password":"Akhilesh@22"}
+[14:38:44 INF] Executed DbCommand (28ms) [Parameters=[@__request_Email_0='?' (Size = 255)], CommandType='Text', CommandTimeout='30']
+SELECT TOP(1) [u].[Id], [u].[BlockedReason], [u].[CountryCode], [u].[CreatedAt], [u].[Email], [u].[FCMToken], [u].[IsActive], [u].[IsBlocked], [u].[IsEmailVerified], [u].[IsPhoneVerified], [u].[LastLoginAt], [u].[PasswordHash], [u].[PhoneNumber], [u].[UpdatedAt], [u].[UserType], [u0].[Id], [u0].[Address], [u0].[City], [u0].[CreatedAt], [u0].[DateOfBirth], [u0].[EmergencyContact], [u0].[EmergencyContactName], [u0].[Gender], [u0].[Name], [u0].[PinCode], [u0].[ProfilePicture], [u0].[Rating], [u0].[State], [u0].[TotalRides], [u0].[UpdatedAt], [u0].[UserId]
+FROM [Users] AS [u]
+LEFT JOIN [UserProfiles] AS [u0] ON [u].[Id] = [u0].[UserId]
+WHERE [u].[Email] = @__request_Email_0
+[14:38:45 INF] Executed DbCommand (15ms) [Parameters=[@p0='?' (DbType = Guid), @p1='?' (DbType = DateTime2), @p2='?' (DbType = DateTime2), @p3='?' (DbType = Boolean), @p4='?' (DbType = DateTime2), @p5='?' (Size = 500), @p6='?' (DbType = Guid)], CommandType='Text', CommandTimeout='30']
+SET IMPLICIT_TRANSACTIONS OFF;
+SET NOCOUNT ON;
+INSERT INTO [RefreshTokens] ([Id], [CreatedAt], [ExpiresAt], [IsRevoked], [RevokedAt], [Token], [UserId])
+VALUES (@p0, @p1, @p2, @p3, @p4, @p5, @p6);
+[14:38:45 INF] Admin login successful: akhileshallewar880@gmail.com, UserId: 47d3d8b2-41f3-4747-a732-c9f24cc4b896
+[14:38:45 INF] Executing OkObjectResult, writing value of type 'RideSharing.API.Models.DTO.ApiResponseDto`1[[System.Object, System.Private.CoreLib, Version=8.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]'.
+[14:38:45 INF] Executed action RideSharing.API.Controllers.AdminController.AdminLogin (RideSharing.API) in 473.0211ms
+[14:38:45 INF] Executed endpoint 'RideSharing.API.Controllers.AdminController.AdminLogin (RideSharing.API)'
+[14:38:45 INF] Request finished HTTP/1.1 POST http://localhost:5056/api/v1/admin/auth/login - 200 null application/json; charset=utf-8 513.0803ms
+[14:38:45 INF] Request starting HTTP/1.1 OPTIONS http://localhost:5056/api/v1/AdminAnalytics/dashboard?startDate=2025-11-26T14%3A38%3A45.130&endDate=2025-12-26T14%3A38%3A45.130 - null null
+[14:38:45 INF] CORS policy execution successful.
+[14:38:45 INF] Request finished HTTP/1.1 OPTIONS http://localhost:5056/api/v1/AdminAnalytics/dashboard?startDate=2025-11-26T14%3A38%3A45.130&endDate=2025-12-26T14%3A38%3A45.130 - 204 null null 0.7124ms
+[14:38:45 INF] Request starting HTTP/1.1 GET http://localhost:5056/api/v1/AdminAnalytics/dashboard?startDate=2025-11-26T14%3A38%3A45.130&endDate=2025-12-26T14%3A38%3A45.130 - application/json null
+[14:38:45 INF] CORS policy execution successful.
+[14:38:45 INF] Executing endpoint 'RideSharing.API.Controllers.AdminAnalyticsController.GetDashboardAnalytics (RideSharing.API)'
+[14:38:45 INF] Route matched with {action = "GetDashboardAnalytics", controller = "AdminAnalytics"}. Executing controller action with signature System.Threading.Tasks.Task`1[Microsoft.AspNetCore.Mvc.IActionResult] GetDashboardAnalytics(System.Nullable`1[System.DateTime], System.Nullable`1[System.DateTime]) on controller RideSharing.API.Controllers.AdminAnalyticsController (RideSharing.API).
+[14:38:45 INF] Executed DbCommand (4ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+SELECT COUNT(*)
+FROM [Drivers] AS [d]
+[14:38:45 INF] Executed DbCommand (7ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+SELECT COUNT(*)
+FROM [Drivers] AS [d]
+WHERE [d].[IsOnline] = CAST(1 AS bit) AND [d].[IsAvailable] = CAST(1 AS bit)
+[14:38:45 INF] Executed DbCommand (2ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+SELECT COUNT(*)
+FROM [Drivers] AS [d]
+WHERE [d].[VerificationStatus] = N'pending'
+[14:38:45 INF] Executed DbCommand (1ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+SELECT COUNT(*)
+FROM [Users] AS [u]
+WHERE [u].[UserType] = N'passenger'
+[14:38:45 INF] Executed DbCommand (2ms) [Parameters=[@__start_0='?' (DbType = DateTime2), @__end_1='?' (DbType = DateTime2)], CommandType='Text', CommandTimeout='30']
+SELECT COUNT(*)
+FROM [Rides] AS [r]
+WHERE [r].[TravelDate] >= @__start_0 AND [r].[TravelDate] <= @__end_1
+[14:38:45 INF] Executed DbCommand (3ms) [Parameters=[@__start_0='?' (DbType = DateTime2), @__end_1='?' (DbType = DateTime2)], CommandType='Text', CommandTimeout='30']
+SELECT COUNT(*)
+FROM [Rides] AS [r]
+WHERE [r].[Status] = N'completed' AND [r].[TravelDate] >= @__start_0 AND [r].[TravelDate] <= @__end_1
+[14:38:45 INF] Executed DbCommand (3ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+SELECT COUNT(*)
+FROM [Rides] AS [r]
+WHERE [r].[Status] = N'active'
+[14:38:45 INF] Executed DbCommand (3ms) [Parameters=[@__start_0='?' (DbType = DateTime2), @__end_1='?' (DbType = DateTime2)], CommandType='Text', CommandTimeout='30']
+SELECT COALESCE(SUM([b].[TotalAmount]), 0.0)
+FROM [Bookings] AS [b]
+WHERE [b].[Status] = N'completed' AND [b].[CreatedAt] >= @__start_0 AND [b].[CreatedAt] <= @__end_1
+[14:38:45 INF] Executed DbCommand (3ms) [Parameters=[@__start_0='?' (DbType = DateTime2), @__end_1='?' (DbType = DateTime2)], CommandType='Text', CommandTimeout='30']
+SELECT COALESCE(SUM([b].[PlatformFee]), 0.0)
+FROM [Bookings] AS [b]
+WHERE [b].[Status] = N'completed' AND [b].[CreatedAt] >= @__start_0 AND [b].[CreatedAt] <= @__end_1
+[14:38:45 INF] Executed DbCommand (6ms) [Parameters=[@__p_2='?' (DbType = Int32), @__start_0='?' (DbType = DateTime2), @__end_1='?' (DbType = DateTime2)], CommandType='Text', CommandTimeout='30']
+SELECT TOP(@__p_2) [b0].[Key] AS [Date], COALESCE(SUM([b0].[TotalAmount]), 0.0) AS [Revenue], COUNT(*) AS [Rides], COALESCE(SUM([b0].[PlatformFee]), 0.0) AS [PlatformFees]
+FROM (
+    SELECT [b].[PlatformFee], [b].[TotalAmount], CONVERT(date, [b].[CreatedAt]) AS [Key]
+    FROM [Bookings] AS [b]
+    WHERE [b].[Status] = N'completed' AND [b].[CreatedAt] >= @__start_0 AND [b].[CreatedAt] <= @__end_1
+) AS [b0]
+GROUP BY [b0].[Key]
+ORDER BY [b0].[Key] DESC
+[14:38:45 INF] Executing OkObjectResult, writing value of type '<>f__AnonymousType1`2[[System.Boolean, System.Private.CoreLib, Version=8.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e],[<>f__AnonymousType2`2[[<>f__AnonymousType3`9[[System.Int32, System.Private.CoreLib, Version=8.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e],[System.Int32, System.Private.CoreLib, Version=8.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e],[System.Int32, System.Private.CoreLib, Version=8.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e],[System.Int32, System.Private.CoreLib, Version=8.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e],[System.Int32, System.Private.CoreLib, Version=8.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e],[System.Int32, System.Private.CoreLib, Version=8.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e],[System.Int32, System.Private.CoreLib, Version=8.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e],[System.Decimal, System.Private.CoreLib, Version=8.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e],[System.Decimal, System.Private.CoreLib, Version=8.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]], RideSharing.API, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null],[System.Collections.Generic.List`1[[<>f__AnonymousType0`4[[System.DateTime, System.Private.CoreLib, Version=8.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e],[System.Decimal, System.Private.CoreLib, Version=8.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e],[System.Int32, System.Private.CoreLib, Version=8.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e],[System.Decimal, System.Private.CoreLib, Version=8.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]], RideSharing.API, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]], System.Private.CoreLib, Version=8.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]], RideSharing.API, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]'.
+[14:38:45 INF] Executed action RideSharing.API.Controllers.AdminAnalyticsController.GetDashboardAnalytics (RideSharing.API) in 108.7322ms
+[14:38:45 INF] Executed endpoint 'RideSharing.API.Controllers.AdminAnalyticsController.GetDashboardAnalytics (RideSharing.API)'
+[14:38:45 INF] Request finished HTTP/1.1 GET http://localhost:5056/api/v1/AdminAnalytics/dashboard?startDate=2025-11-26T14%3A38%3A45.130&endDate=2025-12-26T14%3A38%3A45.130 - 200 null application/json; charset=utf-8 146.0614ms
+[14:38:51 INF] Request starting HTTP/1.1 OPTIONS http://localhost:5056/api/v1/admin/rides?page=1&pageSize=20 - null null
+[14:38:51 INF] CORS policy execution successful.
+[14:38:51 INF] Request finished HTTP/1.1 OPTIONS http://localhost:5056/api/v1/admin/rides?page=1&pageSize=20 - 204 null null 2.0798ms
+[14:38:51 INF] Request starting HTTP/1.1 GET http://localhost:5056/api/v1/admin/rides?page=1&pageSize=20 - application/json null
+[14:38:51 INF] CORS policy execution successful.
+[14:38:51 INF] Executing endpoint 'RideSharing.API.Controllers.AdminRidesController.GetAllRides (RideSharing.API)'
+[14:38:51 INF] Route matched with {action = "GetAllRides", controller = "AdminRides"}. Executing controller action with signature System.Threading.Tasks.Task`1[Microsoft.AspNetCore.Mvc.IActionResult] GetAllRides(System.String, System.Nullable`1[System.Guid], System.Nullable`1[System.DateTime], System.Nullable`1[System.DateTime], Int32, Int32) on controller RideSharing.API.Controllers.AdminRidesController (RideSharing.API).
+[14:38:51 INF] Executing ForbidResult with authentication schemes ([]).
+[14:38:51 INF] AuthenticationScheme: Bearer was forbidden.
+[14:38:51 INF] Executed action RideSharing.API.Controllers.AdminRidesController.GetAllRides (RideSharing.API) in 5.4544ms
+[14:38:51 INF] Executed endpoint 'RideSharing.API.Controllers.AdminRidesController.GetAllRides (RideSharing.API)'
+[14:38:51 INF] Request finished HTTP/1.1 GET http://localhost:5056/api/v1/admin/rides?page=1&pageSize=20 - 403 0 null 18.4178ms
+[14:39:08 INF] Request starting HTTP/1.1 OPTIONS http://localhost:5056/api/v1/admin/rides/drivers - null null
+[14:39:08 INF] CORS policy execution successful.
+[14:39:08 INF] Request finished HTTP/1.1 OPTIONS http://localhost:5056/api/v1/admin/rides/drivers - 204 null null 1.0234ms
+[14:39:08 INF] Request starting HTTP/1.1 GET http://localhost:5056/api/v1/admin/rides/drivers - application/json null
+[14:39:08 INF] CORS policy execution successful.
+[14:39:08 INF] Executing endpoint 'RideSharing.API.Controllers.AdminRidesController.GetAvailableDrivers (RideSharing.API)'
+[14:39:08 INF] Route matched with {action = "GetAvailableDrivers", controller = "AdminRides"}. Executing controller action with signature System.Threading.Tasks.Task`1[Microsoft.AspNetCore.Mvc.IActionResult] GetAvailableDrivers(System.Nullable`1[System.DateTime]) on controller RideSharing.API.Controllers.AdminRidesController (RideSharing.API).
+[14:39:08 INF] Executing ForbidResult with authentication schemes ([]).
+[14:39:08 INF] AuthenticationScheme: Bearer was forbidden.
+[14:39:08 INF] Executed action RideSharing.API.Controllers.AdminRidesController.GetAvailableDrivers (RideSharing.API) in 3.0921ms
+[14:39:08 INF] Executed endpoint 'RideSharing.API.Controllers.AdminRidesController.GetAvailableDrivers (RideSharing.API)'
+[14:39:08 INF] Request finished HTTP/1.1 GET http://localhost:5056/api/v1/admin/rides/drivers - 403 0 null 7.7392ms
+[14:39:10 INF] Request starting HTTP/1.1 GET http://localhost:5056/api/v1/admin/rides/drivers - application/json null
+[14:39:10 INF] CORS policy execution successful.
+[14:39:10 INF] Executing endpoint 'RideSharing.API.Controllers.AdminRidesController.GetAvailableDrivers (RideSharing.API)'
+[14:39:10 INF] Route matched with {action = "GetAvailableDrivers", controller = "AdminRides"}. Executing controller action with signature System.Threading.Tasks.Task`1[Microsoft.AspNetCore.Mvc.IActionResult] GetAvailableDrivers(System.Nullable`1[System.DateTime]) on controller RideSharing.API.Controllers.AdminRidesController (RideSharing.API).
+[14:39:10 INF] Executing ForbidResult with authentication schemes ([]).
+[14:39:10 INF] AuthenticationScheme: Bearer was forbidden.
+[14:39:10 INF] Executed action RideSharing.API.Controllers.AdminRidesController.GetAvailableDrivers (RideSharing.API) in 1.1297ms
+[14:39:10 INF] Executed endpoint 'RideSharing.API.Controllers.AdminRidesController.GetAvailableDrivers (RideSharing.API)'
+[14:39:10 INF] Request finished HTTP/1.1 GET http://localhost:5056/api/v1/admin/rides/drivers - 403 0 null 3.7134ms
+[14:39:21 INF] Request starting HTTP/1.1 OPTIONS http://localhost:5056/api/v1/AdminAnalytics/dashboard?startDate=2025-11-26T14%3A39%3A21.376&endDate=2025-12-26T14%3A39%3A21.376 - null null
+[14:39:21 INF] CORS policy execution successful.
+[14:39:21 INF] Request finished HTTP/1.1 OPTIONS http://localhost:5056/api/v1/AdminAnalytics/dashboard?startDate=2025-11-26T14%3A39%3A21.376&endDate=2025-12-26T14%3A39%3A21.376 - 204 null null 9.9177ms
+[14:39:21 INF] Request starting HTTP/1.1 GET http://localhost:5056/api/v1/AdminAnalytics/dashboard?startDate=2025-11-26T14%3A39%3A21.376&endDate=2025-12-26T14%3A39%3A21.376 - application/json null
+[14:39:21 INF] CORS policy execution successful.
+[14:39:21 INF] Authorization failed. These requirements were not met:
+RolesAuthorizationRequirement:User.IsInRole must be true for one of the following roles: (admin|super_admin)
+[14:39:21 INF] AuthenticationScheme: Bearer was challenged.
+[14:39:21 INF] Request finished HTTP/1.1 GET http://localhost:5056/api/v1/AdminAnalytics/dashboard?startDate=2025-11-26T14%3A39%3A21.376&endDate=2025-12-26T14%3A39%3A21.376 - 401 0 null 7.7744ms
+[14:39:26 INF] Request starting HTTP/1.1 OPTIONS http://localhost:5056/api/v1/admin/auth/login - null null
+[14:39:26 INF] CORS policy execution successful.
+[14:39:26 INF] Request finished HTTP/1.1 OPTIONS http://localhost:5056/api/v1/admin/auth/login - 204 null null 0.5716ms
+[14:39:26 INF] Request starting HTTP/1.1 POST http://localhost:5056/api/v1/admin/auth/login - application/json 63
+[14:39:26 INF] CORS policy execution successful.
+[14:39:26 INF] Executing endpoint 'RideSharing.API.Controllers.AdminController.AdminLogin (RideSharing.API)'
+[14:39:26 INF] Route matched with {action = "AdminLogin", controller = "Admin"}. Executing controller action with signature System.Threading.Tasks.Task`1[Microsoft.AspNetCore.Mvc.IActionResult] AdminLogin(RideSharing.API.Controllers.AdminLoginDto) on controller RideSharing.API.Controllers.AdminController (RideSharing.API).
+[14:39:26 INF] === Admin Login Request Received ===
+[14:39:26 INF] Email: akhileshallewar880@gmail.com
+[14:39:26 INF] Request Body: {"Email":"akhileshallewar880@gmail.com","Password":"Akhile@22"}
+[14:39:26 INF] Executed DbCommand (14ms) [Parameters=[@__request_Email_0='?' (Size = 255)], CommandType='Text', CommandTimeout='30']
+SELECT TOP(1) [u].[Id], [u].[BlockedReason], [u].[CountryCode], [u].[CreatedAt], [u].[Email], [u].[FCMToken], [u].[IsActive], [u].[IsBlocked], [u].[IsEmailVerified], [u].[IsPhoneVerified], [u].[LastLoginAt], [u].[PasswordHash], [u].[PhoneNumber], [u].[UpdatedAt], [u].[UserType], [u0].[Id], [u0].[Address], [u0].[City], [u0].[CreatedAt], [u0].[DateOfBirth], [u0].[EmergencyContact], [u0].[EmergencyContactName], [u0].[Gender], [u0].[Name], [u0].[PinCode], [u0].[ProfilePicture], [u0].[Rating], [u0].[State], [u0].[TotalRides], [u0].[UpdatedAt], [u0].[UserId]
+FROM [Users] AS [u]
+LEFT JOIN [UserProfiles] AS [u0] ON [u].[Id] = [u0].[UserId]
+WHERE [u].[Email] = @__request_Email_0
+[14:39:26 WRN] Admin login attempt failed: Invalid password for akhileshallewar880@gmail.com
+[14:39:26 INF] Executing UnauthorizedObjectResult, writing value of type 'RideSharing.API.Models.DTO.ApiResponseDto`1[[System.Object, System.Private.CoreLib, Version=8.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]'.
+[14:39:26 INF] Executed action RideSharing.API.Controllers.AdminController.AdminLogin (RideSharing.API) in 264.3745ms
+[14:39:26 INF] Executed endpoint 'RideSharing.API.Controllers.AdminController.AdminLogin (RideSharing.API)'
+[14:39:26 INF] Request finished HTTP/1.1 POST http://localhost:5056/api/v1/admin/auth/login - 401 null application/json; charset=utf-8 266.227ms
+[14:39:34 INF] Request starting HTTP/1.1 OPTIONS http://localhost:5056/api/v1/admin/auth/login - null null
+[14:39:34 INF] CORS policy execution successful.
+[14:39:34 INF] Request finished HTTP/1.1 OPTIONS http://localhost:5056/api/v1/admin/auth/login - 204 null null 1.9949ms
+[14:39:34 INF] Request starting HTTP/1.1 POST http://localhost:5056/api/v1/admin/auth/login - application/json 65
+[14:39:34 INF] CORS policy execution successful.
+[14:39:34 INF] Executing endpoint 'RideSharing.API.Controllers.AdminController.AdminLogin (RideSharing.API)'
+[14:39:34 INF] Route matched with {action = "AdminLogin", controller = "Admin"}. Executing controller action with signature System.Threading.Tasks.Task`1[Microsoft.AspNetCore.Mvc.IActionResult] AdminLogin(RideSharing.API.Controllers.AdminLoginDto) on controller RideSharing.API.Controllers.AdminController (RideSharing.API).
+[14:39:34 INF] === Admin Login Request Received ===
+[14:39:34 INF] Email: akhileshallewar880@gmail.com
+[14:39:34 INF] Request Body: {"Email":"akhileshallewar880@gmail.com","Password":"Akhilesh@22"}
+[14:39:34 INF] Executed DbCommand (3ms) [Parameters=[@__request_Email_0='?' (Size = 255)], CommandType='Text', CommandTimeout='30']
+SELECT TOP(1) [u].[Id], [u].[BlockedReason], [u].[CountryCode], [u].[CreatedAt], [u].[Email], [u].[FCMToken], [u].[IsActive], [u].[IsBlocked], [u].[IsEmailVerified], [u].[IsPhoneVerified], [u].[LastLoginAt], [u].[PasswordHash], [u].[PhoneNumber], [u].[UpdatedAt], [u].[UserType], [u0].[Id], [u0].[Address], [u0].[City], [u0].[CreatedAt], [u0].[DateOfBirth], [u0].[EmergencyContact], [u0].[EmergencyContactName], [u0].[Gender], [u0].[Name], [u0].[PinCode], [u0].[ProfilePicture], [u0].[Rating], [u0].[State], [u0].[TotalRides], [u0].[UpdatedAt], [u0].[UserId]
+FROM [Users] AS [u]
+LEFT JOIN [UserProfiles] AS [u0] ON [u].[Id] = [u0].[UserId]
+WHERE [u].[Email] = @__request_Email_0
+[14:39:34 INF] Executed DbCommand (11ms) [Parameters=[@p0='?' (DbType = Guid), @p1='?' (DbType = DateTime2), @p2='?' (DbType = DateTime2), @p3='?' (DbType = Boolean), @p4='?' (DbType = DateTime2), @p5='?' (Size = 500), @p6='?' (DbType = Guid)], CommandType='Text', CommandTimeout='30']
+SET IMPLICIT_TRANSACTIONS OFF;
+SET NOCOUNT ON;
+INSERT INTO [RefreshTokens] ([Id], [CreatedAt], [ExpiresAt], [IsRevoked], [RevokedAt], [Token], [UserId])
+VALUES (@p0, @p1, @p2, @p3, @p4, @p5, @p6);
+[14:39:34 INF] Admin login successful: akhileshallewar880@gmail.com, UserId: 47d3d8b2-41f3-4747-a732-c9f24cc4b896
+[14:39:34 INF] Executing OkObjectResult, writing value of type 'RideSharing.API.Models.DTO.ApiResponseDto`1[[System.Object, System.Private.CoreLib, Version=8.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]'.
+[14:39:34 INF] Executed action RideSharing.API.Controllers.AdminController.AdminLogin (RideSharing.API) in 155.1014ms
+[14:39:34 INF] Executed endpoint 'RideSharing.API.Controllers.AdminController.AdminLogin (RideSharing.API)'
+[14:39:34 INF] Request finished HTTP/1.1 POST http://localhost:5056/api/v1/admin/auth/login - 200 null application/json; charset=utf-8 156.061ms
+[14:39:34 INF] Request starting HTTP/1.1 OPTIONS http://localhost:5056/api/v1/AdminAnalytics/dashboard?startDate=2025-11-26T14%3A39%3A34.583&endDate=2025-12-26T14%3A39%3A34.583 - null null
+[14:39:34 INF] CORS policy execution successful.
+[14:39:34 INF] Request finished HTTP/1.1 OPTIONS http://localhost:5056/api/v1/AdminAnalytics/dashboard?startDate=2025-11-26T14%3A39%3A34.583&endDate=2025-12-26T14%3A39%3A34.583 - 204 null null 0.2515ms
+[14:39:34 INF] Request starting HTTP/1.1 GET http://localhost:5056/api/v1/AdminAnalytics/dashboard?startDate=2025-11-26T14%3A39%3A34.583&endDate=2025-12-26T14%3A39%3A34.583 - application/json null
+[14:39:34 INF] CORS policy execution successful.
+[14:39:34 INF] Executing endpoint 'RideSharing.API.Controllers.AdminAnalyticsController.GetDashboardAnalytics (RideSharing.API)'
+[14:39:34 INF] Route matched with {action = "GetDashboardAnalytics", controller = "AdminAnalytics"}. Executing controller action with signature System.Threading.Tasks.Task`1[Microsoft.AspNetCore.Mvc.IActionResult] GetDashboardAnalytics(System.Nullable`1[System.DateTime], System.Nullable`1[System.DateTime]) on controller RideSharing.API.Controllers.AdminAnalyticsController (RideSharing.API).
+[14:39:34 INF] Executed DbCommand (3ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+SELECT COUNT(*)
+FROM [Drivers] AS [d]
+[14:39:34 INF] Executed DbCommand (3ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+SELECT COUNT(*)
+FROM [Drivers] AS [d]
+WHERE [d].[IsOnline] = CAST(1 AS bit) AND [d].[IsAvailable] = CAST(1 AS bit)
+[14:39:34 INF] Executed DbCommand (2ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+SELECT COUNT(*)
+FROM [Drivers] AS [d]
+WHERE [d].[VerificationStatus] = N'pending'
+[14:39:34 INF] Executed DbCommand (2ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+SELECT COUNT(*)
+FROM [Users] AS [u]
+WHERE [u].[UserType] = N'passenger'
+[14:39:34 INF] Executed DbCommand (1ms) [Parameters=[@__start_0='?' (DbType = DateTime2), @__end_1='?' (DbType = DateTime2)], CommandType='Text', CommandTimeout='30']
+SELECT COUNT(*)
+FROM [Rides] AS [r]
+WHERE [r].[TravelDate] >= @__start_0 AND [r].[TravelDate] <= @__end_1
+[14:39:34 INF] Executed DbCommand (1ms) [Parameters=[@__start_0='?' (DbType = DateTime2), @__end_1='?' (DbType = DateTime2)], CommandType='Text', CommandTimeout='30']
+SELECT COUNT(*)
+FROM [Rides] AS [r]
+WHERE [r].[Status] = N'completed' AND [r].[TravelDate] >= @__start_0 AND [r].[TravelDate] <= @__end_1
+[14:39:34 INF] Executed DbCommand (1ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+SELECT COUNT(*)
+FROM [Rides] AS [r]
+WHERE [r].[Status] = N'active'
+[14:39:34 INF] Executed DbCommand (1ms) [Parameters=[@__start_0='?' (DbType = DateTime2), @__end_1='?' (DbType = DateTime2)], CommandType='Text', CommandTimeout='30']
+SELECT COALESCE(SUM([b].[TotalAmount]), 0.0)
+FROM [Bookings] AS [b]
+WHERE [b].[Status] = N'completed' AND [b].[CreatedAt] >= @__start_0 AND [b].[CreatedAt] <= @__end_1
+[14:39:34 INF] Executed DbCommand (1ms) [Parameters=[@__start_0='?' (DbType = DateTime2), @__end_1='?' (DbType = DateTime2)], CommandType='Text', CommandTimeout='30']
+SELECT COALESCE(SUM([b].[PlatformFee]), 0.0)
+FROM [Bookings] AS [b]
+WHERE [b].[Status] = N'completed' AND [b].[CreatedAt] >= @__start_0 AND [b].[CreatedAt] <= @__end_1
+[14:39:34 INF] Executed DbCommand (3ms) [Parameters=[@__p_2='?' (DbType = Int32), @__start_0='?' (DbType = DateTime2), @__end_1='?' (DbType = DateTime2)], CommandType='Text', CommandTimeout='30']
+SELECT TOP(@__p_2) [b0].[Key] AS [Date], COALESCE(SUM([b0].[TotalAmount]), 0.0) AS [Revenue], COUNT(*) AS [Rides], COALESCE(SUM([b0].[PlatformFee]), 0.0) AS [PlatformFees]
+FROM (
+    SELECT [b].[PlatformFee], [b].[TotalAmount], CONVERT(date, [b].[CreatedAt]) AS [Key]
+    FROM [Bookings] AS [b]
+    WHERE [b].[Status] = N'completed' AND [b].[CreatedAt] >= @__start_0 AND [b].[CreatedAt] <= @__end_1
+) AS [b0]
+GROUP BY [b0].[Key]
+ORDER BY [b0].[Key] DESC
+[14:39:34 INF] Executing OkObjectResult, writing value of type '<>f__AnonymousType1`2[[System.Boolean, System.Private.CoreLib, Version=8.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e],[<>f__AnonymousType2`2[[<>f__AnonymousType3`9[[System.Int32, System.Private.CoreLib, Version=8.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e],[System.Int32, System.Private.CoreLib, Version=8.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e],[System.Int32, System.Private.CoreLib, Version=8.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e],[System.Int32, System.Private.CoreLib, Version=8.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e],[System.Int32, System.Private.CoreLib, Version=8.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e],[System.Int32, System.Private.CoreLib, Version=8.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e],[System.Int32, System.Private.CoreLib, Version=8.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e],[System.Decimal, System.Private.CoreLib, Version=8.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e],[System.Decimal, System.Private.CoreLib, Version=8.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]], RideSharing.API, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null],[System.Collections.Generic.List`1[[<>f__AnonymousType0`4[[System.DateTime, System.Private.CoreLib, Version=8.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e],[System.Decimal, System.Private.CoreLib, Version=8.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e],[System.Int32, System.Private.CoreLib, Version=8.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e],[System.Decimal, System.Private.CoreLib, Version=8.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]], RideSharing.API, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]], System.Private.CoreLib, Version=8.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]], RideSharing.API, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]'.
+[14:39:34 INF] Executed action RideSharing.API.Controllers.AdminAnalyticsController.GetDashboardAnalytics (RideSharing.API) in 22.0248ms
+[14:39:34 INF] Executed endpoint 'RideSharing.API.Controllers.AdminAnalyticsController.GetDashboardAnalytics (RideSharing.API)'
+[14:39:34 INF] Request finished HTTP/1.1 GET http://localhost:5056/api/v1/AdminAnalytics/dashboard?startDate=2025-11-26T14%3A39%3A34.583&endDate=2025-12-26T14%3A39%3A34.583 - 200 null application/json; charset=utf-8 23.7175ms
+[14:39:52 INF] Request starting HTTP/1.1 OPTIONS http://localhost:5056/api/v1/admin/rides?page=1&pageSize=20 - null null
+[14:39:52 INF] CORS policy execution successful.
+[14:39:52 INF] Request finished HTTP/1.1 OPTIONS http://localhost:5056/api/v1/admin/rides?page=1&pageSize=20 - 204 null null 2.487ms
+[14:39:52 INF] Request starting HTTP/1.1 GET http://localhost:5056/api/v1/admin/rides?page=1&pageSize=20 - application/json null
+[14:39:52 INF] CORS policy execution successful.
+[14:39:52 INF] Executing endpoint 'RideSharing.API.Controllers.AdminRidesController.GetAllRides (RideSharing.API)'
+[14:39:52 INF] Route matched with {action = "GetAllRides", controller = "AdminRides"}. Executing controller action with signature System.Threading.Tasks.Task`1[Microsoft.AspNetCore.Mvc.IActionResult] GetAllRides(System.String, System.Nullable`1[System.Guid], System.Nullable`1[System.DateTime], System.Nullable`1[System.DateTime], Int32, Int32) on controller RideSharing.API.Controllers.AdminRidesController (RideSharing.API).
+[14:39:52 INF] Executing ForbidResult with authentication schemes ([]).
+[14:39:52 INF] AuthenticationScheme: Bearer was forbidden.
+[14:39:52 INF] Executed action RideSharing.API.Controllers.AdminRidesController.GetAllRides (RideSharing.API) in 2.1242ms
+[14:39:52 INF] Executed endpoint 'RideSharing.API.Controllers.AdminRidesController.GetAllRides (RideSharing.API)'
+[14:39:52 INF] Request finished HTTP/1.1 GET http://localhost:5056/api/v1/admin/rides?page=1&pageSize=20 - 403 0 null 7.0797ms
+[14:40:04 INF] Request starting HTTP/1.1 OPTIONS http://localhost:5056/api/v1/admin/rides/drivers - null null
+[14:40:04 INF] CORS policy execution successful.
+[14:40:04 INF] Request finished HTTP/1.1 OPTIONS http://localhost:5056/api/v1/admin/rides/drivers - 204 null null 4.8314ms
+[14:40:04 INF] Request starting HTTP/1.1 GET http://localhost:5056/api/v1/admin/rides/drivers - application/json null
+[14:40:04 INF] CORS policy execution successful.
+[14:40:04 INF] Executing endpoint 'RideSharing.API.Controllers.AdminRidesController.GetAvailableDrivers (RideSharing.API)'
+[14:40:04 INF] Route matched with {action = "GetAvailableDrivers", controller = "AdminRides"}. Executing controller action with signature System.Threading.Tasks.Task`1[Microsoft.AspNetCore.Mvc.IActionResult] GetAvailableDrivers(System.Nullable`1[System.DateTime]) on controller RideSharing.API.Controllers.AdminRidesController (RideSharing.API).
+[14:40:04 INF] Executing ForbidResult with authentication schemes ([]).
+[14:40:04 INF] AuthenticationScheme: Bearer was forbidden.
+[14:40:04 INF] Executed action RideSharing.API.Controllers.AdminRidesController.GetAvailableDrivers (RideSharing.API) in 2.7713ms
+[14:40:04 INF] Executed endpoint 'RideSharing.API.Controllers.AdminRidesController.GetAvailableDrivers (RideSharing.API)'
+[14:40:04 INF] Request finished HTTP/1.1 GET http://localhost:5056/api/v1/admin/rides/drivers - 403 0 null 6.9657ms
