@@ -1,24 +1,21 @@
 # Dockerfile for server directory
 # Use official Python image as base (adjust version as needed)
-FROM python:3.11-slim
-
-# Set working directory
+FROM mcr.microsoft.com/dotnet/aspnet:6.0 AS base
 WORKDIR /app
 
-# Copy requirements.txt
-COPY requirements.txt ./
-
-# Install dependencies
-RUN pip install --no-cache-dir -r requirements.txt || true
-
-# Copy the rest of the server code
+FROM mcr.microsoft.com/dotnet/sdk:6.0 AS build
+WORKDIR /src
 COPY . .
+RUN dotnet restore
+RUN dotnet publish -c Release -o /app
 
+FROM base AS final
+WORKDIR /app
+COPY --from=build /app .
+
+# Set working directory
 # Expose port (adjust if your app uses a different port)
-EXPOSE 8000
+EXPOSE 80
 
-# Set environment variables (optional)
-# ENV VAR_NAME=value
-
-# Command to run the server (adjust as per your entrypoint, e.g., app.py, main.py, etc.)
-CMD ["python", "main.py"]
+# Command to run the .NET API (adjust as per your entrypoint DLL)
+ENTRYPOINT ["dotnet", "YourApi.dll"]
