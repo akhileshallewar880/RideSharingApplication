@@ -25,6 +25,9 @@ jobs:
       - name: Add .NET tools to PATH
         run: echo "$HOME/.dotnet/tools" >> $GITHUB_PATH
 
+      - name: Clean build artifacts
+        run: dotnet clean ./server/ride_sharing_application/RideSharing.API
+
       - name: Restore NuGet packages
         run: dotnet restore ./server/ride_sharing_application/RideSharing.API
 
