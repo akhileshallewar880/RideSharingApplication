@@ -1,0 +1,19 @@
+{
+  "Logging": {
+    "LogLevel": {
+      "Default": "Information",
+      "Microsoft.AspNetCore": "Warning"
+    }
+  },
+  "AllowedHosts": "*",
+  "ConnectionStrings": {
+    "RideSharingConnectionString": "Server=vanyatra-sql,1433;Database=RideSharingDb;User Id=sa;Password=YOUR_PASSWORD_HERE;TrustServerCertificate=True;",
+    "RideSharingAuthConnectionString": "Server=vanyatra-sql,1433;Database=RideSharingDb;User Id=sa;Password=YOUR_PASSWORD_HERE;TrustServerCertificate=True;"
+  },
+
+  "JwtSettings": {
+    "validIssuer": "https://your-domain.com/",
+    "validAudience": "https://your-domain.com/",
+    "secretKey": "CHANGE_THIS_TO_A_SECURE_RANDOM_STRING"
+  }
+}
