@@ -47,20 +47,19 @@ jobs:
               docker network create vanyatra-net
             fi
 
+
+            # Stop and remove any existing SQL Server container to free up port 1433
+            docker stop vanyatra-sql || true
+            docker rm vanyatra-sql || true
+
             # Run SQL Server container on the user-defined network
-            if ! docker ps -a --format '{{.Names}}' | grep -w vanyatra-sql; then
-              docker run -d --name vanyatra-sql --network vanyatra-net -e "ACCEPT_EULA=Y" -e "SA_PASSWORD=${{ secrets.SQL_SA_PASSWORD }}" -p 1433:1433 mcr.microsoft.com/mssql/server:2022-latest
-            else
-              docker start vanyatra-sql
-              docker network connect vanyatra-net vanyatra-sql || true
-            fi
+            docker run -d --name vanyatra-sql --network vanyatra-net -e "ACCEPT_EULA=Y" -e "SA_PASSWORD=${{ secrets.SQL_SA_PASSWORD }}" -p 1433:1433 mcr.microsoft.com/mssql/server:2022-latest
 
             # Remove old API container if exists
             docker rm -f vanyatra-server || true
 
             # Run API container on the same network
-            docker run -d --name vanyatra-server -p 8000:8080 \
+            docker run -d --name vanyatra-server --network vanyatra-net -p 8000:8080 \
               -e "ConnectionStrings__RideSharingConnectionString=${{ secrets.DB_CONNECTION_STRING }}" \
               -e "JwtSettings__secretKey=kjsdfhiosdfihAkjdfAdfh823knhf323kjnfHAnnsf023lsdfh" \
               ${{ secrets.DOCKERHUB_USERNAME }}/vanyatra-server:latest
-              --network vanyatra-net
