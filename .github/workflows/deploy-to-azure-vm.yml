@@ -43,5 +43,5 @@ jobs:
             docker stop vanyatra-server || true
             docker rm vanyatra-server || true
             docker run -d --name vanyatra-server -p 8000:8080 \
-              -e "ConnectionStrings__DefaultConnection=${{ secrets.DB_CONNECTION_STRING }}" \
+              -e "ConnectionStrings__RideSharingConnectionString=${{ secrets.DB_CONNECTION_STRING }}" \
               ${{ secrets.DOCKERHUB_USERNAME }}/vanyatra-server:latest
