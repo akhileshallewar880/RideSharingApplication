@@ -1,3 +1,8 @@
+      - name: Remove bin and obj folders
+        run: |
+          rm -rf ./server/ride_sharing_application/RideSharing.API/bin
+          rm -rf ./server/ride_sharing_application/RideSharing.API/obj
+
 
 name: Build and Deploy to Azure VM
 
@@ -30,6 +35,9 @@ jobs:
 
       - name: Restore NuGet packages
         run: dotnet restore ./server/ride_sharing_application/RideSharing.API
+
+      - name: Build in Production mode (net8.0)
+        run: dotnet build ./server/ride_sharing_application/RideSharing.API --configuration Production -f net8.0
 
       - name: Run database migrations
         run: dotnet ef database update --project ./server/ride_sharing_application/RideSharing.API --startup-project ./server/ride_sharing_application/RideSharing.API --configuration Production --context RideSharing.API.Data.RideSharingDbContext
