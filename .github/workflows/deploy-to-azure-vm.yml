@@ -1,8 +1,9 @@
-      - name: Remove bin and obj folders
-        run: |
-          rm -rf ./server/ride_sharing_application/RideSharing.API/bin
-          rm -rf ./server/ride_sharing_application/RideSharing.API/obj
+name: Build and Deploy to Azure VM
 
+on:
+  push:
+    branches:
+      - main
 
 jobs:
   build-and-deploy:
@@ -10,7 +11,6 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
 
       - name: Set up .NET SDK
         uses: actions/setup-dotnet@v4
@@ -36,12 +36,6 @@ jobs:
 
       - name: Build in Production mode (net8.0)
         run: dotnet build ./server/ride_sharing_application/RideSharing.API --configuration Production -f net8.0
-
-      - name: Run database migrations
-        run: dotnet ef database update --project ./server/ride_sharing_application/RideSharing.API --startup-project ./server/ride_sharing_application/RideSharing.API --configuration Production --context RideSharing.API.Data.RideSharingDbContext
-        env:
-          ConnectionStrings__RideSharingConnectionString: ${{ secrets.DB_CONNECTION_STRING }}
-          JwtSettings__secretKey: ${{ secrets.JWT_SECRET_KEY }}
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
