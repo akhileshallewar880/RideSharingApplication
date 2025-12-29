@@ -179,9 +179,7 @@ app.UseSwaggerUI(options =>
     options.RoutePrefix = "swagger"; // Access at /swagger
 });
 
-// Disable automatic migrations - run manually with: dotnet ef database update
-// Uncomment below if you want automatic migrations
-/*
+// Enable automatic migrations on startup
 _ = Task.Run(async () =>
 {
     await Task.Delay(2000);
@@ -189,10 +187,16 @@ _ = Task.Run(async () =>
     {
         try
         {
+            var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+            logger.LogInformation("Starting automatic database migrations...");
+            
             var authDb = scope.ServiceProvider.GetRequiredService<RideSharingAuthDbContext>();
             await authDb.Database.MigrateAsync();
+            logger.LogInformation("Auth database migration completed successfully");
+            
             var appDb = scope.ServiceProvider.GetRequiredService<RideSharingDbContext>();
             await appDb.Database.MigrateAsync();
+            logger.LogInformation("Application database migration completed successfully");
         }
         catch (Exception ex)
         {
@@ -201,7 +205,6 @@ _ = Task.Run(async () =>
         }
     }
 });
-*/
 
 app.UseMiddleware<ExceptionHandlerMiddleware>();
 
