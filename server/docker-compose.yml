@@ -1,0 +1,50 @@
+version: '3.8'
+
+services:
+  vanyatra-sql:
+    image: mcr.microsoft.com/azure-sql-edge:latest
+    container_name: vanyatra-sql
+    environment:
+      - ACCEPT_EULA=Y
+      - SA_PASSWORD=Akhilesh@22
+      - MSSQL_PID=Developer
+    ports:
+      - "1433:1433"
+    volumes:
+      - sqldata:/var/opt/mssql
+    healthcheck:
+      test: /opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P "Akhilesh@22" -Q "SELECT 1" || exit 1
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+    networks:
+      - vanyatra-network
+    restart: unless-stopped
+
+  vanyatra-server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: vanyatra-server
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - ASPNETCORE_URLS=http://+:8080
+      - ConnectionStrings__RideSharingConnectionString=Server=vanyatra-sql,1433;Database=RideSharingDb;User Id=sa;Password=Akhilesh@22;TrustServerCertificate=True;
+      - ConnectionStrings__RideSharingAuthConnectionString=Server=vanyatra-sql,1433;Database=RideSharingDb;User Id=sa;Password=Akhilesh@22;TrustServerCertificate=True;
+    ports:
+      - "8000:8080"
+    depends_on:
+      vanyatra-sql:
+        condition: service_healthy
+    networks:
+      - vanyatra-network
+    restart: unless-stopped
+
+volumes:
+  sqldata:
+    driver: local
+
+networks:
+  vanyatra-network:
+    driver: bridge
