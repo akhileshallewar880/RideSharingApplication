@@ -4,13 +4,6 @@
           rm -rf ./server/ride_sharing_application/RideSharing.API/obj
 
 
-name: Build and Deploy to Azure VM
-
-on:
-  push:
-    branches:
-      - main
-
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
@@ -29,6 +22,11 @@ jobs:
 
       - name: Add .NET tools to PATH
         run: echo "$HOME/.dotnet/tools" >> $GITHUB_PATH
+
+      - name: Remove bin and obj folders
+        run: |
+          rm -rf ./server/ride_sharing_application/RideSharing.API/bin
+          rm -rf ./server/ride_sharing_application/RideSharing.API/obj
 
       - name: Clean build artifacts
         run: dotnet clean ./server/ride_sharing_application/RideSharing.API
