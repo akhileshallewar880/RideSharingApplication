@@ -20,18 +20,14 @@ jobs:
           dotnet-version: '8.0.x'
 
       - name: Install EF Core tools
-        run: |
-          export PATH="$PATH:/home/runner/.dotnet/tools"
-          dotnet tool install --global dotnet-ef
-        env:
-          PATH: $PATH:/home/runner/.dotnet/tools
+        run: dotnet tool install --global dotnet-ef
+
+      - name: Add .NET tools to PATH
+        run: echo "$HOME/.dotnet/tools" >> $GITHUB_PATH
 
       - name: Run database migrations
-        run: |
-          export PATH="$PATH:/home/runner/.dotnet/tools"
-          dotnet ef database update --project ./server/ride_sharing_application/RideSharing.API --startup-project ./server/ride_sharing_application/RideSharing.API --configuration Production
+        run: dotnet ef database update --project ./server/ride_sharing_application/RideSharing.API --startup-project ./server/ride_sharing_application/RideSharing.API --configuration Production
         env:
-          PATH: $PATH:/home/runner/.dotnet/tools
           ConnectionStrings__RideSharingConnectionString: ${{ secrets.DB_CONNECTION_STRING }}
           JwtSettings__secretKey: ${{ secrets.JWT_SECRET_KEY }}
 
