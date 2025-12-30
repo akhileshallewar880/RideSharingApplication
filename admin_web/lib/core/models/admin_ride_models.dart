@@ -1,5 +1,7 @@
 /// Admin Ride Management Models
 
+import '../utils/datetime_parser.dart';
+
 class AdminDriverInfo {
   final String driverId;
   final String name;
@@ -88,7 +90,7 @@ class AdminRideInfo {
       driverName: json['driverName'] ?? '',
       pickupLocation: json['pickupLocation'] ?? '',
       dropoffLocation: json['dropoffLocation'] ?? '',
-      travelDate: DateTime.parse(json['travelDate']),
+      travelDate: DateTimeParser.parse(json['travelDate']),
       departureTime: json['departureTime'] ?? '',
       totalSeats: json['totalSeats'] ?? 0,
       bookedSeats: json['bookedSeats'] ?? 0,
@@ -97,7 +99,7 @@ class AdminRideInfo {
       status: json['status'] ?? '',
       vehicleNumber: json['vehicleNumber'],
       vehicleModel: json['vehicleModel'],
-      createdAt: DateTime.parse(json['createdAt']),
+      createdAt: DateTimeParser.parse(json['createdAt']),
       adminNotes: json['adminNotes'],
       passengerOtp: json['passengerOtp'],
       segmentPrices: json['segmentPrices'],
@@ -243,14 +245,14 @@ class AdminScheduleRideResponse {
       driverName: json['driverName'] ?? '',
       pickupLocation: json['pickupLocation'] ?? '',
       dropoffLocation: json['dropoffLocation'] ?? '',
-      travelDate: DateTime.parse(json['travelDate']),
+      travelDate: DateTimeParser.parse(json['travelDate']),
       departureTime: json['departureTime'] ?? '',
       totalSeats: json['totalSeats'] ?? 0,
       bookedSeats: json['bookedSeats'] ?? 0,
       availableSeats: json['availableSeats'] ?? 0,
       pricePerSeat: (json['pricePerSeat'] ?? 0.0).toDouble(),
       status: json['status'] ?? '',
-      createdAt: DateTime.parse(json['createdAt']),
+      createdAt: DateTimeParser.parse(json['createdAt']),
       returnRideId: json['returnRideId'],
       returnRideNumber: json['returnRideNumber'],
       adminNotes: json['adminNotes'],

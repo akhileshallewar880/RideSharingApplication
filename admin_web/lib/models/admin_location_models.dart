@@ -1,3 +1,5 @@
+import '../core/utils/datetime_parser.dart';
+
 class AdminLocation {
   final String id;
   final String name;
@@ -36,8 +38,8 @@ class AdminLocation {
       latitude: json['latitude']?.toDouble(),
       longitude: json['longitude']?.toDouble(),
       isActive: json['isActive'],
-      createdAt: DateTime.parse(json['createdAt']),
-      updatedAt: DateTime.parse(json['updatedAt']),
+      createdAt: DateTimeParser.parse(json['createdAt']),
+      updatedAt: DateTimeParser.parse(json['updatedAt']),
     );
   }
 
