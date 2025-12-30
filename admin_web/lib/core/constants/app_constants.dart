@@ -1,9 +1,9 @@
 class AppConstants {
   // API Configuration
   // For production deployment, use AdminEnvironmentConfig from '../config/environment_config.dart'
-  static const String baseUrl = 'http://localhost:5056/api/v1';
-  // Note: Update with your server IP when running on different machines
-  // Example: 'http://192.168.88.4:5056/api/v1'
+  static const String baseUrl = 'http://57.159.31.172:8000/api/v1';
+  // Note: Updated to point to production server
+  // Server API is running on port 8000
   static const String authEndpoint = '/auth';
   static const String driversEndpoint = '/drivers';
   static const String ridesEndpoint = '/rides';
