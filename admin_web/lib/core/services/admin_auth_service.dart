@@ -96,7 +96,17 @@ class AdminAuthService {
       print('📦 Response Data: ${response.data}');
 
       if (response.statusCode == 200) {
-        final data = response.data['data'];
+        final responseData = response.data;
+        if (responseData == null || responseData['data'] == null) {
+          throw Exception('Invalid response format: missing data field');
+        }
+        
+        final data = responseData['data'];
+        
+        // Validate required fields
+        if (data['token'] == null || data['refreshToken'] == null || data['user'] == null) {
+          throw Exception('Invalid response format: missing required fields');
+        }
         
         // Store tokens
         await _storage.write(key: AppConstants.tokenKey, value: data['token']);
