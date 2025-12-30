@@ -1,3 +1,5 @@
+import '../core/utils/datetime_parser.dart';
+
 class Banner {
   final String id;
   final String title;
@@ -45,14 +47,14 @@ class Banner {
       actionType: json['actionType'] ?? 'none',
       actionText: json['actionText'],
       displayOrder: json['displayOrder'],
-      startDate: DateTime.parse(json['startDate']),
-      endDate: DateTime.parse(json['endDate']),
+      startDate: DateTimeParser.parse(json['startDate']),
+      endDate: DateTimeParser.parse(json['endDate']),
       isActive: json['isActive'],
       targetAudience: json['targetAudience'] ?? 'all',
       impressionCount: json['impressionCount'] ?? 0,
       clickCount: json['clickCount'] ?? 0,
-      createdAt: DateTime.parse(json['createdAt']),
-      updatedAt: DateTime.parse(json['updatedAt']),
+      createdAt: DateTimeParser.parse(json['createdAt']),
+      updatedAt: DateTimeParser.parse(json['updatedAt']),
     );
   }
 

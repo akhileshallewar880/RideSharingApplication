@@ -1,3 +1,5 @@
+import '../utils/datetime_parser.dart';
+
 class AdminUser {
   final String id;
   final String email;
@@ -22,9 +24,7 @@ class AdminUser {
       name: json['name'] ?? '',
       role: json['role'] ?? 'admin',
       permissions: List<String>.from(json['permissions'] ?? []),
-      createdAt: json['createdAt'] != null 
-          ? DateTime.parse(json['createdAt']) 
-          : DateTime.now(),
+      createdAt: DateTimeParser.parseOrDefault(json['createdAt'], DateTime.now()),
     );
   }
 
@@ -80,14 +80,14 @@ class PendingDriver {
       fullName: json['fullName'] ?? '',
       email: json['email'] ?? '',
       phone: json['phone'] ?? '',
-      dateOfBirth: DateTime.parse(json['dateOfBirth'] ?? DateTime.now().toIso8601String()),
+      dateOfBirth: DateTimeParser.parseOrDefault(json['dateOfBirth'], DateTime.now()),
       vehicleNumber: json['vehicleNumber'] ?? '',
       vehicleType: json['vehicleType'] ?? '',
       city: json['city'] ?? '',
       emergencyContact: json['emergencyContact'],
       verificationStatus: json['verificationStatus'] ?? 'pending',
       rejectionReason: json['rejectionReason'],
-      registeredAt: DateTime.parse(json['registeredAt'] ?? DateTime.now().toIso8601String()),
+      registeredAt: DateTimeParser.parseOrDefault(json['registeredAt'], DateTime.now()),
       documents: DriverDocuments.fromJson(json['documents'] ?? {}),
     );
   }
@@ -149,7 +149,7 @@ class DocumentInfo {
       documentId: json['documentId'] ?? '',
       documentUrl: json['documentUrl'] ?? '',
       documentType: json['documentType'] ?? '',
-      uploadedAt: DateTime.parse(json['uploadedAt'] ?? DateTime.now().toIso8601String()),
+      uploadedAt: DateTimeParser.parseOrDefault(json['uploadedAt'], DateTime.now()),
       status: json['status'] ?? 'uploaded',
     );
   }
@@ -199,10 +199,10 @@ class RideInfo {
       driver: json['driver'] != null ? DriverInfo.fromJson(json['driver']) : null,
       pickup: LocationInfo.fromJson(json['pickup'] ?? {}),
       dropoff: LocationInfo.fromJson(json['dropoff'] ?? {}),
-      requestedAt: DateTime.parse(json['requestedAt'] ?? DateTime.now().toIso8601String()),
-      acceptedAt: json['acceptedAt'] != null ? DateTime.parse(json['acceptedAt']) : null,
-      startedAt: json['startedAt'] != null ? DateTime.parse(json['startedAt']) : null,
-      completedAt: json['completedAt'] != null ? DateTime.parse(json['completedAt']) : null,
+      requestedAt: DateTimeParser.parseOrDefault(json['requestedAt'], DateTime.now()),
+      acceptedAt: DateTimeParser.parseOrNull(json['acceptedAt']),
+      startedAt: DateTimeParser.parseOrNull(json['startedAt']),
+      completedAt: DateTimeParser.parseOrNull(json['completedAt']),
       estimatedFare: (json['estimatedFare'] ?? 0).toDouble(),
       actualFare: json['actualFare']?.toDouble(),
       distance: json['distance']?.toDouble(),
@@ -353,7 +353,7 @@ class DailyStats {
 
   factory DailyStats.fromJson(Map<String, dynamic> json) {
     return DailyStats(
-      date: DateTime.parse(json['date']),
+      date: DateTimeParser.parse(json['date']),
       rides: json['rides'] ?? 0,
       revenue: (json['revenue'] ?? 0).toDouble(),
       newDrivers: json['newDrivers'] ?? 0,
