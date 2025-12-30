@@ -32,7 +32,7 @@ RUN flutter pub get
 COPY . .
 
 # Build web app
-RUN flutter build web --release --web-renderer html
+RUN flutter build web --release
 
 # Runtime stage - nginx to serve the web app
 FROM nginx:alpine

@@ -22,7 +22,9 @@ class AdminUser {
       name: json['name'] ?? '',
       role: json['role'] ?? 'admin',
       permissions: List<String>.from(json['permissions'] ?? []),
-      createdAt: DateTime.parse(json['createdAt'] ?? DateTime.now().toIso8601String()),
+      createdAt: json['createdAt'] != null 
+          ? DateTime.parse(json['createdAt']) 
+          : DateTime.now(),
     );
   }
 
