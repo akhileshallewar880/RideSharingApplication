@@ -53,7 +53,7 @@ class AdminTheme {
         onError: textWhite,
       ),
       scaffoldBackgroundColor: backgroundColor,
-      cardTheme: CardTheme(
+      cardTheme: CardThemeData(
         color: cardColor,
         elevation: 2,
         shape: RoundedRectangleBorder(
