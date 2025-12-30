@@ -6,7 +6,7 @@ class AppConstants {
   
   // API Endpoints - Now configured via EnvironmentConfig
   // Import '../core/config/environment_config.dart' to use these
-  static String get baseUrl => 'http://192.168.88.9:5056'; // Update with your local IP
+  static String get baseUrl => 'http://57.159.31.172:8000'; // Production Azure VM
   static const String apiVersion = '/api/v1';
   
   // Full API URL

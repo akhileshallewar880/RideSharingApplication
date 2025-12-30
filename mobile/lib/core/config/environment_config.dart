@@ -9,13 +9,13 @@ enum Environment {
 
 class EnvironmentConfig {
   // Current environment - change this based on build configuration
-  static const Environment currentEnvironment = Environment.development;
+  static const Environment currentEnvironment = Environment.production;
 
   // API Base URLs
   static const Map<Environment, String> _apiBaseUrls = {
     Environment.development: 'http://192.168.88.9:5056', // Replace with your local IP
     Environment.staging: 'https://staging-api.vanyatra.com',
-    Environment.production: 'https://api.vanyatra.com',
+    Environment.production: 'http://57.159.31.172:8000', // Production Azure VM
   };
 
   // API Version
