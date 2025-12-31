@@ -18,14 +18,55 @@ class AdminUser {
   });
 
   factory AdminUser.fromJson(Map<String, dynamic> json) {
-    return AdminUser(
-      id: json['id'] ?? '',
-      email: json['email'] ?? '',
-      name: json['name'] ?? '',
-      role: json['role'] ?? 'admin',
-      permissions: List<String>.from(json['permissions'] ?? []),
-      createdAt: DateTimeParser.parseOrDefault(json['createdAt'], DateTime.now()),
+    print('🔍 AdminUser.fromJson - Starting parse...');
+    print('   Raw JSON: $json');
+    
+    // Parse permissions safely
+    List<String> permissionsList = [];
+    try {
+      print('🔍 Parsing permissions...');
+      if (json['permissions'] != null) {
+        if (json['permissions'] is List) {
+          permissionsList = List<String>.from(json['permissions']);
+        } else if (json['permissions'] is String) {
+          permissionsList = [json['permissions'] as String];
+        }
+      }
+      print('   ✅ Permissions parsed: $permissionsList');
+    } catch (e) {
+      print('⚠️ Error parsing permissions: $e');
+      permissionsList = ['all']; // Default fallback
+    }
+    
+    print('🔍 Extracting field values...');
+    final id = json['id'] ?? '';
+    final email = json['email'] ?? '';
+    final name = json['name'] ?? '';
+    final role = json['role'] ?? 'admin';
+    final createdAtStr = json['createdAt'];
+    
+    print('   - id: $id');
+    print('   - email: $email');
+    print('   - name: $name');
+    print('   - role: $role');
+    print('   - createdAt string: $createdAtStr');
+    
+    print('🔍 About to parse createdAt DateTime...');
+    final createdAt = DateTimeParser.parseOrDefault(createdAtStr, DateTime.now());
+    print('   ✅ createdAt parsed: $createdAt');
+    
+    print('🔍 Creating AdminUser instance...');
+    final user = AdminUser(
+      id: id,
+      email: email,
+      name: name,
+      role: role,
+      permissions: permissionsList,
+      createdAt: createdAt,
     );
+    
+    print('✅ AdminUser.fromJson - Complete!');
+    return user;
   }
 
   Map<String, dynamic> toJson() {

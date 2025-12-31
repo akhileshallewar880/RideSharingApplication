@@ -181,8 +181,7 @@ app.UseSwaggerUI(options =>
 
 // Automatic migrations disabled - database schema is managed manually via SQL scripts
 // The database already has all necessary tables and the __EFMigrationsHistory is pre-populated
-// This prevents EF Core from trying to recreate tables on every restart
-/*
+// Run automatic database migrations on startup
 _ = Task.Run(async () =>
 {
     await Task.Delay(2000);
@@ -208,7 +207,6 @@ _ = Task.Run(async () =>
         }
     }
 });
-*/
 
 app.UseMiddleware<ExceptionHandlerMiddleware>();
 

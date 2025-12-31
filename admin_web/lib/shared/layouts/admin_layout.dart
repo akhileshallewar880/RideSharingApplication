@@ -90,6 +90,30 @@ class _AdminLayoutState extends ConsumerState<AdminLayout> {
     final isTablet = ResponsiveHelper.isTablet(context);
     final isDesktop = ResponsiveHelper.isDesktop(context);
 
+    // Safety check: Redirect to login if user is null or incomplete
+    if (authState.user == null || 
+        authState.user!.name.isEmpty || 
+        authState.user!.email.isEmpty) {
+      print('⚠️ AdminLayout: User is null or incomplete, redirecting to login');
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          Navigator.of(context).pushReplacementNamed('/login');
+        }
+      });
+      return const Scaffold(
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(height: 16),
+              Text('Loading user data...'),
+            ],
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
       key: _scaffoldKey,
       backgroundColor: AdminTheme.backgroundColor,

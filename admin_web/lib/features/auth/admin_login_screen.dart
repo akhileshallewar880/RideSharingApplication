@@ -42,10 +42,19 @@ class _AdminLoginScreenState extends ConsumerState<AdminLoginScreen> {
   Widget build(BuildContext context) {
     final authState = ref.watch(adminAuthProvider);
 
-    // Navigate to dashboard on successful login
+    // Navigate to dashboard on successful login with error handling
     ref.listen<AdminAuthState>(adminAuthProvider, (previous, next) {
-      if (next.isAuthenticated && next.user != null) {
-        Navigator.of(context).pushReplacementNamed('/dashboard');
+      try {
+        if (next.isAuthenticated && next.user != null) {
+          // Delay navigation slightly to ensure state is fully updated
+          Future.delayed(Duration(milliseconds: 100), () {
+            if (mounted) {
+              Navigator.of(context).pushReplacementNamed('/dashboard');
+            }
+          });
+        }
+      } catch (e) {
+        print('❌ Navigation error: $e');
       }
     });
 

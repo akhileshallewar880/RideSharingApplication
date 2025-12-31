@@ -35,7 +35,10 @@ class VanYatraAdminApp extends StatelessWidget {
       onGenerateRoute: (settings) {
         // Handle routes with query parameters (for password reset)
         if (settings.name == '/reset-password') {
-          final uri = Uri.parse(settings.name!);
+          final settingsName = settings.name;
+          if (settingsName == null) return null;
+          
+          final uri = Uri.parse(settingsName);
           final args = settings.arguments as Map<String, dynamic>?;
           
           return MaterialPageRoute(
