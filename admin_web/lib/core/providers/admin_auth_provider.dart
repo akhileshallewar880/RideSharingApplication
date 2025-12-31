@@ -56,17 +56,30 @@ class AdminAuthNotifier extends StateNotifier<AdminAuthState> {
     
     try {
       final user = await _authService.login(email, password);
+      
+      // Ensure user object is complete before updating state
+      if (user.id.isEmpty || user.email.isEmpty || user.name.isEmpty) {
+        throw Exception('Incomplete user data received from server');
+      }
+      
+      // Add small delay to ensure all data is processed
+      await Future.delayed(Duration(milliseconds: 50));
+      
       state = state.copyWith(
         user: user,
         isLoading: false,
         isAuthenticated: true,
         error: null,
       );
+      
+      print('✅ Auth state updated - User: ${user.name}, Email: ${user.email}');
     } catch (e) {
+      print('❌ Login error in provider: $e');
       state = state.copyWith(
         isLoading: false,
         error: e.toString().replaceAll('Exception: ', ''),
         isAuthenticated: false,
+        user: null,
       );
     }
   }

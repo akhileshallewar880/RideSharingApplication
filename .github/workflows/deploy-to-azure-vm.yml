@@ -65,27 +65,76 @@ jobs:
           username: ${{ secrets.AZURE_VM_USERNAME }}
           key: ${{ secrets.AZURE_VM_SSH_KEY }}
           script: |
+            # Pull latest image
             docker pull ${{ secrets.DOCKERHUB_USERNAME }}/vanyatra-server:latest
-            docker stop vanyatra-server || true
-            docker rm vanyatra-server || true
-            # Create a user-defined Docker network if it doesn't exist
+            
+            # Create network if doesn't exist
             if ! docker network ls | grep -w vanyatra-net; then
               docker network create vanyatra-net
             fi
-
-
-            # Stop and remove any existing SQL Server container to free up port 1433
-            docker stop vanyatra-sql || true
-            docker rm vanyatra-sql || true
-
-            # Run SQL Server container on the user-defined network
-            docker run -d --name vanyatra-sql --network vanyatra-net -e "ACCEPT_EULA=Y" -e "SA_PASSWORD=${{ secrets.SQL_SA_PASSWORD }}" -p 1433:1433 mcr.microsoft.com/mssql/server:2022-latest
-
-            # Remove old API container if exists
-            docker rm -f vanyatra-server || true
-
-            # Run API container on the same network
-            docker run -d --name vanyatra-server --network vanyatra-net -p 8000:8080 \
-              -e "ConnectionStrings__RideSharingConnectionString=${{ secrets.DB_CONNECTION_STRING }}" \
+            
+            # Create persistent volume if doesn't exist
+            if ! docker volume ls | grep -w sqldata-persistent; then
+              docker volume create sqldata-persistent
+            fi
+            
+            # Check if SQL Server container exists and is running
+            if ! docker ps | grep -w vanyatra-sql; then
+              echo "Starting SQL Server with persistent storage..."
+              
+              # Remove old SQL container if it exists (stopped)
+              docker rm vanyatra-sql 2>/dev/null || true
+              
+              # Start SQL Server with persistent volume
+              docker run -d \
+                --name vanyatra-sql \
+                --network vanyatra-net \
+                -e "ACCEPT_EULA=Y" \
+                -e "SA_PASSWORD=${{ secrets.SQL_SA_PASSWORD }}" \
+                -p 1433:1433 \
+                -v sqldata-persistent:/var/opt/mssql \
+                --restart unless-stopped \
+                mcr.microsoft.com/azure-sql-edge:latest
+              
+              # Wait for SQL to be ready
+              echo "Waiting for SQL Server to be ready..."
+              sleep 20
+              
+              # Create database if it doesn't exist
+              docker exec vanyatra-sql /opt/mssql-tools/bin/sqlcmd \
+                -S localhost -U sa -P "${{ secrets.SQL_SA_PASSWORD }}" \
+                -Q "IF NOT EXISTS (SELECT name FROM sys.databases WHERE name = 'RideSharingDb') CREATE DATABASE RideSharingDb" \
+                || echo "Database creation attempted"
+            else
+              echo "SQL Server already running with persistent data - skipping restart"
+            fi
+            
+            # Deploy application container (only this gets updated)
+            echo "Deploying application..."
+            docker stop vanyatra-server 2>/dev/null || true
+            docker rm vanyatra-server 2>/dev/null || true
+            
+            docker run -d \
+              --name vanyatra-server \
+              --network vanyatra-net \
+              -p 8000:8080 \
+              -e "ASPNETCORE_ENVIRONMENT=Production" \
+              -e "ConnectionStrings__RideSharingConnectionString=Server=vanyatra-sql,1433;Database=RideSharingDb;User Id=sa;Password=${{ secrets.SQL_SA_PASSWORD }};TrustServerCertificate=True;" \
+              -e "ConnectionStrings__RideSharingAuthConnectionString=Server=vanyatra-sql,1433;Database=RideSharingDb;User Id=sa;Password=${{ secrets.SQL_SA_PASSWORD }};TrustServerCertificate=True;" \
               -e "JwtSettings__secretKey=kjsdfhiosdfihAkjdfAdfh823knhf323kjnfHAnnsf023lsdfh" \
+              --restart unless-stopped \
               ${{ secrets.DOCKERHUB_USERNAME }}/vanyatra-server:latest
+            
+            # Wait for application to start
+            sleep 10
+            
+            # Verify deployment
+            echo "Verifying deployment..."
+            if docker ps | grep -w vanyatra-server && docker ps | grep -w vanyatra-sql; then
+              echo "✅ Deployment successful"
+              echo "SQL Server: Running with persistent data"
+              echo "Application: Running"
+            else
+              echo "❌ Deployment verification failed"
+              exit 1
+            fi

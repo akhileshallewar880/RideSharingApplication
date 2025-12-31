@@ -11,7 +11,7 @@ services:
     ports:
       - "1433:1433"
     volumes:
-      - sqldata:/var/opt/mssql
+      - sqldata-persistent:/var/opt/mssql
     healthcheck:
       test: /opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P "Akhilesh@22" -Q "SELECT 1" || exit 1
       interval: 10s
@@ -42,8 +42,9 @@ services:
     restart: unless-stopped
 
 volumes:
-  sqldata:
+  sqldata-persistent:
     driver: local
+    name: sqldata-persistent
 
 networks:
   vanyatra-network:

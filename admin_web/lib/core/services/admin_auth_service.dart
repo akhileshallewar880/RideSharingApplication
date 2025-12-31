@@ -1,11 +1,11 @@
 import 'package:dio/dio.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../constants/app_constants.dart';
 import '../models/admin_models.dart';
+import 'web_storage_service.dart';
 
 class AdminAuthService {
   final Dio _dio;
-  final FlutterSecureStorage _storage;
+  final WebStorageService _storage;
 
   // Expose dio instance for use by other services
   Dio get dio => _dio;
@@ -20,7 +20,7 @@ class AdminAuthService {
             'Accept': 'application/json',
           },
         )),
-        _storage = const FlutterSecureStorage() {
+        _storage = WebStorageService() {
     _setupInterceptors();
   }
 
@@ -108,15 +108,55 @@ class AdminAuthService {
           throw Exception('Invalid response format: missing required fields');
         }
         
-        // Store tokens
-        await _storage.write(key: AppConstants.tokenKey, value: data['token']);
-        await _storage.write(key: AppConstants.refreshTokenKey, value: data['refreshToken']);
+        print('🔍 About to store tokens...');
+        print('   Token: ${data['token']?.substring(0, 20)}...');
+        print('   RefreshToken: ${data['refreshToken']}');
         
-        // Parse user data
-        final user = AdminUser.fromJson(data['user']);
+        // Store tokens with error handling
+        try {
+          await _storage.write(key: AppConstants.tokenKey, value: data['token']);
+          print('   ✅ Token stored');
+          await _storage.write(key: AppConstants.refreshTokenKey, value: data['refreshToken']);
+          print('   ✅ RefreshToken stored');
+        } catch (storageError) {
+          print('⚠️ Storage error (continuing anyway): $storageError');
+          // Continue even if storage fails on web
+        }
         
-        print('✅ Login successful for user: ${user.email}');
-        return user;
+        print('🔍 Tokens stored, now parsing user data...');
+        
+        // Parse user data with comprehensive error handling
+        try {
+          print('🔍 Step 1: Extracting user data from response...');
+          final userJson = data['user'];
+          if (userJson == null) {
+            throw Exception('User data is null in response');
+          }
+          
+          print('🔍 Step 2: About to parse user JSON: $userJson');
+          final user = AdminUser.fromJson(userJson);
+          
+          print('🔍 Step 3: User object created, validating fields...');
+          print('   - ID: ${user.id}');
+          print('   - Email: ${user.email}');
+          print('   - Name: ${user.name}');
+          print('   - Role: ${user.role}');
+          print('   - Permissions: ${user.permissions}');
+          print('   - CreatedAt: ${user.createdAt}');
+          
+          // Validate user object
+          if (user.id.isEmpty) throw Exception('User ID is empty');
+          if (user.email.isEmpty) throw Exception('User email is empty');
+          if (user.name.isEmpty) throw Exception('User name is empty');
+          
+          print('✅ Login successful for user: ${user.email}');
+          print('✅ All validations passed, returning user object...');
+          return user;
+        } catch (parseError) {
+          print('❌ Error parsing user data: $parseError');
+          print('❌ User JSON was: ${data['user']}');
+          throw Exception('Failed to parse user data: $parseError');
+        }
       } else {
         print('❌ Login failed with status: ${response.statusCode}');
         throw Exception('Login failed with status: ${response.statusCode}');

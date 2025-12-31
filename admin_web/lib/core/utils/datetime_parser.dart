@@ -19,9 +19,12 @@ class DateTimeParser {
           final match = RegExp(r'^(\d{7,})(.*)$').firstMatch(fractionalPart);
           if (match != null) {
             // Truncate to 6 decimal places
-            final truncated = match.group(1)!.substring(0, 6);
-            final suffix = match.group(2) ?? '';
-            dateTimeStr = '${parts[0]}.$truncated$suffix';
+            final group1 = match.group(1);
+            if (group1 != null && group1.length >= 6) {
+              final truncated = group1.substring(0, 6);
+              final suffix = match.group(2) ?? '';
+              dateTimeStr = '${parts[0]}.$truncated$suffix';
+            }
           }
         }
       }
