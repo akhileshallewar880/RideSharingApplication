@@ -8,8 +8,8 @@ namespace RideSharing.API.Models.DTO
         public string District { get; set; }
         public string? SubLocation { get; set; }
         public string? Pincode { get; set; }
-        public double? Latitude { get; set; }
-        public double? Longitude { get; set; }
+        public float? Latitude { get; set; }
+        public float? Longitude { get; set; }
         public bool IsActive { get; set; }
         public DateTime CreatedAt { get; set; }
         public DateTime UpdatedAt { get; set; }
@@ -22,8 +22,8 @@ namespace RideSharing.API.Models.DTO
         public string District { get; set; }
         public string? SubLocation { get; set; }
         public string? Pincode { get; set; }
-        public double Latitude { get; set; }
-        public double Longitude { get; set; }
+        public float Latitude { get; set; }
+        public float Longitude { get; set; }
     }
 
     public class UpdateLocationRequest
@@ -33,8 +33,8 @@ namespace RideSharing.API.Models.DTO
         public string? District { get; set; }
         public string? SubLocation { get; set; }
         public string? Pincode { get; set; }
-        public double? Latitude { get; set; }
-        public double? Longitude { get; set; }
+        public float? Latitude { get; set; }
+        public float? Longitude { get; set; }
         public bool? IsActive { get; set; }
     }
 }
