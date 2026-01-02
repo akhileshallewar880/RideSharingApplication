@@ -1,0 +1,32 @@
+# Flutter Launcher Icons Configuration for VanYatra
+# Run: flutter pub run flutter_launcher_icons
+
+flutter_launcher_icons:
+  # App icon image (with green background baked in)
+  image_path: "assets/images/vanyatra_launcher_final.png"
+  
+  # Generate icons for all platforms
+  android: true
+  ios: true
+  
+  # Android adaptive icon for rounded edges
+  adaptive_icon_background: "#2D5F3E"
+  adaptive_icon_foreground: "assets/images/vanyatra_launcher_final.png"
+  
+  # Remove old launcher icons
+  remove_alpha_ios: true
+  
+  # Platform configurations
+  min_sdk_android: 21
+  
+  # Web icon (optional)
+  web:
+    generate: false
+  
+  # Windows icon (optional)
+  windows:
+    generate: false
+  
+  # macOS icon (optional)
+  macos:
+    generate: false

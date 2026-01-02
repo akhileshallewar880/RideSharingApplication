@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:allapalli_ride/app/themes/app_colors.dart';
 import 'package:allapalli_ride/app/themes/app_spacing.dart';
 import 'package:allapalli_ride/app/themes/text_styles.dart';
 import 'package:allapalli_ride/core/providers/auth_provider.dart';
@@ -21,6 +21,16 @@ class _SplashScreenState extends ConsumerState<SplashScreen> with SingleTickerPr
   @override
   void initState() {
     super.initState();
+    
+    // Make status bar transparent
+    SystemChrome.setSystemUIOverlayStyle(
+      const SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: Brightness.dark,
+        statusBarBrightness: Brightness.light,
+      ),
+    );
+    
     _controller = AnimationController(
       duration: const Duration(milliseconds: 2000),
       vsync: this,
@@ -107,81 +117,45 @@ class _SplashScreenState extends ConsumerState<SplashScreen> with SingleTickerPr
   
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    
     return Scaffold(
-      body: Container(
-        decoration: BoxDecoration(
-          gradient: isDark ? AppColors.darkGradient : AppColors.primaryGradient,
-        ),
+      backgroundColor: Colors.white,
+      extendBodyBehindAppBar: true,
+      body: SafeArea(
         child: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              // VanYatra Text with gradient effect
-              ShaderMask(
-                shaderCallback: (bounds) => const LinearGradient(
-                  colors: [
-                    Color(0xFF2D5F3F), // Deep forest green
-                    Color(0xFF4A8F63), // Lighter green
-                    Color(0xFF2D5F3F), // Deep forest green
-                  ],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ).createShader(bounds),
-                child: Text(
-                  'VanYatra',
-                  style: TextStyle(
-                    color: Colors.white, // Will be masked by gradient
-                    fontWeight: FontWeight.w900,
-                    fontSize: 72,
-                    letterSpacing: -1.2,
-                    height: 0.95,
-                    decoration: TextDecoration.none,
-                    shadows: [
-                      Shadow(
-                        color: const Color(0xFF2D5F3F).withOpacity(0.3),
-                        offset: const Offset(0, 4),
-                        blurRadius: 12,
-                      ),
-                    ],
-                  ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            // VanYatra Logo - Simple fade in
+            Image.asset(
+              'assets/images/vanyatra_new_logo.png',
+              width: 250,
+              height: 250,
+              fit: BoxFit.contain,
+            ).animate(controller: _controller)
+                .fadeIn(duration: 800.ms)
+                .scale(
+                  begin: const Offset(0.8, 0.8),
+                  end: const Offset(1, 1),
+                  duration: 800.ms,
+                  curve: Curves.easeOut,
                 ),
-              ).animate(controller: _controller)
-                  .scale(
-                    begin: const Offset(0.5, 0.5),
-                    end: const Offset(1, 1),
-                    duration: 1000.ms,
-                    curve: Curves.elasticOut,
-                  )
-                  .fadeIn(duration: 800.ms),
-              
-              const SizedBox(height: AppSpacing.lg),
-              
-              // Tagline with subtle color
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.xl,
-                  vertical: AppSpacing.sm,
-                ),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF2D5F3F).withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Text(
-                  'Your Journey, Our Commitment',
-                  style: TextStyles.bodyLarge.copyWith(
-                    color: const Color(0xFF2D5F3F),
-                    fontWeight: FontWeight.w600,
-                    letterSpacing: 0.5,
-                  ),
-                ),
-              ).animate(controller: _controller)
-                  .fadeIn(delay: 600.ms, duration: 600.ms)
-                  .slideY(begin: 0.3, end: 0, delay: 600.ms),
-            ],
-          ),
+            
+            const SizedBox(height: AppSpacing.xl),
+            
+            // Tagline - Simple fade in
+            Text(
+              'Rural Rides, Reliable Rides',
+              style: TextStyles.headingSmall.copyWith(
+                color: const Color(0xFF2D5F3E),
+                fontWeight: FontWeight.w600,
+                letterSpacing: 0.5,
+              ),
+              textAlign: TextAlign.center,
+            ).animate(controller: _controller)
+                .fadeIn(delay: 400.ms, duration: 600.ms),
+          ],
         ),
+      ),
       ),
     );
   }
