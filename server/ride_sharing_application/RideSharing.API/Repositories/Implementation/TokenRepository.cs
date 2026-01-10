@@ -29,6 +29,8 @@ public class TokenRepository : ITokenRepository
             foreach (var role in roles)
             {
                 claimms.Add(new Claim(ClaimTypes.Role, role));
+                // Also add as user_type for SignalR hub authorization
+                claimms.Add(new Claim("user_type", role));
             }
 
             // Note: appsettings uses 'secretKey' (lowercase 's'); ensure we read the correct key
@@ -65,6 +67,8 @@ public class TokenRepository : ITokenRepository
         foreach (var role in roles)
         {
             claims.Add(new Claim(ClaimTypes.Role, role));
+            // Also add as user_type for SignalR hub authorization
+            claims.Add(new Claim("user_type", role));
         }
 
         var secret = configuration["JwtSettings:secretKey"] ?? configuration["JwtSettings:SecretKey"];

@@ -130,5 +130,95 @@ namespace RideSharing.API.Services.Implementation
                 return new List<LocationSuggestionDto>();
             }
         }
+        
+        public List<LocationSuggestionDto> GetPopularLocations(int limit = 20)
+        {
+            try
+            {
+                // Get popular cities ordered by name, prioritizing major cities
+                var cities = _context.Cities
+                    .Where(c => c.IsActive)
+                    .OrderBy(c => c.Name)
+                    .Take(limit)
+                    .ToList();
+
+                return cities.Select(city => new LocationSuggestionDto
+                {
+                    Id = city.Id.ToString(),
+                    Name = !string.IsNullOrEmpty(city.SubLocation) ? $"{city.SubLocation}, {city.Name}" : city.Name,
+                    State = city.State,
+                    District = city.District,
+                    Latitude = (decimal?)city.Latitude ?? 0m,
+                    Longitude = (decimal?)city.Longitude ?? 0m,
+                    FullAddress = !string.IsNullOrEmpty(city.SubLocation) 
+                        ? $"{city.SubLocation}, {city.Name}, {city.State}"
+                        : $"{city.Name}, {city.State}"
+                }).ToList();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error getting popular locations from database");
+                return new List<LocationSuggestionDto>();
+            }
+        }
+        
+        public async Task<bool> IsInServiceAreaAsync(decimal latitude, decimal longitude)
+        {
+            try
+            {
+                // Check if there's any active city within 50km radius
+                const double maxDistanceKm = 50.0;
+                
+                var cities = await _context.Cities
+                    .Where(c => c.IsActive)
+                    .ToListAsync();
+                
+                foreach (var city in cities)
+                {
+                    if (city.Latitude.HasValue && city.Longitude.HasValue)
+                    {
+                        var distance = CalculateDistance(
+                            (double)latitude, 
+                            (double)longitude, 
+                            (double)city.Latitude.Value, 
+                            (double)city.Longitude.Value
+                        );
+                        
+                        if (distance <= maxDistanceKm)
+                        {
+                            return true;
+                        }
+                    }
+                }
+                
+                return false;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error checking service area");
+                return false;
+            }
+        }
+        
+        private double CalculateDistance(double lat1, double lon1, double lat2, double lon2)
+        {
+            const double earthRadiusKm = 6371.0;
+            
+            var dLat = DegreesToRadians(lat2 - lat1);
+            var dLon = DegreesToRadians(lon2 - lon1);
+            
+            var a = Math.Sin(dLat / 2) * Math.Sin(dLat / 2) +
+                    Math.Cos(DegreesToRadians(lat1)) * Math.Cos(DegreesToRadians(lat2)) *
+                    Math.Sin(dLon / 2) * Math.Sin(dLon / 2);
+            
+            var c = 2 * Math.Atan2(Math.Sqrt(a), Math.Sqrt(1 - a));
+            
+            return earthRadiusKm * c;
+        }
+        
+        private double DegreesToRadians(double degrees)
+        {
+            return degrees * Math.PI / 180.0;
+        }
     }
 }

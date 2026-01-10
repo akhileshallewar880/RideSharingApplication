@@ -118,11 +118,11 @@ class LocationTrackingNotifier extends StateNotifier<LocationTrackingState> {
         currentRideId: rideId,
       );
       
-      // Listen to location updates
+      // Listen to location updates from GPS stream
       debugPrint('🎧 SUBSCRIBING to location stream...');
       _locationSubscription = _locationService.locationStream.listen(
         (position) {
-          debugPrint('🎧 SUBSCRIPTION RECEIVED: ${position.latitude}, ${position.longitude}');
+          debugPrint('🎧 STREAM UPDATE: ${position.latitude}, ${position.longitude} at ${position.timestamp}');
           _handleLocationUpdate(position, rideId);
         },
         onError: (error) {
@@ -133,13 +133,10 @@ class LocationTrackingNotifier extends StateNotifier<LocationTrackingState> {
         },
       );
       
-      // Start periodic sync timer (every 3 seconds for real-time updates)
-      _syncTimer = Timer.periodic(const Duration(seconds: 3), (_) async {
-        // Get current position and trigger update
-        final position = await _locationService.getCurrentLocation();
-        if (position != null) {
-          _handleLocationUpdate(position, rideId);
-        }
+      // Start periodic sync timer for pending updates (30 seconds)
+      // Note: GPS stream handles real-time updates, this is just for syncing queued data
+      _syncTimer = Timer.periodic(const Duration(seconds: 30), (_) async {
+        debugPrint('🔄 Syncing pending location updates to server...');
         _syncPendingUpdates();
       });
     } else {
@@ -153,13 +150,45 @@ class LocationTrackingNotifier extends StateNotifier<LocationTrackingState> {
   void _handleLocationUpdate(Position position, String rideId) {
     debugPrint('🔄 Provider handling location update: ${position.latitude}, ${position.longitude}');
     
-    state = state.copyWith(currentLocation: position);
-    debugPrint('✅ Provider state updated with new location');
+    // Check if location actually changed (avoid unnecessary updates)
+    final oldLocation = state.currentLocation;
+    if (oldLocation != null) {
+      final distance = Geolocator.distanceBetween(
+        oldLocation.latitude,
+        oldLocation.longitude,
+        position.latitude,
+        position.longitude,
+      );
+      
+      // Skip if location changed by less than 5 meters (to reduce noise)
+      if (distance < 5) {
+        debugPrint('⏭️ Skipping update - location changed by only ${distance.toStringAsFixed(2)}m');
+        return;
+      }
+      debugPrint('📏 Location changed by ${distance.toStringAsFixed(2)} meters');
+    }
+    
+    // Create a new Position object to ensure Riverpod detects the change
+    final newPosition = Position(
+      latitude: position.latitude,
+      longitude: position.longitude,
+      timestamp: DateTime.now(),
+      accuracy: position.accuracy,
+      altitude: position.altitude,
+      altitudeAccuracy: position.altitudeAccuracy,
+      heading: position.heading,
+      headingAccuracy: position.headingAccuracy,
+      speed: position.speed,
+      speedAccuracy: position.speedAccuracy,
+    );
+    
+    state = state.copyWith(currentLocation: newPosition);
+    debugPrint('✅ Provider state updated with new location - timestamp: ${newPosition.timestamp}');
     
     // Update cached ride location
     _cacheManager.updateRideLocation(rideId, position.latitude, position.longitude);
     
-    // Broadcast to passengers via socket
+    // Broadcast to passengers via socket (SignalR handles real-time updates)
     if (state.isSocketConnected) {
       _socketService.sendLocationUpdate(
         rideId: rideId,
@@ -168,11 +197,13 @@ class LocationTrackingNotifier extends StateNotifier<LocationTrackingState> {
         speed: position.speed,
         heading: position.heading,
       );
-      debugPrint('📡 Location broadcasted via socket');
+      debugPrint('📡 Location broadcasted to passengers via SignalR');
+    } else {
+      debugPrint('⚠️ SignalR disconnected - location not broadcasted');
     }
     
     // Calculate remaining distance and ETA
-    _updateMetrics(position);
+    _updateMetrics(newPosition);
   }
 
   /// Join ride as passenger to receive updates

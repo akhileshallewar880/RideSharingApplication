@@ -181,6 +181,12 @@ namespace RideSharing.API.Models.DTO
         public bool IsVerified { get; set; }
         public string? PickupLocation { get; set; }
         public string? DropoffLocation { get; set; }
+        public decimal? PickupLatitude { get; set; }
+        public decimal? PickupLongitude { get; set; }
+        public decimal? DropoffLatitude { get; set; }
+        public decimal? DropoffLongitude { get; set; }
+        public decimal TotalFare { get; set; }
+        public decimal TotalAmount { get; set; }
         public string PaymentStatus { get; set; }
         public string BoardingStatus { get; set; }
     }

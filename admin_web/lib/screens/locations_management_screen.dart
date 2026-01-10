@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
+import 'dart:async';
 import '../models/admin_location_models.dart';
 import '../services/location_service.dart';
+import '../core/services/google_places_service.dart';
+import '../core/models/place_autocomplete_result.dart';
+import '../core/models/place_details.dart';
 
 class LocationsManagementScreen extends StatefulWidget {
   const LocationsManagementScreen({Key? key}) : super(key: key);
@@ -605,6 +609,7 @@ class AddEditLocationDialog extends StatefulWidget {
 class _AddEditLocationDialogState extends State<AddEditLocationDialog> {
   final _formKey = GlobalKey<FormState>();
   final LocationService _locationService = LocationService();
+  final GooglePlacesService _googlePlacesService = GooglePlacesService();
 
   late TextEditingController _nameController;
   late TextEditingController _stateController;
@@ -613,12 +618,20 @@ class _AddEditLocationDialogState extends State<AddEditLocationDialog> {
   late TextEditingController _pincodeController;
   late TextEditingController _latitudeController;
   late TextEditingController _longitudeController;
+  late TextEditingController _googleSearchController;
+  
   bool _isActive = true;
   bool _isLoading = false;
+  bool _isSearchingPlaces = false;
+  List<PlaceAutocompleteResult> _placeSuggestions = [];
+  Timer? _debounceTimer;
+  final FocusNode _googleSearchFocusNode = FocusNode();
+  bool _showPlaceSuggestions = false;
 
   @override
   void initState() {
     super.initState();
+    _googleSearchController = TextEditingController();
     _nameController = TextEditingController(text: widget.location?.name ?? '');
     _stateController = TextEditingController(text: widget.location?.state ?? '');
     _districtController = TextEditingController(text: widget.location?.district ?? '');
@@ -631,10 +644,28 @@ class _AddEditLocationDialogState extends State<AddEditLocationDialog> {
       text: widget.location?.longitude?.toString() ?? '',
     );
     _isActive = widget.location?.isActive ?? true;
+    
+    // Add listener for Google search
+    _googleSearchController.addListener(_onGoogleSearchChanged);
+    _googleSearchFocusNode.addListener(() {
+      if (!_googleSearchFocusNode.hasFocus) {
+        Future.delayed(const Duration(milliseconds: 200), () {
+          if (mounted) {
+            setState(() {
+              _showPlaceSuggestions = false;
+            });
+          }
+        });
+      }
+    });
   }
 
   @override
   void dispose() {
+    _debounceTimer?.cancel();
+    _googleSearchController.removeListener(_onGoogleSearchChanged);
+    _googleSearchController.dispose();
+    _googleSearchFocusNode.dispose();
     _nameController.dispose();
     _stateController.dispose();
     _subLocationController.dispose();
@@ -643,6 +674,97 @@ class _AddEditLocationDialogState extends State<AddEditLocationDialog> {
     _latitudeController.dispose();
     _longitudeController.dispose();
     super.dispose();
+  }
+  
+  void _onGoogleSearchChanged() {
+    final query = _googleSearchController.text;
+    
+    _debounceTimer?.cancel();
+    
+    if (query.isEmpty) {
+      setState(() {
+        _placeSuggestions = [];
+        _showPlaceSuggestions = false;
+        _isSearchingPlaces = false;
+      });
+      return;
+    }
+    
+    if (query.length >= 2) {
+      setState(() {
+        _isSearchingPlaces = true;
+      });
+      
+      _debounceTimer = Timer(const Duration(milliseconds: 500), () {
+        _searchGooglePlaces(query);
+      });
+    }
+  }
+  
+  Future<void> _searchGooglePlaces(String query) async {
+    try {
+      final results = await _googlePlacesService.getPlaceSuggestions(query);
+      
+      if (mounted) {
+        setState(() {
+          _placeSuggestions = results;
+          _showPlaceSuggestions = results.isNotEmpty;
+          _isSearchingPlaces = false;
+        });
+      }
+    } catch (e) {
+      print('Error searching Google Places: $e');
+      if (mounted) {
+        setState(() {
+          _isSearchingPlaces = false;
+          _placeSuggestions = [];
+          _showPlaceSuggestions = false;
+        });
+      }
+    }
+  }
+  
+  Future<void> _selectGooglePlace(PlaceAutocompleteResult place) async {
+    setState(() {
+      _isLoading = true;
+      _showPlaceSuggestions = false;
+    });
+    
+    try {
+      final details = await _googlePlacesService.getPlaceDetails(place.placeId);
+      
+      if (details != null && mounted) {
+        // Autofill all fields
+        _nameController.text = details.name;
+        _stateController.text = details.state ?? '';
+        _districtController.text = details.district ?? '';
+        _subLocationController.text = details.locality ?? '';
+        _pincodeController.text = details.postalCode ?? '';
+        _latitudeController.text = details.latitude.toString();
+        _longitudeController.text = details.longitude.toString();
+        _googleSearchController.text = details.formattedAddress;
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Location details autofilled from Google Maps'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      print('Error fetching place details: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error fetching location details: $e')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
   }
 
   Future<void> _saveLocation() async {
@@ -719,6 +841,128 @@ class _AddEditLocationDialogState extends State<AddEditLocationDialog> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
+                // Google Places Search Field
+                Container(
+                  decoration: BoxDecoration(
+                    color: Colors.blue.shade50,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.blue.shade200),
+                  ),
+                  padding: const EdgeInsets.all(12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(Icons.search, color: Colors.blue.shade700, size: 20),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Search with Google Maps',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: Colors.blue.shade700,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      TextFormField(
+                        controller: _googleSearchController,
+                        focusNode: _googleSearchFocusNode,
+                        decoration: InputDecoration(
+                          hintText: 'Search location on Google Maps...',
+                          border: const OutlineInputBorder(),
+                          filled: true,
+                          fillColor: Colors.white,
+                          prefixIcon: const Icon(Icons.location_on),
+                          suffixIcon: _isSearchingPlaces
+                              ? const Padding(
+                                  padding: EdgeInsets.all(12),
+                                  child: SizedBox(
+                                    width: 20,
+                                    height: 20,
+                                    child: CircularProgressIndicator(strokeWidth: 2),
+                                  ),
+                                )
+                              : _googleSearchController.text.isNotEmpty
+                                  ? IconButton(
+                                      icon: const Icon(Icons.clear),
+                                      onPressed: () {
+                                        _googleSearchController.clear();
+                                      },
+                                    )
+                                  : null,
+                        ),
+                      ),
+                      if (_showPlaceSuggestions && _placeSuggestions.isNotEmpty)
+                        Container(
+                          margin: const EdgeInsets.only(top: 4),
+                          constraints: const BoxConstraints(maxHeight: 200),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(4),
+                            border: Border.all(color: Colors.grey.shade300),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.1),
+                                blurRadius: 4,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: ListView.builder(
+                            shrinkWrap: true,
+                            itemCount: _placeSuggestions.length,
+                            itemBuilder: (context, index) {
+                              final suggestion = _placeSuggestions[index];
+                              return ListTile(
+                                dense: true,
+                                leading: Icon(
+                                  Icons.location_on,
+                                  size: 20,
+                                  color: Colors.blue.shade700,
+                                ),
+                                title: Text(
+                                  suggestion.mainText,
+                                  style: const TextStyle(fontWeight: FontWeight.w500),
+                                ),
+                                subtitle: suggestion.secondaryText != null
+                                    ? Text(
+                                        suggestion.secondaryText!,
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          color: Colors.grey.shade600,
+                                        ),
+                                      )
+                                    : null,
+                                onTap: () => _selectGooglePlace(suggestion),
+                              );
+                            },
+                          ),
+                        ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Tip: Search for a location to autofill all fields',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey.shade600,
+                          fontStyle: FontStyle.italic,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 20),
+                const Divider(),
+                const SizedBox(height: 16),
+                Text(
+                  'Location Details',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: Colors.grey.shade700,
+                  ),
+                ),
+                const SizedBox(height: 16),
                 TextFormField(
                   controller: _nameController,
                   decoration: const InputDecoration(

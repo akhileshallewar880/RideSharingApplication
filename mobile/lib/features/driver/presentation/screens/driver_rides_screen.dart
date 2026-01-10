@@ -8,6 +8,7 @@ import 'package:allapalli_ride/core/providers/driver_ride_provider.dart';
 import 'package:allapalli_ride/core/models/driver_models.dart';
 import 'package:allapalli_ride/features/driver/presentation/screens/driver_tracking_screen.dart';
 import 'package:allapalli_ride/features/driver/presentation/screens/driver_trip_details_screen.dart';
+import 'package:allapalli_ride/features/driver/presentation/screens/driver_trip_summary_screen.dart';
 import 'package:allapalli_ride/features/driver/presentation/widgets/rate_ride_bottom_sheet.dart';
 
 /// Driver's scheduled rides list screen
@@ -392,7 +393,28 @@ class _DriverRidesScreenState extends ConsumerState<DriverRidesScreen> with Sing
                 );
               }
             }
-            // Handle all other rides (scheduled/upcoming/completed) - navigate to trip details
+            // Handle completed rides - navigate to trip summary
+            else if (statusLower == 'completed') {
+              // Load ride details for trip summary
+              await ref.read(driverRideNotifierProvider.notifier).loadRideDetails(ride.rideId);
+              final rideDetails = ref.read(driverRideNotifierProvider).currentRideDetails;
+              
+              if (rideDetails != null && context.mounted) {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => DriverTripSummaryScreen(
+                      rideId: ride.rideId,
+                      rideNumber: ride.rideNumber,
+                      rideDetails: rideDetails,
+                      tripStartTime: null,
+                      tripEndTime: null,
+                    ),
+                  ),
+                );
+              }
+            }
+            // Handle all other rides (scheduled/upcoming/cancelled) - navigate to trip details
             else {
               Navigator.push(
                 context,

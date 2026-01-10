@@ -65,10 +65,14 @@ dependencies:
   hive: ^2.2.3
   hive_flutter: ^1.1.0
   
-  # Push Notifications
+  # Push Notifications & Authentication
   firebase_core: ^2.27.0
   firebase_messaging: ^14.7.19
+  firebase_auth: ^4.16.0
   flutter_local_notifications: ^17.0.0
+  
+  # SMS Auto-retrieval (Android)
+  sms_autofill: ^2.3.0
   
   # UI/UX
   cached_network_image: ^3.3.1
@@ -79,6 +83,9 @@ dependencies:
   qr_flutter: ^4.1.0
   carousel_slider: ^4.2.1
   
+  # Authentication
+  google_sign_in: ^6.2.1
+  
   # Utils
   intl: ^0.19.0
   url_launcher: ^6.3.0
@@ -86,6 +93,7 @@ dependencies:
   permission_handler: ^11.3.1
   screenshot: ^2.3.0
   uuid: ^4.3.3
+  audioplayers: ^6.0.0
   
   # Real-time - SignalR for ASP.NET Core backend
   signalr_core: ^1.1.1
@@ -121,6 +129,10 @@ flutter:
   # To add assets to your application, add an assets section, like this:
   assets:
     - assets/images/
+    - assets/images/light/
+    - assets/images/dark/
+    - assets/images/otp_banners/
+    - assets/sounds/
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/assets-and-images/#resolution-aware

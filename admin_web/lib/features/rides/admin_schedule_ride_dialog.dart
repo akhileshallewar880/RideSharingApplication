@@ -7,6 +7,7 @@ import '../../core/models/location_suggestion.dart';
 import '../../core/providers/admin_ride_provider.dart';
 import '../../core/theme/admin_theme.dart';
 import '../../shared/widgets/location_search_field.dart';
+import '../../core/services/google_maps_service.dart';
 
 class AdminScheduleRideDialog extends ConsumerStatefulWidget {
   const AdminScheduleRideDialog({Key? key}) : super(key: key);
@@ -22,10 +23,16 @@ class _AdminScheduleRideDialogState extends ConsumerState<AdminScheduleRideDialo
   final _totalSeatsController = TextEditingController(text: '7');
   final _pricePerSeatController = TextEditingController(text: '850');
   final _adminNotesController = TextEditingController();
+  final GoogleMapsService _googleMapsService = GoogleMapsService();
 
   // Location data
   LocationSuggestion? _pickupLocation;
   LocationSuggestion? _dropoffLocation;
+  
+  // Distance and Duration
+  String? _estimatedDistance;
+  String? _estimatedDuration;
+  bool _isCalculatingRoute = false;
   
   // Intermediate stops
   final List<TextEditingController> _intermediateStopControllers = [];
@@ -165,6 +172,8 @@ class _AdminScheduleRideDialogState extends ConsumerState<AdminScheduleRideDialo
       _intermediateStopControllers.add(TextEditingController());
       _intermediateStops.add(null);
     });
+    // Recalculate when stops change
+    _calculateDistanceAndDuration();
   }
 
   void _removeIntermediateStop(int index) {
@@ -173,6 +182,8 @@ class _AdminScheduleRideDialogState extends ConsumerState<AdminScheduleRideDialo
       _intermediateStopControllers.removeAt(index);
       _intermediateStops.removeAt(index);
     });
+    // Recalculate when stops change
+    _calculateDistanceAndDuration();
   }
 
   void _setPopularRoute(String route) {
@@ -282,6 +293,68 @@ class _AdminScheduleRideDialogState extends ConsumerState<AdminScheduleRideDialo
     }
   }
 
+  /// Calculate distance and duration using Google Maps API via backend
+  Future<void> _calculateDistanceAndDuration() async {
+    if (_pickupLocation == null || _dropoffLocation == null) {
+      setState(() {
+        _estimatedDistance = null;
+        _estimatedDuration = null;
+      });
+      return;
+    }
+
+    // Check if coordinates are available
+    if (_pickupLocation!.latitude == null || _pickupLocation!.longitude == null ||
+        _dropoffLocation!.latitude == null || _dropoffLocation!.longitude == null) {
+      setState(() {
+        _estimatedDistance = 'Coordinates missing';
+        _estimatedDuration = 'Coordinates missing';
+        _isCalculatingRoute = false;
+      });
+      return;
+    }
+
+    setState(() => _isCalculatingRoute = true);
+
+    try {
+      // Build list of intermediate stops (only non-null ones with coordinates)
+      final List<LocationSuggestion>? intermediateStopLocations = _intermediateStops
+          .where((stop) => stop != null && stop.latitude != null && stop.longitude != null)
+          .cast<LocationSuggestion>()
+          .toList();
+
+      final result = await _googleMapsService.getDistanceAndDuration(
+        pickupLocation: _pickupLocation!,
+        dropoffLocation: _dropoffLocation!,
+        intermediateStops: intermediateStopLocations != null && intermediateStopLocations.isNotEmpty 
+            ? intermediateStopLocations 
+            : null,
+      );
+
+      if (result != null && mounted) {
+        setState(() {
+          _estimatedDistance = result['distanceText'];
+          _estimatedDuration = result['durationText'];
+          _isCalculatingRoute = false;
+        });
+      } else if (mounted) {
+        setState(() {
+          _estimatedDistance = 'Unable to calculate';
+          _estimatedDuration = 'Unable to calculate';
+          _isCalculatingRoute = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _estimatedDistance = 'Error calculating';
+          _estimatedDuration = 'Error calculating';
+          _isCalculatingRoute = false;
+        });
+      }
+    }
+  }
+
   Future<void> _scheduleRide() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -368,6 +441,22 @@ class _AdminScheduleRideDialogState extends ConsumerState<AdminScheduleRideDialo
           latitude: _dropoffLocation!.latitude ?? 0.0,
           longitude: _dropoffLocation!.longitude ?? 0.0,
         ),
+        intermediateStops: _intermediateStops.isNotEmpty 
+            ? _intermediateStops
+                .where((stop) => stop != null)
+                .map((stop) => stop!.fullAddress)
+                .toList()
+            : null,
+        intermediateStopLocations: _intermediateStops.isNotEmpty
+            ? _intermediateStops
+                .where((stop) => stop != null && stop!.latitude != null && stop!.longitude != null)
+                .map((stop) => {
+                      'address': stop!.fullAddress,
+                      'latitude': stop!.latitude,
+                      'longitude': stop!.longitude,
+                    })
+                .toList()
+            : null,
         travelDate: _selectedDate,
         departureTime: departureTimeStr,
         totalSeats: int.parse(_totalSeatsController.text),
@@ -589,6 +678,7 @@ class _AdminScheduleRideDialogState extends ConsumerState<AdminScheduleRideDialo
                           setState(() {
                             _pickupLocation = location;
                           });
+                          _calculateDistanceAndDuration();
                         },
                         validator: (value) {
                           if (value?.isEmpty ?? true) return 'Required';
@@ -613,6 +703,8 @@ class _AdminScheduleRideDialogState extends ConsumerState<AdminScheduleRideDialo
                                     setState(() {
                                       _intermediateStops[i] = location;
                                     });
+                                    // Recalculate when intermediate location is selected
+                                    _calculateDistanceAndDuration();
                                   },
                                 ),
                               ),
@@ -649,6 +741,7 @@ class _AdminScheduleRideDialogState extends ConsumerState<AdminScheduleRideDialo
                           setState(() {
                             _dropoffLocation = location;
                           });
+                          _calculateDistanceAndDuration();
                         },
                         validator: (value) {
                           if (value?.isEmpty ?? true) return 'Required';
@@ -656,6 +749,52 @@ class _AdminScheduleRideDialogState extends ConsumerState<AdminScheduleRideDialo
                           return null;
                         },
                       ),
+
+                      const SizedBox(height: 16),
+
+                      // Distance and Duration Info
+                      if (_pickupLocation != null && _dropoffLocation != null)
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: Colors.blue.shade50,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: Colors.blue.shade200),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.info_outline, color: Colors.blue, size: 20),
+                              const SizedBox(width: 8),
+                              if (_isCalculatingRoute)
+                                const Row(
+                                  children: [
+                                    SizedBox(
+                                      width: 16,
+                                      height: 16,
+                                      child: CircularProgressIndicator(strokeWidth: 2),
+                                    ),
+                                    SizedBox(width: 8),
+                                    Text('Calculating route...'),
+                                  ],
+                                )
+                              else if (_estimatedDistance != null && _estimatedDuration != null)
+                                Expanded(
+                                  child: Text(
+                                    'Distance: $_estimatedDistance • Duration: $_estimatedDuration',
+                                    style: const TextStyle(
+                                      color: Colors.black87,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                )
+                              else
+                                const Text(
+                                  'Unable to calculate distance',
+                                  style: TextStyle(color: Colors.orange),
+                                ),
+                            ],
+                          ),
+                        ),
 
                       const SizedBox(height: 24),
 

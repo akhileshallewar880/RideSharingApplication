@@ -1,8 +1,10 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using RideSharing.API.CustomValidations;
 using RideSharing.API.Data;
+using RideSharing.API.Hubs;
 using RideSharing.API.Models.Domain;
 using RideSharing.API.Models.DTO;
 using RideSharing.API.Repositories.Interface;
@@ -21,6 +23,7 @@ namespace RideSharing.API.Controllers
         private readonly ILogger<DriverRidesController> _logger;
         private readonly RideSharingDbContext _context;
         private readonly RideSharing.API.Services.Notification.FCMNotificationService _fcmService;
+        private readonly IHubContext<TrackingHub> _hubContext;
 
         public DriverRidesController(
             IDriverRepository driverRepository,
@@ -28,7 +31,8 @@ namespace RideSharing.API.Controllers
             RouteDistanceService routeDistanceService,
             ILogger<DriverRidesController> logger,
             RideSharingDbContext context,
-            RideSharing.API.Services.Notification.FCMNotificationService fcmService)
+            RideSharing.API.Services.Notification.FCMNotificationService fcmService,
+            IHubContext<TrackingHub> hubContext)
         {
             _driverRepository = driverRepository;
             _rideRepository = rideRepository;
@@ -36,6 +40,7 @@ namespace RideSharing.API.Controllers
             _logger = logger;
             _context = context;
             _fcmService = fcmService;
+            _hubContext = hubContext;
         }
 
         /// <summary>
@@ -322,19 +327,27 @@ namespace RideSharing.API.Controllers
             try
             {
                 var userId = User.FindFirst("userId")?.Value;
+                _logger.LogInformation("🔍 GetActiveRides: Extracted userId from token: {UserId}", userId);
+                
                 if (string.IsNullOrEmpty(userId) || !Guid.TryParse(userId, out var userGuid))
                 {
+                    _logger.LogWarning("⚠️ GetActiveRides: Invalid or missing userId in token");
                     return Unauthorized(ApiResponseDto<object>.ErrorResponse("Invalid token"));
                 }
 
                 var driver = await _driverRepository.GetDriverByUserIdAsync(userGuid);
                 if (driver == null)
                 {
+                    _logger.LogWarning("⚠️ GetActiveRides: No driver profile found for userId: {UserId}", userGuid);
                     return BadRequest(ApiResponseDto<object>.ErrorResponse("Driver profile not found"));
                 }
 
+                _logger.LogInformation("✅ GetActiveRides: Found driver - DriverId: {DriverId}, UserId: {UserId}, Phone: {Phone}", 
+                    driver.Id, userGuid, driver.User?.PhoneNumber ?? "N/A");
+
                 // Get both scheduled and active rides
                 var rides = await _driverRepository.GetDriverRidesAsync(driver.Id, null, 1, 100);
+                _logger.LogInformation("📋 GetActiveRides: Retrieved {Count} rides for driver {DriverId}", rides.Count, driver.Id);
 
                 var activeRides = rides.Select(r => new DriverRideDto
                 {
@@ -417,9 +430,15 @@ namespace RideSharing.API.Controllers
                     PhoneNumber = b.Passenger?.PhoneNumber ?? "",
                     PickupLocation = b.PickupLocation,
                     DropoffLocation = b.DropoffLocation,
+                    PickupLatitude = b.PickupLatitude,
+                    PickupLongitude = b.PickupLongitude,
+                    DropoffLatitude = b.DropoffLatitude,
+                    DropoffLongitude = b.DropoffLongitude,
                     PassengerCount = b.PassengerCount,
                     Otp = b.OTP,
                     IsVerified = b.IsVerified,
+                    TotalFare = b.TotalFare,
+                    TotalAmount = b.TotalAmount,
                     PaymentStatus = b.PaymentStatus ?? "pending",
                     BoardingStatus = b.IsVerified ? "boarded" : "pending"
                 }).ToList();
@@ -564,6 +583,35 @@ namespace RideSharing.API.Controllers
                 if (booking == null)
                 {
                     return BadRequest(ApiResponseDto<object>.ErrorResponse("Invalid OTP or booking"));
+                }
+
+                // Send SignalR OTP verification event to passenger
+                try
+                {
+                    var passenger = await _context.Users.FindAsync(booking.PassengerId);
+                    var passengerProfile = await _context.UserProfiles
+                        .FirstOrDefaultAsync(p => p.UserId == booking.PassengerId);
+                    var passengerName = passengerProfile?.Name ?? passenger?.PhoneNumber ?? "Passenger";
+                    
+                    var otpVerifiedEvent = new
+                    {
+                        rideId = rideId.ToString(),
+                        bookingId = booking.Id.ToString(),
+                        bookingNumber = booking.BookingNumber,
+                        passengerName = passengerName,
+                        timestamp = DateTime.UtcNow.ToString("o"),
+                        isVerified = true
+                    };
+
+                    // Send to specific ride room
+                    var rideGroupName = $"ride_{rideId}";
+                    await _hubContext.Clients.Group(rideGroupName).SendAsync("OtpVerified", otpVerifiedEvent);
+                    _logger.LogInformation($"🎉 SignalR OTP verification event sent for booking {booking.BookingNumber}");
+                }
+                catch (Exception signalREx)
+                {
+                    _logger.LogError(signalREx, "❌ Failed to send SignalR OTP verification event");
+                    // Don't fail the verification if SignalR fails
                 }
 
                 // Send ride started notification to passenger

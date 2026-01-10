@@ -6,6 +6,7 @@ import 'package:allapalli_ride/app/themes/text_styles.dart';
 import 'package:allapalli_ride/core/models/passenger_ride_models.dart';
 import 'package:allapalli_ride/core/providers/passenger_ride_provider.dart';
 import 'package:allapalli_ride/features/passenger/presentation/screens/cancellation_confirmation_screen.dart';
+import 'package:allapalli_ride/features/passenger/presentation/screens/passenger_live_tracking_screen.dart';
 import 'package:allapalli_ride/shared/widgets/indian_number_plate.dart';
 import 'package:intl/intl.dart';
 
@@ -28,6 +29,10 @@ class _BookingManagementScreenState extends ConsumerState<BookingManagementScree
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    
+    // Debug logging
+    print('📋 [BookingDetails] Building screen for booking: ${widget.ride.bookingNumber}');
+    print('📋 [BookingDetails] selectedSeats: ${widget.ride.selectedSeats}');
     
     return Scaffold(
       backgroundColor: isDark ? AppColors.darkBackground : Colors.white,
@@ -95,6 +100,60 @@ class _BookingManagementScreenState extends ConsumerState<BookingManagementScree
                             _buildInfoRow(Icons.location_on_outlined, 'Drop-off', widget.ride.dropoffLocation, isDark),
                             _buildInfoRow(Icons.calendar_today, 'Date', _formatDate(widget.ride.travelDate), isDark),
                             _buildInfoRow(Icons.access_time, 'Time', _formatTimeTo12Hour(widget.ride.timeSlot), isDark),
+                            // Seat Numbers
+                            if (widget.ride.selectedSeats != null && widget.ride.selectedSeats!.isNotEmpty)
+                              Padding(
+                                padding: const EdgeInsets.only(top: AppSpacing.sm),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        Icon(
+                                          Icons.event_seat,
+                                          size: 20,
+                                          color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
+                                        ),
+                                        const SizedBox(width: AppSpacing.sm),
+                                        Text(
+                                          'Seat${widget.ride.selectedSeats!.length > 1 ? 's' : ''}',
+                                          style: TextStyles.bodyMedium.copyWith(
+                                            color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: AppSpacing.xs),
+                                    Wrap(
+                                      spacing: 8,
+                                      runSpacing: 8,
+                                      children: widget.ride.selectedSeats!.map((seat) => Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 12,
+                                          vertical: 6,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: AppColors.primaryYellow.withOpacity(0.2),
+                                          borderRadius: BorderRadius.circular(6),
+                                          border: Border.all(
+                                            color: AppColors.primaryYellow,
+                                            width: 1.5,
+                                          ),
+                                        ),
+                                        child: Text(
+                                          seat,
+                                          style: TextStyles.bodyMedium.copyWith(
+                                            fontWeight: FontWeight.bold,
+                                            color: isDark 
+                                                ? AppColors.primaryYellow 
+                                                : const Color(0xFFF57C00),
+                                          ),
+                                        ),
+                                      )).toList(),
+                                    ),
+                                  ],
+                                ),
+                              ),
                           ],
                         ),
                   
@@ -198,9 +257,9 @@ class _BookingManagementScreenState extends ConsumerState<BookingManagementScree
                 children: [
                   Expanded(
                     child: OutlinedButton.icon(
-                      onPressed: _showRescheduleDialog,
-                      icon: const Icon(Icons.calendar_today),
-                      label: const Text('Reschedule'),
+                      onPressed: _navigateToLiveTracking,
+                      icon: const Icon(Icons.my_location),
+                      label: const Text('Live Tracking'),
                       style: OutlinedButton.styleFrom(
                         foregroundColor: AppColors.primaryGreen,
                         side: BorderSide(color: AppColors.primaryGreen),
@@ -334,18 +393,15 @@ class _BookingManagementScreenState extends ConsumerState<BookingManagementScree
     }
   }
   
-  void _showRescheduleDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Reschedule Ride'),
-        content: const Text('Reschedule feature is coming soon. You can cancel this ride and book a new one for your preferred date and time.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('OK'),
-          ),
-        ],
+  void _navigateToLiveTracking() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => PassengerLiveTrackingScreen(
+          rideId: widget.ride.rideId ?? '',
+          bookingNumber: widget.ride.bookingNumber,
+          rideDetails: widget.ride,
+        ),
       ),
     );
   }

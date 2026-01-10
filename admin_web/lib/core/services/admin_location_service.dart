@@ -1,54 +1,100 @@
+import 'dart:convert';
+import 'package:http/http.dart' as http;
 import '../models/location_suggestion.dart';
+import '../config/environment_config.dart';
+import 'admin_auth_service.dart';
 
-/// Service for location search and autocomplete (predefined locations only)
+/// Service for location search and autocomplete (fetches from backend API)
 class AdminLocationService {
-  /// Search predefined local locations
-  List<LocationSuggestion> searchLocations(String query) {
+  final AdminAuthService _authService = AdminAuthService();
+  static String get baseUrl => '${AdminEnvironmentConfig.apiBaseUrl}/locations';
+
+  Future<Map<String, String>> _getHeaders() async {
+    final token = await _authService.getToken();
+    return {
+      'Content-Type': 'application/json',
+      if (token != null) 'Authorization': 'Bearer $token',
+    };
+  }
+
+  /// Search locations from backend API
+  Future<List<LocationSuggestion>> searchLocations(String query) async {
     final lowerQuery = query.toLowerCase().trim();
 
     if (lowerQuery.isEmpty) {
       return [];
     }
 
-    // Predefined locations in and around Allapalli region
-    final locations = _getPredefinedLocations();
+    try {
+      final uri = Uri.parse('$baseUrl/search').replace(
+        queryParameters: {
+          'query': query,
+          'limit': '15',
+        },
+      );
 
-    // Filter locations based on query
-    final filtered = locations.where((location) {
-      return location.name.toLowerCase().contains(lowerQuery) ||
-          location.fullAddress.toLowerCase().contains(lowerQuery) ||
-          (location.district?.toLowerCase().contains(lowerQuery) ?? false);
-    }).toList();
+      final response = await http.get(uri, headers: await _getHeaders());
 
-    // Sort by relevance (exact match first, then starts with, then contains)
-    filtered.sort((a, b) {
-      final aName = a.name.toLowerCase();
-      final bName = b.name.toLowerCase();
-
-      if (aName == lowerQuery) return -1;
-      if (bName == lowerQuery) return 1;
-
-      if (aName.startsWith(lowerQuery) && !bName.startsWith(lowerQuery)) {
-        return -1;
+      if (response.statusCode == 200) {
+        final jsonResponse = json.decode(response.body);
+        if (jsonResponse['success'] == true && jsonResponse['data'] != null) {
+          final locations = jsonResponse['data']['locations'] as List;
+          return locations.map((loc) => LocationSuggestion.fromJson(loc)).toList();
+        }
       }
-      if (bName.startsWith(lowerQuery) && !aName.startsWith(lowerQuery)) {
-        return 1;
-      }
-
-      return aName.compareTo(bName);
-    });
-
-    // Return top 15 results
-    return filtered.take(15).toList();
+      return [];
+    } catch (e) {
+      print('Error searching locations: $e');
+      return [];
+    }
   }
 
-  /// Get all predefined locations
-  List<LocationSuggestion> getAllLocations() {
-    return _getPredefinedLocations();
+  /// Get all locations from backend API
+  Future<List<LocationSuggestion>> getAllLocations() async {
+    try {
+      final uri = Uri.parse(baseUrl);
+      final response = await http.get(uri, headers: await _getHeaders());
+
+      if (response.statusCode == 200) {
+        final jsonResponse = json.decode(response.body);
+        if (jsonResponse['success'] == true && jsonResponse['data'] != null) {
+          final locations = jsonResponse['data']['locations'] as List;
+          return locations.map((loc) => LocationSuggestion.fromJson(loc)).toList();
+        }
+      }
+      return [];
+    } catch (e) {
+      print('Error getting all locations: $e');
+      return [];
+    }
   }
 
-  /// Get predefined locations in Maharashtra
-  /// Focus on Gadchiroli, Chandrapur, and nearby districts
+  /// Get popular locations from backend API
+  Future<List<LocationSuggestion>> getPopularLocations({int limit = 20}) async {
+    try {
+      final uri = Uri.parse('$baseUrl/popular').replace(
+        queryParameters: {'limit': limit.toString()},
+      );
+
+      final response = await http.get(uri, headers: await _getHeaders());
+
+      if (response.statusCode == 200) {
+        final jsonResponse = json.decode(response.body);
+        if (jsonResponse['success'] == true && jsonResponse['data'] != null) {
+          final locations = jsonResponse['data']['locations'] as List;
+          return locations.map((loc) => LocationSuggestion.fromJson(loc)).toList();
+        }
+      }
+      return [];
+    } catch (e) {
+      print('Error getting popular locations: $e');
+      return [];
+    }
+  }
+
+  /// DEPRECATED: Old hardcoded method kept for backwards compatibility
+  /// This will be removed in future versions
+  @Deprecated('Use searchLocations() or getAllLocations() instead')
   List<LocationSuggestion> _getPredefinedLocations() {
     return [
       // Gadchiroli District

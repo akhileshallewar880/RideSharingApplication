@@ -21,11 +21,8 @@ class RegistrationScreen extends ConsumerStatefulWidget {
 class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
-  final _emailController = TextEditingController();
-  final _emergencyContactController = TextEditingController();
   
   final String _selectedUserType = 'passenger'; // Always passenger, drivers use separate flow
-  DateTime? _dateOfBirth;
   String? _phoneNumber; // Store phone number from arguments
 
   @override
@@ -41,8 +38,6 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
   @override
   void dispose() {
     _nameController.dispose();
-    _emailController.dispose();
-    _emergencyContactController.dispose();
     super.dispose();
   }
 
@@ -56,69 +51,14 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
     return null;
   }
 
-  String? _validateEmail(String? value) {
-    if (value == null || value.isEmpty) {
-      return null; // Email is optional
-    }
-    if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(value)) {
-      return 'Please enter a valid email';
-    }
-    return null;
-  }
-
-  String? _validateEmergencyContact(String? value) {
-    if (value == null || value.isEmpty) {
-      return null; // Emergency contact is optional
-    }
-    if (value.length != 10) {
-      return 'Please enter a valid 10-digit mobile number';
-    }
-    return null;
-  }
-
-  Future<void> _selectDateOfBirth() async {
-    final DateTime? picked = await showDatePicker(
-      context: context,
-      initialDate: DateTime.now().subtract(const Duration(days: 6570)), // 18 years ago
-      firstDate: DateTime(1950),
-      lastDate: DateTime.now().subtract(const Duration(days: 6570)),
-      builder: (context, child) {
-        return Theme(
-          data: Theme.of(context).copyWith(
-            colorScheme: ColorScheme.light(
-              primary: AppColors.primaryYellow,
-            ),
-          ),
-          child: child!,
-        );
-      },
-    );
-
-    if (picked != null) {
-      setState(() {
-        _dateOfBirth = picked;
-      });
-    }
-  }
-
   Future<void> _handleRegistration() async {
     if (_formKey.currentState!.validate()) {
-      // Format emergency contact with +91 prefix if provided
-      String? emergencyContact;
-      if (_emergencyContactController.text.trim().isNotEmpty) {
-        emergencyContact = '+91${_emergencyContactController.text.trim()}';
-      }
-      
-      final dateOfBirthStr = _dateOfBirth != null
-          ? _dateOfBirth!.toIso8601String().split('T').first
-          : null;
-      
       final request = CompleteRegistrationRequest(
         name: _nameController.text.trim(),
         userType: _selectedUserType,
-        email: _emailController.text.trim().isEmpty ? null : _emailController.text.trim(),
-        dateOfBirth: dateOfBirthStr,
-        emergencyContact: emergencyContact,
+        email: null,
+        dateOfBirth: null,
+        emergencyContact: null,
       );
 
       // Pass phone number to completeRegistration
@@ -168,154 +108,275 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
     final authState = ref.watch(authNotifierProvider);
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Complete Registration'),
-      ),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(AppSpacing.xl),
-          child: Form(
-            key: _formKey,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Welcome aboard!',
-                  style: TextStyles.displayMedium,
-                ).animate()
-                    .fadeIn(duration: 400.ms)
-                    .slideX(begin: -0.2, end: 0),
-
-                const SizedBox(height: AppSpacing.sm),
-
-                Text(
-                  'Complete your profile to get started',
-                  style: TextStyles.bodyLarge.copyWith(
-                    color: isDark
-                        ? AppColors.darkTextSecondary
-                        : AppColors.lightTextSecondary,
-                  ),
-                ).animate()
-                    .fadeIn(delay: 200.ms)
-                    .slideX(begin: -0.2, end: 0, delay: 200.ms),
-
-                const SizedBox(height: AppSpacing.xxxl),
-
-                // Name field
-                CustomTextField(
-                  controller: _nameController,
-                  label: 'Full Name *',
-                  hint: 'Enter your full name',
-                  validator: _validateName,
-                  prefixIcon: Icons.person_outline,
-                ).animate()
-                    .fadeIn(delay: 300.ms)
-                    .slideY(begin: 0.2, end: 0, delay: 300.ms),
-
-                const SizedBox(height: AppSpacing.lg),
-
-                // Email field
-                CustomTextField(
-                  controller: _emailController,
-                  label: 'Email (Optional)',
-                  hint: 'Enter your email',
-                  validator: _validateEmail,
-                  keyboardType: TextInputType.emailAddress,
-                  prefixIcon: Icons.email_outlined,
-                ).animate()
-                    .fadeIn(delay: 400.ms)
-                    .slideY(begin: 0.2, end: 0, delay: 400.ms),
-
-                const SizedBox(height: AppSpacing.lg),
-
-                // Date of birth
-                InkWell(
-                  onTap: _selectDateOfBirth,
-                  child: InputDecorator(
-                    decoration: InputDecoration(
-                      labelText: 'Date of Birth (Optional)',
-                      hintText: 'Select your date of birth',
-                      prefixIcon: const Icon(Icons.calendar_today_outlined),
-                      border: OutlineInputBorder(
-                        borderRadius: AppSpacing.borderRadiusMD,
-                      ),
-                    ),
-                    child: Text(
-                      _dateOfBirth != null
-                          ? '${_dateOfBirth!.day}/${_dateOfBirth!.month}/${_dateOfBirth!.year}'
-                          : '',
-                      style: TextStyles.bodyMedium,
-                    ),
-                  ),
-                ).animate()
-                    .fadeIn(delay: 700.ms)
-                    .slideY(begin: 0.2, end: 0, delay: 700.ms),
-
-                const SizedBox(height: AppSpacing.lg),
-
-                // Emergency contact
-                PhoneField(
-                  controller: _emergencyContactController,
-                  label: 'Emergency Contact (Optional)',
-                  validator: _validateEmergencyContact,
-                ).animate()
-                    .fadeIn(delay: 800.ms)
-                    .slideY(begin: 0.2, end: 0, delay: 800.ms),
-
-                const SizedBox(height: AppSpacing.xxxl),
-
-                // Register button
-                PrimaryButton(
-                  text: 'Complete Registration',
-                  onPressed: authState.isLoading ? null : _handleRegistration,
-                  isLoading: authState.isLoading,
-                  icon: Icons.check_circle_outline,
-                ).animate()
-                    .fadeIn(delay: 900.ms)
-                    .slideY(begin: 0.2, end: 0, delay: 900.ms),
-
-                const SizedBox(height: AppSpacing.lg),
-
-                Center(
-                  child: Text(
-                    '* Required fields',
-                    style: TextStyles.caption.copyWith(
-                      color: isDark
-                          ? AppColors.darkTextTertiary
-                          : AppColors.lightTextTertiary,
-                    ),
-                  ),
-                ).animate()
-                    .fadeIn(delay: 1000.ms),
-
-                const SizedBox(height: AppSpacing.xl),
-
-                // Driver registration button
-                Center(
-                  child: TextButton.icon(
-                    onPressed: () {
-                      Navigator.of(context).pushNamed(
-                        '/driver-registration',
-                        arguments: {'phoneNumber': _phoneNumber},
-                      );
-                    },
-                    icon: const Icon(Icons.local_taxi),
-                    label: const Text('Register as a Driver'),
-                    style: TextButton.styleFrom(
-                      foregroundColor: AppColors.primaryYellow,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: AppSpacing.lg,
-                        vertical: AppSpacing.md,
+      backgroundColor: isDark ? AppColors.darkBackground : Colors.white,
+      extendBodyBehindAppBar: true,
+      body: SingleChildScrollView(
+        child: Column(
+          children: [
+            // Decorative top section with gradient and logo
+            Container(
+              height: 320,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    const Color(0xFF1B5E20), // Deep Forest Green
+                    const Color(0xFF2E7D32), // Medium Green
+                  ],
+                ),
+                borderRadius: const BorderRadius.only(
+                  bottomLeft: Radius.circular(40),
+                  bottomRight: Radius.circular(40),
+                ),
+              ),
+              child: Stack(
+                children: [
+                  // Decorative circles
+                  Positioned(
+                    top: -50,
+                    right: -50,
+                    child: Container(
+                      width: 200,
+                      height: 200,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: Colors.white.withOpacity(0.1),
                       ),
                     ),
                   ),
-                ).animate()
-                    .fadeIn(delay: 1100.ms),
-              ],
+                  Positioned(
+                    bottom: -30,
+                    left: -30,
+                    child: Container(
+                      width: 150,
+                      height: 150,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: Colors.white.withOpacity(0.1),
+                      ),
+                    ),
+                  ),
+                  // Content
+                  SafeArea(
+                    child: Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          // VanYatra Logo with animation (no white card)
+                          Image.asset(
+                            'assets/images/vanyatra_new_logo_home.png',
+                            height: 120,
+                          ).animate()
+                              .scale(duration: 600.ms, curve: Curves.elasticOut)
+                              .then()
+                              .shimmer(duration: 1000.ms),
+                          
+                          const SizedBox(height: AppSpacing.xl),
+                          
+                          // Welcome text
+                          Text(
+                            'Welcome Aboard!',
+                            style: TextStyle(
+                              fontSize: 32,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                              letterSpacing: 0.5,
+                            ),
+                          ).animate()
+                              .fadeIn(delay: 300.ms)
+                              .slideY(begin: 0.3, end: 0, delay: 300.ms),
+                          
+                          const SizedBox(height: AppSpacing.sm),
+                          
+                          Text(
+                            'Just one step away from your journey',
+                            style: TextStyle(
+                              fontSize: 16,
+                              color: Colors.white.withOpacity(0.9),
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ).animate()
+                              .fadeIn(delay: 500.ms)
+                              .slideY(begin: 0.3, end: 0, delay: 500.ms),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
+            
+            // Form section
+            Padding(
+              padding: const EdgeInsets.all(AppSpacing.xxxl),
+              child: Form(
+                key: _formKey,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const SizedBox(height: AppSpacing.lg),
+                    
+                    // Title
+                    Text(
+                      'What should we call you?',
+                      style: TextStyles.headingMedium.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: isDark ? Colors.white : AppColors.primaryDark,
+                      ),
+                    ).animate()
+                        .fadeIn(delay: 700.ms)
+                        .slideX(begin: -0.2, end: 0, delay: 700.ms),
+                    
+                    const SizedBox(height: AppSpacing.sm),
+                    
+                    Text(
+                      'Enter your full name to continue',
+                      style: TextStyles.bodyMedium.copyWith(
+                        color: isDark
+                            ? AppColors.darkTextSecondary
+                            : AppColors.lightTextSecondary,
+                      ),
+                    ).animate()
+                        .fadeIn(delay: 800.ms)
+                        .slideX(begin: -0.2, end: 0, delay: 800.ms),
+                    
+                    const SizedBox(height: AppSpacing.xxxl),
+                    
+                    // Name field with enhanced styling
+                    Container(
+                      decoration: BoxDecoration(
+                        color: isDark 
+                            ? AppColors.darkSurface 
+                            : Colors.grey[50],
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: [
+                          BoxShadow(
+                            color: AppColors.primaryYellow.withOpacity(0.1),
+                            blurRadius: 20,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      child: CustomTextField(
+                        controller: _nameController,
+                        label: 'Full Name',
+                        hint: 'Enter your full name',
+                        validator: _validateName,
+                        prefixIcon: Icons.person,
+                      ),
+                    ).animate()
+                        .fadeIn(delay: 900.ms)
+                        .slideY(begin: 0.3, end: 0, delay: 900.ms)
+                        .shimmer(delay: 900.ms, duration: 1500.ms),
+                    
+                    const SizedBox(height: AppSpacing.xxxl),
+                    
+                    // Info card
+                    Container(
+                      padding: const EdgeInsets.all(AppSpacing.lg),
+                      decoration: BoxDecoration(
+                        color: AppColors.primaryYellow.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: AppColors.primaryYellow.withOpacity(0.3),
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.info_outline,
+                            color: AppColors.primaryYellow,
+                            size: 24,
+                          ),
+                          const SizedBox(width: AppSpacing.md),
+                          Expanded(
+                            child: Text(
+                              'You can update your profile details later from settings',
+                              style: TextStyles.bodySmall.copyWith(
+                                color: isDark ? Colors.white : AppColors.primaryDark,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ).animate()
+                        .fadeIn(delay: 1000.ms)
+                        .scale(begin: const Offset(0.9, 0.9), delay: 1000.ms),
+                      
+                      const SizedBox(height: AppSpacing.xxxl),
+                      
+                    // Register button with enhanced styling
+                    Container(
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(50),
+                        boxShadow: [
+                          BoxShadow(
+                            color: AppColors.primaryYellow.withOpacity(0.4),
+                            blurRadius: 20,
+                            offset: const Offset(0, 10),
+                          ),
+                        ],
+                      ),
+                      child: PrimaryButton(
+                        text: 'Continue',
+                        onPressed: authState.isLoading ? null : _handleRegistration,
+                        isLoading: authState.isLoading,
+                        icon: Icons.arrow_forward,
+                      ),
+                    ).animate()
+                        .fadeIn(delay: 1100.ms)
+                        .slideY(begin: 0.3, end: 0, delay: 1100.ms)
+                        .shimmer(delay: 1100.ms, duration: 2000.ms),
+                      
+                      const SizedBox(height: AppSpacing.xxxl),
+                      
+                    // Driver registration link
+                    Center(
+                      child: Container(
+                        padding: const EdgeInsets.all(AppSpacing.md),
+                        decoration: BoxDecoration(
+                          color: isDark 
+                              ? AppColors.darkSurface 
+                              : Colors.grey[100],
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: TextButton.icon(
+                          onPressed: () {
+                            Navigator.of(context).pushNamed(
+                              '/driver-registration',
+                              arguments: {'phoneNumber': _phoneNumber},
+                            );
+                          },
+                          icon: Icon(
+                            Icons.local_taxi,
+                            color: AppColors.primaryYellow,
+                          ),
+                          label: Text(
+                            'Want to drive with us?',
+                            style: TextStyle(
+                              color: isDark ? Colors.white : AppColors.primaryDark,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          style: TextButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: AppSpacing.lg,
+                              vertical: AppSpacing.sm,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ).animate()
+                        .fadeIn(delay: 1300.ms)
+                        .scale(begin: const Offset(0.95, 0.95), delay: 1300.ms),
+                    ],
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
-      ),
     );
   }
 }

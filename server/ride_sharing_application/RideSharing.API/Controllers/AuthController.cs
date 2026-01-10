@@ -6,6 +6,7 @@ using RideSharing.API.Data;
 using RideSharing.API.Models.Domain;
 using RideSharing.API.Models.DTO;
 using RideSharing.API.Repositories.Interface;
+using FirebaseAdmin.Auth;
 
 namespace RideSharing.API.Controllers
 {
@@ -164,6 +165,118 @@ namespace RideSharing.API.Controllers
             {
                 _logger.LogError(ex, "Error verifying OTP");
                 return StatusCode(500, ApiResponseDto<object>.ErrorResponse("An error occurred while verifying OTP"));
+            }
+        }
+
+        /// <summary>
+        /// Verify Firebase phone authentication token and authenticate user
+        /// </summary>
+        [HttpPost("verify-firebase-phone")]
+        [ValidateModel]
+        public async Task<IActionResult> VerifyFirebasePhoneAuth([FromBody] FirebasePhoneAuthRequestDto request)
+        {
+            try
+            {
+                _logger.LogInformation("🔐 Verifying Firebase token for phone: {Phone}", request.PhoneNumber);
+                
+                // Verify Firebase ID token
+                FirebaseToken decodedToken;
+                try
+                {
+                    decodedToken = await FirebaseAuth.DefaultInstance.VerifyIdTokenAsync(request.FirebaseIdToken);
+                    _logger.LogInformation("✅ Firebase token verified. UID: {Uid}", decodedToken.Uid);
+                }
+                catch (FirebaseAuthException ex)
+                {
+                    _logger.LogError(ex, "❌ Firebase token verification failed");
+                    return Unauthorized(ApiResponseDto<object>.ErrorResponse($"Invalid Firebase token: {ex.Message}"));
+                }
+                
+                // Extract phone from token claims
+                string phoneFromToken = decodedToken.Claims.ContainsKey("phone_number")
+                    ? decodedToken.Claims["phone_number"].ToString()
+                    : null;
+                
+                _logger.LogInformation("📱 Phone from Firebase token: {TokenPhone}, Phone from request: {RequestPhone}", 
+                    phoneFromToken, request.PhoneNumber);
+                
+                // Validate phone number matches (token has +91 prefix, request doesn't)
+                if (phoneFromToken != null && !phoneFromToken.EndsWith(request.PhoneNumber))
+                {
+                    _logger.LogWarning("⚠️ Phone number mismatch. Token: {TokenPhone}, Request: {RequestPhone}", 
+                        phoneFromToken, request.PhoneNumber);
+                    return BadRequest(ApiResponseDto<object>.ErrorResponse("Phone number mismatch"));
+                }
+                
+                // Check if user exists (search without country code)
+                var user = await _authRepository.GetUserByPhoneAsync(request.PhoneNumber);
+                
+                if (user == null)
+                {
+                    // New user - return temp token for registration
+                    _logger.LogInformation("🆕 New user detected for phone: {Phone}", request.PhoneNumber);
+                    
+                    var response = new VerifyOtpResponseDto
+                    {
+                        IsNewUser = true,
+                        TempToken = Guid.NewGuid().ToString(),
+                        PhoneNumber = request.PhoneNumber
+                    };
+                    
+                    return Ok(ApiResponseDto<VerifyOtpResponseDto>.SuccessResponse(
+                        response, 
+                        "Firebase authentication successful. Complete registration."
+                    ));
+                }
+                else
+                {
+                    // Existing user - return full auth tokens
+                    _logger.LogInformation("✅ Existing user found. ID: {UserId}, UserType: {UserType}", 
+                        user.Id, user.UserType);
+                    
+                    var accessToken = _tokenRepository.CreateJwtToken(
+                        user.Id, 
+                        user.PhoneNumber, 
+                        new List<string> { user.UserType }
+                    );
+                    
+                    var refreshToken = new RefreshToken
+                    {
+                        Id = Guid.NewGuid(),
+                        UserId = user.Id,
+                        Token = Guid.NewGuid().ToString(),
+                        ExpiresAt = DateTime.UtcNow.AddDays(30),
+                        CreatedAt = DateTime.UtcNow
+                    };
+                    
+                    await _authRepository.CreateRefreshTokenAsync(refreshToken);
+
+                    var authResponse = new AuthResponseDto
+                    {
+                        User = new UserDto
+                        {
+                            UserId = user.Id.ToString(),
+                            Name = user.Profile?.Name ?? "",
+                            PhoneNumber = user.PhoneNumber,
+                            Email = user.Email,
+                            UserType = user.UserType
+                        },
+                        AccessToken = accessToken,
+                        RefreshToken = refreshToken.Token
+                    };
+
+                    return Ok(ApiResponseDto<AuthResponseDto>.SuccessResponse(
+                        authResponse, 
+                        "Firebase authentication successful"
+                    ));
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "❌ Error during Firebase phone authentication");
+                return StatusCode(500, ApiResponseDto<object>.ErrorResponse(
+                    $"An error occurred during authentication: {ex.Message}"
+                ));
             }
         }
 
@@ -345,7 +458,7 @@ namespace RideSharing.API.Controllers
                 {
                     User = new UserDto
                     {
-                        Id = user.Id,
+                        UserId = user.Id.ToString(),
                         Name = profile.Name,
                         PhoneNumber = user.PhoneNumber,
                         Email = user.Email,
@@ -485,6 +598,143 @@ namespace RideSharing.API.Controllers
             {
                 _logger.LogError(ex, "Error fetching cities");
                 return StatusCode(500, ApiResponseDto<object>.ErrorResponse("An error occurred while fetching cities"));
+            }
+        }
+
+        /// <summary>
+        /// Sign in with Google (OAuth)
+        /// </summary>
+        [HttpPost("google-signin")]
+        [ValidateModel]
+        public async Task<IActionResult> GoogleSignIn([FromBody] GoogleSignInRequestDto request)
+        {
+            try
+            {
+                // TODO: Verify Google ID token with Google's OAuth2 API
+                // For now, we'll trust the client-side verification
+                // In production, verify the idToken: https://developers.google.com/identity/sign-in/web/backend-auth
+                
+                _logger.LogInformation("Google Sign-In - Email: {Email}, Name: {Name}", request.Email, request.Name);
+                
+                // Check if user exists by email
+                var existingUser = await _context.Users
+                    .Include(u => u.Profile)
+                    .FirstOrDefaultAsync(u => u.Email == request.Email);
+
+                User user;
+                bool isNewUser = false;
+
+                if (existingUser != null)
+                {
+                    // Existing user - login
+                    user = existingUser;
+                    _logger.LogInformation("Google Sign-In - Existing user found: {UserId}", user.Id);
+                }
+                else
+                {
+                    // New user - create account
+                    isNewUser = true;
+                    
+                    // Use provided phone number or unique placeholder
+                    string phoneNumber;
+                    bool isPhoneVerified = false;
+                    
+                    if (!string.IsNullOrEmpty(request.PhoneNumber))
+                    {
+                        // Phone number provided from Google account or Firebase verification
+                        phoneNumber = request.PhoneNumber;
+                        isPhoneVerified = true; // Mark as verified if from Google
+                        _logger.LogInformation("Using verified phone number from Google: {Phone}", phoneNumber);
+                    }
+                    else
+                    {
+                        // No phone number - generate unique placeholder
+                        phoneNumber = $"GOOGLE_{Guid.NewGuid().ToString("N").Substring(0, 10)}";
+                        isPhoneVerified = false;
+                        _logger.LogInformation("No phone number provided, using placeholder: {Phone}", phoneNumber);
+                    }
+                    
+                    user = new User
+                    {
+                        Id = Guid.NewGuid(),
+                        Email = request.Email,
+                        PhoneNumber = phoneNumber,
+                        CountryCode = "+91", // Default country code
+                        UserType = "passenger", // Default to passenger
+                        IsActive = true,
+                        IsEmailVerified = true, // Email verified by Google
+                        CreatedAt = DateTime.UtcNow,
+                        UpdatedAt = DateTime.UtcNow
+                    };
+
+                    var profile = new UserProfile
+                    {
+                        Id = Guid.NewGuid(),
+                        UserId = user.Id,
+                        Name = request.Name ?? "Google User",
+                        ProfilePicture = request.PhotoUrl,
+                        CreatedAt = DateTime.UtcNow,
+                        UpdatedAt = DateTime.UtcNow
+                    };
+
+                    _context.Users.Add(user);
+                    _context.UserProfiles.Add(profile);
+                    await _context.SaveChangesAsync();
+
+                    _logger.LogInformation(
+                        "Google Sign-In - New user created: {UserId}, Email: {Email}, Phone: {Phone}, Verified: {IsVerified}", 
+                        user.Id, 
+                        user.Email, 
+                        user.PhoneNumber,
+                        isPhoneVerified
+                    );
+                }
+
+                // Generate tokens
+                var accessToken = _tokenRepository.CreateJwtToken(
+                    user.Id,
+                    user.Email ?? user.PhoneNumber!,
+                    new List<string> { user.UserType }
+                );
+
+                var refreshToken = new RefreshToken
+                {
+                    Id = Guid.NewGuid(),
+                    Token = Guid.NewGuid().ToString(),
+                    UserId = user.Id,
+                    ExpiresAt = DateTime.UtcNow.AddDays(7),
+                    CreatedAt = DateTime.UtcNow
+                };
+                await _authRepository.CreateRefreshTokenAsync(refreshToken);
+
+                var userProfile = await _context.UserProfiles
+                    .FirstOrDefaultAsync(p => p.UserId == user.Id);
+
+                var response = new AuthResponseDto
+                {
+                    User = new UserDto
+                    {
+                        UserId = user.Id.ToString(),
+                        Name = userProfile?.Name ?? request.Name ?? "User",
+                        PhoneNumber = user.PhoneNumber,
+                        Email = user.Email,
+                        UserType = user.UserType,
+                        CreatedAt = user.CreatedAt
+                    },
+                    AccessToken = accessToken,
+                    RefreshToken = refreshToken.Token
+                };
+
+                var message = isNewUser
+                    ? "Google Sign-In successful - New account created"
+                    : "Google Sign-In successful";
+
+                return Ok(ApiResponseDto<AuthResponseDto>.SuccessResponse(response, message));
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error during Google Sign-In");
+                return StatusCode(500, ApiResponseDto<object>.ErrorResponse("An error occurred during Google Sign-In"));
             }
         }
     }

@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'dart:io';
+import 'package:google_sign_in/google_sign_in.dart';
 import 'package:allapalli_ride/app/constants/app_constants.dart';
 import 'package:allapalli_ride/core/models/api_response.dart';
 import 'package:allapalli_ride/core/models/auth_models.dart';
@@ -11,6 +12,43 @@ import 'package:allapalli_ride/core/services/notification_service.dart';
 class AuthService {
   final Dio _dio = DioClient.instance;
   final FlutterSecureStorage _storage = const FlutterSecureStorage();
+  
+  // Store Google Sign-In user data temporarily for phone verification flow
+  String? _pendingGoogleEmail;
+  String? _pendingGoogleName;
+  String? _pendingGooglePhotoUrl;
+  String? _pendingGoogleIdToken;
+  
+  // Google Sign-In with Web Client ID for getting ID Token
+  // This Web Client ID is from Firebase Console (OAuth 2.0 Web Client)
+  final GoogleSignIn _googleSignIn = GoogleSignIn(
+    scopes: [
+      'email',
+      'profile',
+      'https://www.googleapis.com/auth/user.phonenumbers.read', // Phone number scope
+    ],
+    // CRITICAL: serverClientId is required to get the ID token
+    // This is the Web OAuth client ID from google-services.json (client_type: 3)
+    serverClientId: '657234227532-huehlrive2scm4b4nu623j9edllnc23m.apps.googleusercontent.com',
+  );
+
+  /// Get pending Google user data (for phone entry screen)
+  Map<String, String?> getPendingGoogleUserData() {
+    return {
+      'email': _pendingGoogleEmail,
+      'name': _pendingGoogleName,
+      'photoUrl': _pendingGooglePhotoUrl,
+      'googleIdToken': _pendingGoogleIdToken,
+    };
+  }
+
+  /// Clear pending Google user data
+  void clearPendingGoogleUserData() {
+    _pendingGoogleEmail = null;
+    _pendingGoogleName = null;
+    _pendingGooglePhotoUrl = null;
+    _pendingGoogleIdToken = null;
+  }
 
   /// Send OTP to phone number
   Future<ApiResponse<SendOtpResponse>> sendOtp(String phoneNumber) async {
@@ -96,6 +134,69 @@ class AuthService {
           );
         } else {
           print('⚠️ Unexpected response state');
+        }
+      }
+
+      return apiResponse;
+    } on DioException catch (e) {
+      return _handleError(e);
+    }
+  }
+
+  /// Verify Firebase phone authentication with backend
+  /// Called after Firebase OTP verification is successful
+  Future<ApiResponse<VerifyOtpResponse>> verifyFirebasePhoneAuth(
+    String firebaseIdToken,
+    String phoneNumber,
+  ) async {
+    try {
+      print('🔐 Verifying Firebase phone auth with backend...');
+      print('   Phone: $phoneNumber');
+      
+      final response = await _dio.post(
+        '/auth/verify-firebase-phone',
+        data: {
+          'firebaseIdToken': firebaseIdToken,
+          'phoneNumber': phoneNumber,
+        },
+      );
+
+      final apiResponse = ApiResponse.fromJson(
+        response.data,
+        (json) => VerifyOtpResponse.fromJson(json),
+      );
+
+      // Store tokens if user is not new
+      if (apiResponse.isSuccess && apiResponse.data != null) {
+        final data = apiResponse.data!;
+        
+        print('📦 Firebase Phone Auth Response:');
+        print('   Is New User: \${data.isNewUser}');
+        print('   Has Access Token: \${data.accessToken != null}');
+        print('   Has User Data: \${data.user != null}');
+        
+        if (!data.isNewUser && data.accessToken != null) {
+          print('✅ Existing user - storing tokens');
+          await _storeAuthData(
+            accessToken: data.accessToken!,
+            refreshToken: data.refreshToken!,
+            userId: data.user!.userId,
+            userType: data.user!.userType,
+          );
+          
+          // Sync FCM token with backend
+          try {
+            final notificationService = NotificationService();
+            await notificationService.syncTokenWithBackend();
+          } catch (e) {
+            print('⚠️ Failed to sync FCM token: \$e');
+          }
+        } else if (data.isNewUser && data.tempToken != null) {
+          print('⚠️ New user - storing temp token only');
+          await _storage.write(
+            key: AppConstants.keyAccessToken,
+            value: data.tempToken,
+          );
         }
       }
 
@@ -487,6 +588,174 @@ class AuthService {
       return apiResponse;
     } on DioException catch (e) {
       return _handleError(e);
+    }
+  }
+
+  /// Sign in with Google (returns user data if phone number is needed)
+  Future<ApiResponse<AuthResponse>> signInWithGoogle({String? phoneNumber}) async {
+    try {
+      print('🔵 Starting Google Sign-In...');
+      
+      // Check if Google Sign-In is properly configured
+      print('⚠️ Google Sign-In requires proper Firebase configuration');
+      print('⚠️ Please configure OAuth 2.0 credentials in Google Cloud Console');
+      print('⚠️ Add SHA-1 fingerprint: C8:58:76:47:2C:D9:8D:46:C8:A5:FD:75:96:20:02:B0:D8:33:F8:72');
+      
+      // Trigger Google Sign-In flow
+      final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
+      
+      if (googleUser == null) {
+        // User cancelled the sign-in
+        print('⚠️ Google Sign-In cancelled by user');
+        return ApiResponse<AuthResponse>(
+          success: false,
+          message: 'Sign-in cancelled',
+        );
+      }
+      
+      // Obtain the auth details from the request
+      final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
+      
+      print('✅ Google Sign-In successful');
+      print('   Email: ${googleUser.email}');
+      print('   Name: ${googleUser.displayName}');
+      print('   ID Token: ${googleAuth.idToken?.substring(0, 20)}...');
+      
+      // Store pending Google user data for phone verification flow
+      _pendingGoogleEmail = googleUser.email;
+      _pendingGoogleName = googleUser.displayName;
+      _pendingGooglePhotoUrl = googleUser.photoUrl;
+      _pendingGoogleIdToken = googleAuth.idToken;
+      
+      // Try to fetch phone number from Google People API
+      String? googlePhoneNumber;
+      if (phoneNumber == null) {
+        googlePhoneNumber = await _fetchPhoneNumberFromGoogle(googleAuth.accessToken);
+        if (googlePhoneNumber != null) {
+          print('✅ Fetched phone number from Google: $googlePhoneNumber');
+        } else {
+          print('⚠️ No phone number found in Google account');
+        }
+      }
+      
+      // Send the ID token to your backend
+      final response = await _dio.post(
+        '/auth/google-signin',
+        data: {
+          'idToken': googleAuth.idToken,
+          'email': googleUser.email,
+          'name': googleUser.displayName,
+          'photoUrl': googleUser.photoUrl,
+          if (phoneNumber != null) 'phoneNumber': phoneNumber,
+          if (googlePhoneNumber != null) 'phoneNumber': googlePhoneNumber,
+        },
+      );
+
+      final apiResponse = ApiResponse.fromJson(
+        response.data,
+        (json) => AuthResponse.fromJson(json),
+      );
+        // Clear pending data after successful authentication
+        clearPendingGoogleUserData();
+        
+        
+
+      // Store tokens after successful Google sign-in
+      if (apiResponse.isSuccess && apiResponse.data != null) {
+        final data = apiResponse.data!;
+        print('✅ Google authentication completed successfully');
+        await _storeAuthData(
+          accessToken: data.accessToken,
+          refreshToken: data.refreshToken,
+          userId: data.user.userId,
+          userType: data.user.userType,
+        );
+        
+        // Sync FCM token with backend after successful Google sign-in
+        try {
+          final notificationService = NotificationService();
+          await notificationService.syncTokenWithBackend();
+        } catch (e) {
+          print('⚠️ Failed to sync FCM token after Google sign-in: $e');
+        }
+      }
+
+      return apiResponse;
+    } on DioException catch (e) {
+      return _handleError(e);
+    } catch (e) {
+      print('🔴 Google Sign-In error: $e');
+      print('🔴 Error details: ${e.runtimeType}');
+      print('🔴 This usually means Google Sign-In is not configured in Firebase Console');
+      print('🔴 Error code 10 = DEVELOPER_ERROR (OAuth client not configured)');
+      return ApiResponse<AuthResponse>(
+        success: false,
+        message: 'Google Sign-In is not configured. Please use phone number login.',
+      );
+    }
+  }
+
+  /// Fetch phone number from Google People API
+  Future<String?> _fetchPhoneNumberFromGoogle(String? accessToken) async {
+    if (accessToken == null) {
+      print('⚠️ No access token available for Google People API');
+      return null;
+    }
+
+    try {
+      print('📱 Fetching phone number from Google People API...');
+      
+      final response = await Dio().get(
+        'https://people.googleapis.com/v1/people/me',
+        queryParameters: {
+          'personFields': 'phoneNumbers',
+        },
+        options: Options(
+          headers: {
+            'Authorization': 'Bearer $accessToken',
+          },
+        ),
+      );
+
+      if (response.statusCode == 200 && response.data != null) {
+        final data = response.data as Map<String, dynamic>;
+        final phoneNumbers = data['phoneNumbers'] as List<dynamic>?;
+        
+        if (phoneNumbers != null && phoneNumbers.isNotEmpty) {
+          // Get the first phone number
+          final phoneData = phoneNumbers[0] as Map<String, dynamic>;
+          String phoneNumber = phoneData['value'] as String? ?? '';
+          
+          // Clean up phone number (remove spaces, dashes, etc.)
+          phoneNumber = phoneNumber.replaceAll(RegExp(r'[^\d+]'), '');
+          
+          // Ensure it starts with country code
+          if (phoneNumber.startsWith('0')) {
+            phoneNumber = '+91${phoneNumber.substring(1)}'; // Assume Indian number
+          } else if (!phoneNumber.startsWith('+')) {
+            phoneNumber = '+91$phoneNumber'; // Add Indian country code
+          }
+          
+          print('✅ Found phone number: $phoneNumber');
+          return phoneNumber;
+        } else {
+          print('⚠️ No phone numbers found in Google account');
+        }
+      }
+    } catch (e) {
+      print('⚠️ Error fetching phone number from Google: $e');
+    }
+    
+    return null;
+  }
+
+  /// Sign out from Google
+  Future<void> signOutFromGoogle() async {
+    try {
+      await _googleSignIn.signOut();
+      print('✅ Signed out from Google');
+    } catch (e) {
+      print('⚠️ Error signing out from Google: $e');
     }
   }
 }

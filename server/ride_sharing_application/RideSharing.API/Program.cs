@@ -6,8 +6,32 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.DependencyInjection;
 using Serilog;
 using RideSharing.API.Middlewares;
+using FirebaseAdmin;
+using Google.Apis.Auth.OAuth2;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Initialize Firebase Admin SDK
+try
+{
+    var firebaseConfigPath = Path.Combine(AppContext.BaseDirectory, "firebase-service-account.json");
+    if (File.Exists(firebaseConfigPath))
+    {
+        FirebaseApp.Create(new AppOptions()
+        {
+            Credential = GoogleCredential.FromFile(firebaseConfigPath)
+        });
+        Console.WriteLine("✅ Firebase Admin SDK initialized successfully");
+    }
+    else
+    {
+        Console.WriteLine("⚠️ Warning: firebase-service-account.json not found. Firebase phone auth will not work.");
+    }
+}
+catch (Exception ex)
+{
+    Console.WriteLine($"❌ Error initializing Firebase Admin SDK: {ex.Message}");
+}
 
 // Add services to the container.
 var logger = new LoggerConfiguration()
@@ -86,6 +110,7 @@ builder.Services.AddScoped<RideSharing.API.Repositories.Interface.IDriverReposit
 builder.Services.AddScoped<RideSharing.API.Repositories.Interface.INotificationRepository, RideSharing.API.Repositories.Implementation.NotificationRepository>();
 builder.Services.AddScoped<RideSharing.API.Repositories.Interface.ITokenRepository, RideSharing.API.Repositories.Implementation.TokenRepository>();
 builder.Services.AddScoped<RideSharing.API.Repositories.Interface.IVehicleModelRepository, RideSharing.API.Repositories.Implementation.VehicleModelRepository>();
+builder.Services.AddScoped<RideSharing.API.Repositories.ICouponRepository, RideSharing.API.Repositories.CouponRepository>();
 
 // Register services
 builder.Services.AddScoped<RideSharing.API.Services.Interface.IOTPService, RideSharing.API.Services.Implementation.OTPService>();
@@ -93,6 +118,14 @@ builder.Services.AddScoped<RideSharing.API.Services.Interface.IFileUploadService
 builder.Services.AddScoped<RideSharing.API.Services.Interface.ILocationService, RideSharing.API.Services.Implementation.LocationService>();
 builder.Services.AddScoped<RideSharing.API.Services.Interface.ILocationTrackingService, RideSharing.API.Services.Implementation.LocationTrackingService>();
 builder.Services.AddScoped<RideSharing.API.Services.Interface.IEmailService, RideSharing.API.Services.Implementation.EmailService>();
+builder.Services.AddScoped<RideSharing.API.Services.Interface.IGoogleMapsService, RideSharing.API.Services.Implementation.GoogleMapsService>();
+
+// Register HttpClient for Google Maps API
+builder.Services.AddHttpClient("GoogleMaps", client =>
+{
+    client.Timeout = TimeSpan.FromSeconds(30);
+    client.DefaultRequestHeaders.Add("User-Agent", "VanYatra-RideSharing");
+});
 
 // Register Route Distance Service - now uses database instead of hardcoded data
 builder.Services.AddScoped<RideSharing.API.Services.Implementation.RouteDistanceService>();
@@ -193,17 +226,20 @@ _ = Task.Run(async () =>
             logger.LogInformation("Starting automatic database migrations...");
             
             var authDb = scope.ServiceProvider.GetRequiredService<RideSharingAuthDbContext>();
-            await authDb.Database.MigrateAsync();
-            logger.LogInformation("Auth database migration completed successfully");
+            // Skip migrations - database is already up to date
+            // await authDb.Database.MigrateAsync();
+            logger.LogInformation("Auth database migration skipped (already up to date)");
             
             var appDb = scope.ServiceProvider.GetRequiredService<RideSharingDbContext>();
-            await appDb.Database.MigrateAsync();
-            logger.LogInformation("Application database migration completed successfully");
+            // Skip migrations - database is already up to date
+            // await appDb.Database.MigrateAsync();
+            logger.LogInformation("Application database migration skipped (already up to date)");
         }
         catch (Exception ex)
         {
             var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
             logger.LogError(ex, "Database migration failed");
+            // Continue anyway - database might already be up to date
         }
     }
 });

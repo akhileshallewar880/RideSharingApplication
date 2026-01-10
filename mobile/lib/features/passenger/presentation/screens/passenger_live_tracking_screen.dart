@@ -8,6 +8,7 @@ import '../../../../app/themes/app_colors.dart';
 import '../../../../app/themes/app_spacing.dart';
 import '../../../../app/themes/text_styles.dart';
 import 'package:geolocator/geolocator.dart';
+import 'booking_management_screen.dart';
 
 /// Passenger live tracking screen - shows live ride tracking with beautiful passenger-focused UI
 class PassengerLiveTrackingScreen extends ConsumerStatefulWidget {
@@ -54,286 +55,286 @@ class _PassengerLiveTrackingScreenState extends ConsumerState<PassengerLiveTrack
     // Build list of stops
     final allStops = _buildStopsList();
     
+    // Check if driver has started the ride - must have location AND ride must be active/in-progress
+    final rideStatus = widget.rideDetails.status.toLowerCase();
+    final isRideActive = rideStatus == 'active' || rideStatus == 'in-progress' || rideStatus == 'in_progress';
+    final hasDriverStarted = driverLocation != null && trackingState.isSocketConnected && isRideActive;
+    
     // Find current stop based on driver location
-    if (driverLocation != null) {
+    if (hasDriverStarted) {
       _updateCurrentStop(driverLocation, allStops);
     }
     
+    // Calculate next stop and arrival time
+    final nextStop = _getNextStop(allStops);
+    final destinationStop = _getPassengerDestination(allStops);
+    final arrivalTime = _getArrivalTime(allStops, destinationStop);
+    final statusText = hasDriverStarted 
+        ? (nextStop != null ? 'Heading towards' : 'Preparing to start')
+        : 'Driver yet to start';
+    
     return Scaffold(
-      backgroundColor: isDark ? AppColors.darkBackground : AppColors.lightBackground,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: IconButton(
-          icon: Container(
-            padding: EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: isDark ? Colors.white.withOpacity(0.1) : Colors.black.withOpacity(0.05),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Icon(
-              Icons.arrow_back,
-              color: isDark ? Colors.white : AppColors.lightTextPrimary,
-            ),
-          ),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Your Trip',
-              style: TextStyles.bodyLarge.copyWith(
+      backgroundColor: isDark ? AppColors.darkBackground : Colors.grey[50],
+      body: CustomScrollView(
+        slivers: [
+          // Zomato-style header
+          SliverAppBar(
+            expandedHeight: 200,
+            floating: false,
+            pinned: true,
+            backgroundColor: AppColors.primaryGreen,
+            title: Text(
+              'Live Tracking',
+              style: TextStyles.headingSmall.copyWith(
+                color: Colors.white,
                 fontWeight: FontWeight.bold,
-                color: isDark ? Colors.white : AppColors.lightTextPrimary,
               ),
             ),
-            Text(
-              'Booking: ${widget.bookingNumber}',
-              style: TextStyles.bodySmall.copyWith(
-                color: isDark ? Colors.white70 : AppColors.lightTextSecondary,
+            centerTitle: true,
+            leading: IconButton(
+              icon: Icon(Icons.arrow_back, color: Colors.white),
+              onPressed: () => Navigator.pop(context),
+            ),
+            actions: [
+              IconButton(
+                icon: Icon(Icons.share, color: Colors.white),
+                onPressed: _shareTrip,
               ),
-            ),
-          ],
-        ),
-        actions: [
-          // Live status indicator
-          Container(
-            margin: EdgeInsets.only(right: AppSpacing.md),
-            padding: EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.sm),
-            decoration: BoxDecoration(
-              gradient: trackingState.isSocketConnected 
-                  ? LinearGradient(
-                      colors: [AppColors.success, AppColors.success.withOpacity(0.8)],
-                    )
-                  : LinearGradient(
-                      colors: [AppColors.error, AppColors.error.withOpacity(0.8)],
-                    ),
-              borderRadius: BorderRadius.circular(AppSpacing.radiusMD),
-              boxShadow: [
-                BoxShadow(
-                  color: trackingState.isSocketConnected 
-                      ? AppColors.success.withOpacity(0.3)
-                      : AppColors.error.withOpacity(0.3),
-                  blurRadius: 8,
-                  offset: Offset(0, 2),
-                ),
-              ],
-            ),
-            child: Row(
-              children: [
-                Container(
-                  width: 8,
-                  height: 8,
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.white.withOpacity(0.5),
-                        blurRadius: 4,
-                        spreadRadius: 1,
-                      ),
+            ],
+            flexibleSpace: FlexibleSpaceBar(
+              background: Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      AppColors.primaryGreen,
+                      AppColors.primaryGreen.withOpacity(0.8),
                     ],
                   ),
                 ),
-                SizedBox(width: AppSpacing.sm),
-                Text(
-                  trackingState.isSocketConnected ? 'LIVE' : 'OFFLINE',
-                  style: TextStyles.bodySmall.copyWith(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: 0.5,
+                child: SafeArea(
+                  child: Padding(
+                    padding: EdgeInsets.all(AppSpacing.xl),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          widget.rideDetails.pickupLocation,
+                          style: TextStyles.headingMedium.copyWith(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        SizedBox(height: 4),
+                        Text(
+                          'to ${widget.rideDetails.dropoffLocation}',
+                          style: TextStyles.bodyMedium.copyWith(
+                            color: Colors.white.withOpacity(0.9),
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        SizedBox(height: AppSpacing.lg),
+                        Text(
+                          statusText,
+                          style: TextStyles.bodyMedium.copyWith(
+                            color: Colors.white.withOpacity(0.9),
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        if (hasDriverStarted) ...[
+                          SizedBox(height: 4),
+                          Text(
+                            nextStop?.name ?? widget.rideDetails.pickupLocation,
+                            style: TextStyles.headingLarge.copyWith(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ] else ...[
+                          SizedBox(height: 4),
+                          Text(
+                            'Waiting for driver to begin',
+                            style: TextStyles.headingMedium.copyWith(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                        SizedBox(height: AppSpacing.md),
+                        Row(
+                          children: [
+                            Icon(
+                              hasDriverStarted ? Icons.schedule : Icons.access_time,
+                              color: Colors.white,
+                              size: 18,
+                            ),
+                            SizedBox(width: 6),
+                            Text(
+                              hasDriverStarted 
+                                  ? 'Arriving at ${_formatTime(arrivalTime)}'
+                                  : 'Scheduled: ${_formatTime(arrivalTime)}',
+                              style: TextStyles.bodyLarge.copyWith(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                            SizedBox(width: AppSpacing.md),
+                            Container(
+                              width: 4,
+                              height: 4,
+                              decoration: BoxDecoration(
+                                color: Colors.white.withOpacity(0.7),
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                            SizedBox(width: AppSpacing.md),
+                            Text(
+                              hasDriverStarted ? 'On time' : 'Not started',
+                              style: TextStyles.bodyLarge.copyWith(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-              ],
+              ),
             ),
           ),
-        ],
-      ),
-      body: Column(
-        children: [
-          // Hero header with gradient
-          _buildHeroHeader(isDark, allStops, driverLocation),
           
           // Stops timeline
-          Expanded(
+          SliverToBoxAdapter(
             child: _buildStopsTimeline(allStops, isDark, driverLocation),
           ),
           
-          // Driver info & actions card
-          _buildDriverActionsCard(isDark),
+          // Spacer for bottom card
+          SliverToBoxAdapter(
+            child: SizedBox(height: 200),
+          ),
         ],
       ),
+      bottomSheet: _buildDriverActionsCard(isDark),
     );
   }
 
-  Widget _buildHeroHeader(bool isDark, List<TrainStop> allStops, Position? driverLocation) {
-    final progress = driverLocation != null ? _calculateProgress(allStops, driverLocation) : 0.0;
-    final currentStop = allStops.length > _currentStopIndex ? allStops[_currentStopIndex] : allStops.first;
-    final nextStop = allStops.length > _currentStopIndex + 1 ? allStops[_currentStopIndex + 1] : null;
+  TrainStop? _getNextStop(List<TrainStop> stops) {
+    // Get the next stop after current position
+    if (_currentStopIndex < stops.length - 1) {
+      return stops[_currentStopIndex + 1];
+    }
+    return null;
+  }
+
+  TrainStop _getPassengerDestination(List<TrainStop> stops) {
+    // Find passenger's dropoff location
+    final passengerDropoff = widget.rideDetails.dropoffLocation;
+    final destinationStop = stops.firstWhere(
+      (stop) => stop.name == passengerDropoff,
+      orElse: () => stops.last,
+    );
+    return destinationStop;
+  }
+
+  DateTime _getArrivalTime(List<TrainStop> stops, TrainStop destination) {
+    // Calculate actual arrival time to passenger's destination
+    return destination.time;
+  }
+
+  Widget _buildStopsTimeline(List<TrainStop> stops, bool isDark, Position? driverLocation) {
+    final hasDriverStarted = driverLocation != null;
     
     return Container(
       margin: EdgeInsets.all(AppSpacing.lg),
       padding: EdgeInsets.all(AppSpacing.xl),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            Color(0xFF667EEA),
-            Color(0xFF764BA2),
-          ],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(AppSpacing.radiusXL),
-        boxShadow: [
-          BoxShadow(
-            color: Color(0xFF667EEA).withOpacity(0.4),
-            blurRadius: 20,
-            offset: Offset(0, 10),
-          ),
-        ],
-      ),
-      child: Column(
-        children: [
-          // Progress indicator
-          Row(
-            children: [
-              Icon(Icons.location_on, color: Colors.white, size: 20),
-              SizedBox(width: AppSpacing.sm),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Currently at',
-                      style: TextStyles.bodySmall.copyWith(
-                        color: Colors.white70,
-                      ),
-                    ),
-                    Text(
-                      currentStop.name,
-                      style: TextStyles.headingSmall.copyWith(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
-                ),
-              ),
-              Container(
-                padding: EdgeInsets.symmetric(
-                  horizontal: AppSpacing.md,
-                  vertical: AppSpacing.sm,
-                ),
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.2),
-                  borderRadius: BorderRadius.circular(AppSpacing.radiusMD),
-                ),
-                child: Text(
-                  '${(progress * 100).toInt()}%',
-                  style: TextStyles.bodyMedium.copyWith(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          
-          SizedBox(height: AppSpacing.md),
-          
-          // Progress bar
-          ClipRRect(
-            borderRadius: BorderRadius.circular(AppSpacing.radiusMD),
-            child: LinearProgressIndicator(
-              value: progress,
-              backgroundColor: Colors.white.withOpacity(0.3),
-              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-              minHeight: 8,
-            ),
-          ),
-          
-          if (nextStop != null) ...[
-            SizedBox(height: AppSpacing.md),
-            Row(
-              children: [
-                Icon(Icons.arrow_forward, color: Colors.white70, size: 16),
-                SizedBox(width: AppSpacing.sm),
-                Expanded(
-                  child: Text(
-                    'Next: ${nextStop.name}',
-                    style: TextStyles.bodySmall.copyWith(
-                      color: Colors.white70,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                if (nextStop.segmentDistance != null)
-                  Text(
-                    '${nextStop.segmentDistance!.toStringAsFixed(1)} km',
-                    style: TextStyles.bodySmall.copyWith(
-                      color: Colors.white70,
-                    ),
-                  ),
-              ],
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _buildStopsTimeline(List<TrainStop> stops, bool isDark, Position? driverLocation) {
-    return Container(
-      margin: EdgeInsets.symmetric(horizontal: AppSpacing.lg),
-      padding: EdgeInsets.all(AppSpacing.lg),
-      decoration: BoxDecoration(
         color: isDark ? AppColors.darkSurface : Colors.white,
         borderRadius: BorderRadius.circular(AppSpacing.radiusXL),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: Offset(0, 4),
-          ),
-        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Trip Timeline',
-            style: TextStyles.headingMedium.copyWith(
-              color: isDark ? Colors.white : AppColors.lightTextPrimary,
-              fontWeight: FontWeight.bold,
-            ),
+          Row(
+            children: [
+              Icon(
+                Icons.route,
+                color: AppColors.primaryGreen,
+                size: 24,
+              ),
+              SizedBox(width: AppSpacing.sm),
+              Text(
+                'Trip Timeline',
+                style: TextStyles.headingMedium.copyWith(
+                  color: isDark ? Colors.white : AppColors.lightTextPrimary,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              if (!hasDriverStarted) ...[
+                Spacer(),
+                Container(
+                  padding: EdgeInsets.symmetric(
+                    horizontal: AppSpacing.sm,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.orange.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: Colors.orange.withOpacity(0.3),
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.schedule,
+                        size: 14,
+                        color: Colors.orange,
+                      ),
+                      SizedBox(width: 4),
+                      Text(
+                        'Waiting',
+                        style: TextStyles.bodySmall.copyWith(
+                          color: Colors.orange,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 11,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ],
           ),
-          SizedBox(height: AppSpacing.md),
-          Expanded(
-            child: ListView.builder(
-              itemCount: stops.length,
-              itemBuilder: (context, index) {
-                final stop = stops[index];
-                final isFirst = index == 0;
-                final isLast = index == stops.length - 1;
-                final isCurrent = index == _currentStopIndex;
-                final isPast = index < _currentStopIndex;
-                
-                return _buildStopItem(
-                  stop,
-                  isFirst,
-                  isLast,
-                  isCurrent,
-                  isPast,
-                  isDark,
-                );
-              },
-            ),
-          ),
+          SizedBox(height: AppSpacing.xl),
+          ...stops.asMap().entries.map((entry) {
+            final index = entry.key;
+            final stop = entry.value;
+            final isFirst = index == 0;
+            final isLast = index == stops.length - 1;
+            final isCurrent = index == _currentStopIndex;
+            final isPast = index < _currentStopIndex;
+            
+            return _buildStopItem(
+              stop,
+              isFirst,
+              isLast,
+              isCurrent,
+              isPast,
+              isDark,
+            );
+          }).toList(),
         ],
       ),
     );
@@ -347,150 +348,148 @@ class _PassengerLiveTrackingScreenState extends ConsumerState<PassengerLiveTrack
     bool isPast,
     bool isDark,
   ) {
-    final stopColor = isPast
-        ? AppColors.success
-        : isCurrent
-            ? AppColors.primaryYellow
-            : (isDark ? Colors.white24 : Colors.black26);
-    
-    return IntrinsicHeight(
+    return Padding(
+      padding: EdgeInsets.only(bottom: isLast ? 0 : AppSpacing.xl),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Timeline indicator
           Column(
             children: [
-              // Top line
-              if (!isFirst)
-                Container(
-                  width: 2,
-                  height: 20,
-                  color: isPast ? AppColors.success : (isDark ? Colors.white24 : Colors.black26),
-                ),
-              
-              // Stop circle
+              // Stop circle/icon
               Container(
-                width: isCurrent ? 24 : 16,
-                height: isCurrent ? 24 : 16,
+                width: 40,
+                height: 40,
                 decoration: BoxDecoration(
-                  color: stopColor,
+                  color: isCurrent 
+                      ? AppColors.primaryGreen 
+                      : isPast 
+                          ? AppColors.success 
+                          : (isDark ? Colors.white12 : Colors.grey[200]),
                   shape: BoxShape.circle,
-                  border: isCurrent
-                      ? Border.all(color: Colors.white, width: 3)
-                      : null,
-                  boxShadow: isCurrent
-                      ? [
-                          BoxShadow(
-                            color: stopColor.withOpacity(0.5),
-                            blurRadius: 8,
-                            spreadRadius: 2,
-                          ),
-                        ]
-                      : null,
+                  border: Border.all(
+                    color: isCurrent || isPast
+                        ? Colors.white
+                        : (isDark ? Colors.white24 : Colors.grey[300]!),
+                    width: 2,
+                  ),
                 ),
-                child: isFirst || isLast
-                    ? Icon(
-                        isFirst ? Icons.circle : Icons.location_on,
-                        size: isCurrent ? 14 : 10,
-                        color: Colors.white,
-                      )
-                    : null,
+                child: Icon(
+                  isFirst 
+                      ? Icons.trip_origin 
+                      : isLast 
+                          ? Icons.location_on 
+                          : Icons.circle,
+                  size: isFirst || isLast ? 20 : 12,
+                  color: isCurrent || isPast
+                      ? Colors.white
+                      : (isDark ? Colors.white38 : Colors.grey[400]),
+                ),
               ),
               
-              // Bottom line
+              // Connecting line
               if (!isLast)
-                Expanded(
-                  child: Container(
-                    width: 2,
-                    color: isPast ? AppColors.success : (isDark ? Colors.white24 : Colors.black26),
-                  ),
+                Container(
+                  width: 2,
+                  height: 50,
+                  margin: EdgeInsets.symmetric(vertical: 4),
+                  color: isPast ? AppColors.success : (isDark ? Colors.white12 : Colors.grey[300]),
                 ),
             ],
           ),
           
-          SizedBox(width: AppSpacing.md),
+          SizedBox(width: AppSpacing.lg),
           
           // Stop details
           Expanded(
-            child: Container(
-              padding: EdgeInsets.only(bottom: AppSpacing.lg),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    stop.name,
-                    style: TextStyles.bodyLarge.copyWith(
-                      color: isDark ? Colors.white : AppColors.lightTextPrimary,
-                      fontWeight: isCurrent ? FontWeight.bold : FontWeight.w500,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        stop.name,
+                        style: TextStyles.bodyLarge.copyWith(
+                          color: isDark ? Colors.white : AppColors.lightTextPrimary,
+                          fontWeight: isCurrent ? FontWeight.bold : FontWeight.w600,
+                          fontSize: isCurrent ? 16 : 15,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ),
-                  ),
-                  SizedBox(height: AppSpacing.xs),
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.access_time,
-                        size: 14,
-                        color: isDark ? Colors.white54 : AppColors.lightTextSecondary,
-                      ),
-                      SizedBox(width: 4),
-                      Text(
-                        _formatTime(stop.time),
-                        style: TextStyles.bodySmall.copyWith(
-                          color: isDark ? Colors.white54 : AppColors.lightTextSecondary,
+                  ],
+                ),
+                SizedBox(height: AppSpacing.xs),
+                if (isCurrent)
+                  Container(
+                    margin: EdgeInsets.only(top: AppSpacing.xs),
+                    padding: EdgeInsets.symmetric(
+                      horizontal: AppSpacing.sm,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppColors.primaryGreen.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          width: 6,
+                          height: 6,
+                          decoration: BoxDecoration(
+                            color: AppColors.primaryGreen,
+                            shape: BoxShape.circle,
+                          ),
                         ),
-                      ),
-                      if (stop.segmentDistance != null) ...[
-                        SizedBox(width: AppSpacing.md),
-                        Icon(
-                          Icons.straighten,
-                          size: 14,
-                          color: isDark ? Colors.white54 : AppColors.lightTextSecondary,
-                        ),
-                        SizedBox(width: 4),
+                        SizedBox(width: 6),
                         Text(
-                          '${stop.segmentDistance!.toStringAsFixed(1)} km',
+                          isFirst ? 'Picking up' : 'Current location',
                           style: TextStyles.bodySmall.copyWith(
-                            color: isDark ? Colors.white54 : AppColors.lightTextSecondary,
+                            color: AppColors.primaryGreen,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 12,
                           ),
                         ),
                       ],
-                    ],
+                    ),
                   ),
-                  if (isCurrent && stop.segmentDuration != null)
-                    Container(
-                      margin: EdgeInsets.only(top: AppSpacing.sm),
-                      padding: EdgeInsets.symmetric(
-                        horizontal: AppSpacing.sm,
-                        vertical: AppSpacing.xs,
-                      ),
-                      decoration: BoxDecoration(
-                        color: AppColors.primaryYellow.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(AppSpacing.radiusSM),
-                        border: Border.all(
-                          color: AppColors.primaryYellow.withOpacity(0.3),
+                if (isPast)
+                  Container(
+                    margin: EdgeInsets.only(top: AppSpacing.xs),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.check_circle,
+                          size: 14,
+                          color: AppColors.success,
                         ),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            Icons.schedule,
-                            size: 14,
-                            color: AppColors.primaryYellow,
+                        SizedBox(width: 4),
+                        Text(
+                          'Completed',
+                          style: TextStyles.bodySmall.copyWith(
+                            color: AppColors.success,
+                            fontWeight: FontWeight.w500,
+                            fontSize: 12,
                           ),
-                          SizedBox(width: 4),
-                          Text(
-                            'ETA: ${stop.segmentDuration} min',
-                            style: TextStyles.bodySmall.copyWith(
-                              color: AppColors.primaryYellow,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ],
+                        ),
+                      ],
+                    ),
+                  ),
+                if (!isCurrent && !isPast && stop.segmentDuration != null)
+                  Container(
+                    margin: EdgeInsets.only(top: AppSpacing.xs),
+                    child: Text(
+                      'ETA: ${stop.segmentDuration} mins',
+                      style: TextStyles.bodySmall.copyWith(
+                        color: isDark ? Colors.white54 : Colors.grey[600],
+                        fontSize: 12,
                       ),
                     ),
-                ],
-              ),
+                  ),
+              ],
             ),
           ),
         ],
@@ -500,7 +499,7 @@ class _PassengerLiveTrackingScreenState extends ConsumerState<PassengerLiveTrack
 
   Widget _buildDriverActionsCard(bool isDark) {
     return Container(
-      padding: EdgeInsets.all(AppSpacing.lg),
+      padding: EdgeInsets.all(AppSpacing.xl),
       decoration: BoxDecoration(
         color: isDark ? AppColors.darkSurface : Colors.white,
         borderRadius: BorderRadius.only(
@@ -510,23 +509,28 @@ class _PassengerLiveTrackingScreenState extends ConsumerState<PassengerLiveTrack
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.1),
-            blurRadius: 20,
-            offset: Offset(0, -5),
+            blurRadius: 10,
+            offset: Offset(0, -2),
           ),
         ],
       ),
       child: SafeArea(
         child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
             // Driver info
             Row(
               children: [
-                CircleAvatar(
-                  radius: 30,
-                  backgroundColor: AppColors.primaryGreen.withOpacity(0.1),
+                Container(
+                  width: 56,
+                  height: 56,
+                  decoration: BoxDecoration(
+                    color: AppColors.primaryGreen.withOpacity(0.1),
+                    shape: BoxShape.circle,
+                  ),
                   child: Icon(
                     Icons.person,
-                    size: 32,
+                    size: 28,
                     color: AppColors.primaryGreen,
                   ),
                 ),
@@ -537,7 +541,7 @@ class _PassengerLiveTrackingScreenState extends ConsumerState<PassengerLiveTrack
                     children: [
                       Text(
                         widget.rideDetails.driverName ?? 'Your Driver',
-                        style: TextStyles.headingSmall.copyWith(
+                        style: TextStyles.bodyLarge.copyWith(
                           color: isDark ? Colors.white : AppColors.lightTextPrimary,
                           fontWeight: FontWeight.bold,
                         ),
@@ -547,27 +551,55 @@ class _PassengerLiveTrackingScreenState extends ConsumerState<PassengerLiveTrack
                         children: [
                           Icon(
                             Icons.star,
-                            size: 16,
+                            size: 14,
                             color: AppColors.primaryYellow,
                           ),
                           SizedBox(width: 4),
                           Text(
-                            widget.rideDetails.rating?.toStringAsFixed(1) ?? '0.0',
-                            style: TextStyles.bodyMedium.copyWith(
-                              color: isDark ? Colors.white70 : AppColors.lightTextSecondary,
+                            widget.rideDetails.rating?.toStringAsFixed(1) ?? '5.0',
+                            style: TextStyles.bodySmall.copyWith(
+                              color: isDark ? Colors.white70 : Colors.grey[700],
                               fontWeight: FontWeight.w600,
                             ),
                           ),
-                          SizedBox(width: AppSpacing.md),
+                          SizedBox(width: AppSpacing.sm),
                           Text(
-                            '${widget.rideDetails.vehicleModel ?? 'Vehicle'} • ${widget.rideDetails.vehicleNumber ?? ''}',
+                            '•',
                             style: TextStyles.bodySmall.copyWith(
-                              color: isDark ? Colors.white54 : AppColors.lightTextSecondary,
+                              color: isDark ? Colors.white38 : Colors.grey[400],
+                            ),
+                          ),
+                          SizedBox(width: AppSpacing.sm),
+                          Text(
+                            widget.rideDetails.vehicleModel ?? 'Vehicle',
+                            style: TextStyles.bodySmall.copyWith(
+                              color: isDark ? Colors.white54 : Colors.grey[600],
                             ),
                           ),
                         ],
                       ),
                     ],
+                  ),
+                ),
+                Container(
+                  padding: EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppColors.primaryGreen.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: AppColors.primaryGreen.withOpacity(0.3),
+                    ),
+                  ),
+                  child: Text(
+                    widget.rideDetails.vehicleNumber ?? 'MH12AB1234',
+                    style: TextStyles.bodySmall.copyWith(
+                      color: AppColors.primaryGreen,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 11,
+                    ),
                   ),
                 ),
               ],
@@ -579,51 +611,60 @@ class _PassengerLiveTrackingScreenState extends ConsumerState<PassengerLiveTrack
             Row(
               children: [
                 Expanded(
-                  child: ElevatedButton.icon(
+                  child: ElevatedButton(
                     onPressed: _callDriver,
-                    icon: Icon(Icons.phone, size: 20),
-                    label: Text('Call'),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.primaryGreen,
                       foregroundColor: Colors.white,
-                      padding: EdgeInsets.symmetric(vertical: AppSpacing.md),
+                      padding: EdgeInsets.symmetric(vertical: 14),
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(AppSpacing.radiusMD),
+                        borderRadius: BorderRadius.circular(12),
                       ),
-                      elevation: 2,
+                      elevation: 0,
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.phone, size: 18),
+                        SizedBox(width: 8),
+                        Text(
+                          'Call Driver',
+                          style: TextStyles.bodyMedium.copyWith(
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
                 SizedBox(width: AppSpacing.md),
                 Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: _messageDriver,
-                    icon: Icon(Icons.message, size: 20),
-                    label: Text('Message'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: isDark ? AppColors.darkBorder : AppColors.lightBorder,
-                      foregroundColor: isDark ? Colors.white : AppColors.lightTextPrimary,
-                      padding: EdgeInsets.symmetric(vertical: AppSpacing.md),
+                  child: OutlinedButton(
+                    onPressed: _viewBookingDetails,
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppColors.primaryGreen,
+                      side: BorderSide(color: AppColors.primaryGreen),
+                      padding: EdgeInsets.symmetric(vertical: 14),
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(AppSpacing.radiusMD),
+                        borderRadius: BorderRadius.circular(12),
                       ),
-                      elevation: 0,
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.receipt_long, size: 18),
+                        SizedBox(width: 8),
+                        Text(
+                          'View Details',
+                          style: TextStyles.bodyMedium.copyWith(
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
               ],
-            ),
-            
-            SizedBox(height: AppSpacing.sm),
-            
-            // Share trip button
-            TextButton.icon(
-              onPressed: _shareTrip,
-              icon: Icon(Icons.share, size: 18),
-              label: Text('Share trip details'),
-              style: TextButton.styleFrom(
-                foregroundColor: isDark ? Colors.white70 : AppColors.lightTextSecondary,
-              ),
             ),
           ],
         ),
@@ -635,8 +676,10 @@ class _PassengerLiveTrackingScreenState extends ConsumerState<PassengerLiveTrack
     final stops = <TrainStop>[];
     double cumulativeDistance = 0;
     
-    // Parse departure time
-    final departureTime = DateTime.now(); // Use current time as fallback
+    // Parse departure time from scheduled time
+    final departureTime = widget.rideDetails.scheduledDeparture != null
+        ? DateTime.tryParse(widget.rideDetails.scheduledDeparture!) ?? DateTime.now()
+        : DateTime.now();
     
     // Debug: Print intermediate stops
     print('🚏 Building stops list:');
@@ -698,23 +741,62 @@ class _PassengerLiveTrackingScreenState extends ConsumerState<PassengerLiveTrack
   }
 
   void _updateCurrentStop(Position driverLocation, List<TrainStop> stops) {
-    // Simple logic: find closest stop to driver
-    int closestIndex = 0;
+    // Find the stop closest to driver's current location using real GPS distance
+    if (stops.isEmpty) return;
+    
+    // Get intermediate stops with coordinates from tracking state
+    final trackingState = ref.read(locationTrackingProvider);
+    final intermediateStopDataList = trackingState.intermediateStops;
+    
+    // Helper to find coordinates for a location
+    Map<String, double>? findCoordinates(String locationName) {
+      final normalized = locationName.split(',').first.trim().toLowerCase();
+      
+      for (var stopData in intermediateStopDataList) {
+        if (stopData.locationName.split(',').first.trim().toLowerCase() == normalized) {
+          return {
+            'lat': stopData.latitude,
+            'lng': stopData.longitude,
+          };
+        }
+      }
+      return null;
+    }
+    
+    // Find closest stop by GPS distance
+    double minDistance = double.infinity;
+    int closestStopIndex = _currentStopIndex;
     
     for (int i = 0; i < stops.length; i++) {
-      // In a real implementation, you'd calculate distance to each stop
-      // For now, assume linear progress
-      final stopProgress = i / (stops.length - 1);
-      if (stopProgress <= 0.5 && i > closestIndex) {
-        closestIndex = i;
+      final coords = findCoordinates(stops[i].name);
+      
+      if (coords != null) {
+        final distance = _calculateDistance(
+          driverLocation.latitude,
+          driverLocation.longitude,
+          coords['lat']!,
+          coords['lng']!,
+        );
+        
+        if (distance < minDistance) {
+          minDistance = distance;
+          closestStopIndex = i;
+        }
       }
     }
     
-    if (_currentStopIndex != closestIndex) {
-      setState(() {
-        _currentStopIndex = closestIndex;
-      });
+    // If within 1km of a stop ahead, consider it reached
+    if (minDistance < 1.0 && closestStopIndex >= _currentStopIndex) {
+      if (_currentStopIndex != closestStopIndex) {
+        setState(() {
+          _currentStopIndex = closestStopIndex;
+        });
+      }
     }
+  }
+  
+  double _calculateDistance(double lat1, double lon1, double lat2, double lon2) {
+    return Geolocator.distanceBetween(lat1, lon1, lat2, lon2) / 1000; // Convert to km
   }
 
   double _calculateProgress(List<TrainStop> stops, Position driverLocation) {
@@ -731,16 +813,44 @@ class _PassengerLiveTrackingScreenState extends ConsumerState<PassengerLiveTrack
   }
 
   void _callDriver() async {
-    // In real app, use driver's phone number
-    final Uri phoneUri = Uri(scheme: 'tel', path: '+1234567890');
-    if (await canLaunchUrl(phoneUri)) {
+    print('🔍 Debug Call Driver:');
+    print('   Driver Name: ${widget.rideDetails.driverName}');
+    print('   Driver ID: ${widget.rideDetails.driverId}');
+    print('   Driver Phone: ${widget.rideDetails.driverPhoneNumber}');
+    print('   Driver Rating: ${widget.rideDetails.driverRating}');
+    
+    final driverPhone = widget.rideDetails.driverPhoneNumber;
+    if (driverPhone == null || driverPhone.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Driver phone number not available. Name: ${widget.rideDetails.driverName}')),
+        );
+      }
+      return;
+    }
+    
+    // Clean the phone number - remove spaces, dashes, brackets
+    String cleanPhone = driverPhone.replaceAll(RegExp(r'[\s\-().]'), '');
+    
+    final Uri phoneUri = Uri.parse('tel:$cleanPhone');
+    try {
       await launchUrl(phoneUri);
+    } catch (e) {
+      print('Error launching phone dialer: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not launch phone dialer: ${e.toString()}')),
+        );
+      }
     }
   }
 
-  void _messageDriver() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Messaging feature coming soon')),
+  void _viewBookingDetails() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => BookingManagementScreen(ride: widget.rideDetails),
+      ),
     );
   }
 

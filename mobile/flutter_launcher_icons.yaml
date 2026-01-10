@@ -10,7 +10,7 @@ flutter_launcher_icons:
   ios: true
   
   # Android adaptive icon for rounded edges
-  adaptive_icon_background: "#2D5F3E"
+  adaptive_icon_background: "#1B5E20"
   adaptive_icon_foreground: "assets/images/vanyatra_launcher_final.png"
   
   # Remove old launcher icons

@@ -32,6 +32,8 @@ namespace RideSharing.API.Data
         public DbSet<Models.Domain.PasswordResetToken> PasswordResetTokens { get; set; }
         public DbSet<Models.Domain.Banner> Banners { get; set; }
         public DbSet<Models.Domain.RouteSegment> RouteSegments { get; set; }
+        public DbSet<Models.Domain.Coupon> Coupons { get; set; }
+        public DbSet<Models.Domain.CouponUsage> CouponUsages { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -452,6 +454,37 @@ namespace RideSharing.API.Data
                 entity.HasIndex(e => e.DisplayOrder);
                 entity.Property(e => e.CreatedAt).HasDefaultValueSql("GETUTCDATE()");
                 entity.Property(e => e.UpdatedAt).HasDefaultValueSql("GETUTCDATE()");
+            });
+
+            // Coupon Configuration
+            modelBuilder.Entity<Models.Domain.Coupon>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+                entity.HasIndex(e => e.Code).IsUnique();
+                entity.HasIndex(e => e.IsActive);
+                entity.HasIndex(e => new { e.ValidFrom, e.ValidUntil });
+                entity.Property(e => e.CreatedAt).HasDefaultValueSql("GETUTCDATE()");
+            });
+
+            // CouponUsage Configuration
+            modelBuilder.Entity<Models.Domain.CouponUsage>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+                entity.HasIndex(e => new { e.CouponId, e.UserId });
+                entity.HasIndex(e => e.BookingId);
+                entity.HasOne(e => e.Coupon)
+                    .WithMany(c => c.CouponUsages)
+                    .HasForeignKey(e => e.CouponId)
+                    .OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(e => e.User)
+                    .WithMany()
+                    .HasForeignKey(e => e.UserId)
+                    .OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(e => e.Booking)
+                    .WithMany()
+                    .HasForeignKey(e => e.BookingId)
+                    .OnDelete(DeleteBehavior.Restrict);
+                entity.Property(e => e.UsedAt).HasDefaultValueSql("GETUTCDATE()");
             });
         }
     }

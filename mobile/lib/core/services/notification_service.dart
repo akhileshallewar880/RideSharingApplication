@@ -93,16 +93,32 @@ class NotificationService {
       return;
     }
 
-    // Initialize local notifications
-    await _initializeLocalNotifications();
+    // Initialize local notifications (this can work without FCM)
+    try {
+      await _initializeLocalNotifications();
+      print('✅ Local notifications initialized');
+    } catch (e) {
+      print('❌ Failed to initialize local notifications: $e');
+    }
     
-    // Initialize FCM
-    await _initializeFCM();
+    // Initialize FCM (may fail if Google Play Services unavailable)
+    try {
+      await _initializeFCM();
+      
+      // Set up message handlers only if FCM initialized successfully
+      _setupMessageHandlers();
+      
+      print('✅ FCM initialized and message handlers set up');
+    } catch (e) {
+      print('⚠️ FCM initialization failed: $e');
+      print('   This is usually because:');
+      print('   1. Device doesn\'t have Google Play Services');
+      print('   2. No internet connection to Firebase');
+      print('   3. Firebase project not configured correctly');
+      print('   📱 App will continue to work, but push notifications will not be available.');
+    }
     
-    // Set up message handlers
-    _setupMessageHandlers();
-    
-    print('✅ Notification Service initialized');
+    print('✅ Notification Service initialization complete');
   }
 
   /// Request notification permissions
@@ -251,11 +267,13 @@ class NotificationService {
               _channel.id,
               _channel.name,
               channelDescription: _channel.description,
-              icon: '@mipmap/ic_launcher',  // Must use @mipmap/ prefix for mipmap resources
+              icon: '@drawable/ic_stat_vanyatra',  // VanYatra Y icon
+              largeIcon: const DrawableResourceAndroidBitmap('@drawable/notification_large_icon'),  // VanYatra logo
               importance: Importance.high,
               priority: Priority.high,
               playSound: true,
               enableVibration: true,
+              styleInformation: const BigTextStyleInformation(''),
             ),
             iOS: const DarwinNotificationDetails(
               presentAlert: true,
@@ -375,12 +393,14 @@ class NotificationService {
             _channel.id,
             _channel.name,
             channelDescription: _channel.description,
-            icon: '@mipmap/ic_launcher',
+            icon: '@drawable/ic_stat_vanyatra',  // VanYatra Y icon
+            largeIcon: const DrawableResourceAndroidBitmap('@drawable/notification_large_icon'),  // VanYatra logo
             importance: Importance.max,
             priority: Priority.high,
             playSound: true,
             enableVibration: true,
             showWhen: true,
+            styleInformation: const BigTextStyleInformation(''),
           ),
           iOS: const DarwinNotificationDetails(
             presentAlert: true,
@@ -485,8 +505,11 @@ class NotificationService {
           _channel.id,
           _channel.name,
           channelDescription: _channel.description,
+          icon: '@drawable/ic_stat_vanyatra',  // VanYatra Y icon
+          largeIcon: const DrawableResourceAndroidBitmap('@drawable/notification_large_icon'),  // VanYatra logo
           importance: Importance.high,
           priority: Priority.high,
+          styleInformation: const BigTextStyleInformation(''),
         ),
         iOS: const DarwinNotificationDetails(),
       ),

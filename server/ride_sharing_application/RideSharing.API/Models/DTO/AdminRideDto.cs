@@ -13,7 +13,9 @@ namespace RideSharing.API.Models.DTO
         [Required]
         public LocationDto DropoffLocation { get; set; } = null!;
 
-        public List<string>? IntermediateStops { get; set; }
+        public List<string>? IntermediateStops { get; set; }  // For backward compatibility - string addresses only
+        
+        public List<LocationDto>? IntermediateStopLocations { get; set; }  // New: Full location data with coordinates
 
         public List<SegmentPriceDto>? SegmentPrices { get; set; }
 
@@ -138,5 +140,20 @@ namespace RideSharing.API.Models.DTO
         public string? AdminNotes { get; set; }
         public List<SegmentPriceDto>? SegmentPrices { get; set; }
         public List<string>? IntermediateStops { get; set; }
+        public decimal? Distance { get; set; } // in kilometers
+        public int? Duration { get; set; } // in minutes
+    }
+
+    public class CalculateRouteRequestDto
+    {
+        [Required]
+        public List<RouteLocationDto> Locations { get; set; } = null!;
+    }
+
+    public class RouteLocationDto
+    {
+        public string? Name { get; set; }
+        public decimal? Latitude { get; set; }
+        public decimal? Longitude { get; set; }
     }
 }

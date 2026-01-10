@@ -1,0 +1,14 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24"
+    android:tint="@android:color/white">
+    <!-- VanYatra Y icon - white monochrome for notifications -->
+    <path
+        android:fillColor="@android:color/white"
+        android:pathData="M6,4 L10,4 L12,10 L14,4 L18,4 L14,12 L14,20 L10,20 L10,12 Z"/>
+    <path
+        android:fillColor="@android:color/white"
+        android:pathData="M2,14h3v2H2z"/>
+</vector>

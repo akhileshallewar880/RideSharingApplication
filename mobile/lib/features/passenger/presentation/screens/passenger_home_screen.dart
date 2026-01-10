@@ -2,7 +2,9 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:carousel_slider/carousel_slider.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:audioplayers/audioplayers.dart';
 import 'package:allapalli_ride/app/themes/app_colors.dart';
 import 'package:allapalli_ride/app/themes/app_spacing.dart';
 import 'package:allapalli_ride/app/themes/text_styles.dart';
@@ -22,7 +24,9 @@ import 'package:allapalli_ride/features/passenger/presentation/widgets/ride_sear
 import 'package:allapalli_ride/features/passenger/presentation/widgets/rate_ride_bottom_sheet.dart';
 import 'package:allapalli_ride/core/providers/location_provider.dart';
 import 'package:allapalli_ride/core/services/location_service.dart';
+import 'package:allapalli_ride/core/services/socket_service.dart';
 import 'package:allapalli_ride/core/providers/passenger_ride_provider.dart';
+import 'package:allapalli_ride/core/providers/auth_provider.dart';
 import 'package:allapalli_ride/core/models/passenger_ride_models.dart';
 import 'package:allapalli_ride/core/utils/dynamic_status_bar.dart';
 import 'package:intl/intl.dart';
@@ -37,7 +41,7 @@ class PassengerHomeScreen extends ConsumerStatefulWidget {
   ConsumerState<PassengerHomeScreen> createState() => _PassengerHomeScreenState();
 }
 
-class _PassengerHomeScreenState extends ConsumerState<PassengerHomeScreen> with DynamicStatusBarMixin {
+class _PassengerHomeScreenState extends ConsumerState<PassengerHomeScreen> with DynamicStatusBarMixin, TickerProviderStateMixin {
   final _pickupController = TextEditingController();
   final _dropoffController = TextEditingController();
   LocationSuggestion? _selectedPickup;
@@ -45,7 +49,19 @@ class _PassengerHomeScreenState extends ConsumerState<PassengerHomeScreen> with 
   DateTime _selectedDate = DateTime.now(); // Default today
   int _passengerCount = 1; // Default 1 passenger
   int _selectedNavIndex = 0; // Bottom navigation index
-  Timer? _pollingTimer; // Timer for periodic ride status refresh
+  Timer? _pollingTimer; // Timer for periodic ride status refresh (fallback only)
+  StreamSubscription<OtpVerificationEvent>? _otpVerificationSubscription; // SignalR OTP verification listener
+  final AudioPlayer _audioPlayer = AudioPlayer(); // Audio player for OTP verification sound
+  final Map<String, bool> _previousVerificationStatus = {}; // Track verification status changes
+  int _currentCarouselPage = 0; // Current page in rides carousel
+  final PageController _ridesCarouselController = PageController(); // Controller for rides carousel
+  
+  // Animated placeholder state
+  Timer? _placeholderTimer;
+  int _currentPlaceholderIndex = 0;
+  AnimationController? _placeholderAnimationController;
+  Animation<Offset>? _placeholderSlideAnimation;
+  List<String> _popularCities = [];
   
   // Cache DateFormat instances to avoid recreating on every build
   static final _dateFormatYMD = DateFormat('yyyy-MM-dd');
@@ -111,11 +127,63 @@ class _PassengerHomeScreenState extends ConsumerState<PassengerHomeScreen> with 
   ];
   
   bool _hasShownRatingPrompt = false;
+  
+  // Screen entrance animation
+  late AnimationController _entranceAnimationController;
+  late Animation<double> _fadeAnimation;
+  late Animation<Offset> _slideAnimation;
 
   @override
   void initState() {
     super.initState();
     _selectedNavIndex = widget.initialTab;
+    
+    // Initialize entrance animation
+    _entranceAnimationController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 600),
+    );
+    
+    _fadeAnimation = Tween<double>(
+      begin: 0.0,
+      end: 1.0,
+    ).animate(CurvedAnimation(
+      parent: _entranceAnimationController,
+      curve: Curves.easeOut,
+    ));
+    
+    _slideAnimation = Tween<Offset>(
+      begin: const Offset(0, 0.05),
+      end: Offset.zero,
+    ).animate(CurvedAnimation(
+      parent: _entranceAnimationController,
+      curve: Curves.easeOutCubic,
+    ));
+    
+    // Start entrance animation
+    _entranceAnimationController.forward();
+    
+    // Initialize placeholder animation
+    _placeholderAnimationController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 400),
+    );
+    _placeholderSlideAnimation = Tween<Offset>(
+      begin: const Offset(0, 1),
+      end: Offset.zero,
+    ).animate(CurvedAnimation(
+      parent: _placeholderAnimationController!,
+      curve: Curves.easeInOut,
+    ));
+    
+    // Load popular cities from location service and start animation
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadPopularCities();
+      // Start animation after cities are loaded
+      if (_popularCities.isNotEmpty) {
+        _startPlaceholderAnimation();
+      }
+    });
     _startHeaderAnimation();
     // Check user's location on app launch
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -126,8 +194,8 @@ class _PassengerHomeScreenState extends ConsumerState<PassengerHomeScreen> with 
       _loadBanners();
       // Show rating prompt after data loads
       _showRatingPromptIfNeeded();
-      // Start periodic polling to refresh ride status every 10 seconds
-      _startPeriodicRefresh();
+      // Setup SignalR for OTP verification detection
+      _setupOtpVerificationListener();
     });
   }
   
@@ -150,19 +218,197 @@ class _PassengerHomeScreenState extends ConsumerState<PassengerHomeScreen> with 
 
   @override
   void dispose() {
-    _pollingTimer?.cancel(); // Cancel timer when widget is disposed
+    _pollingTimer?.cancel();
+    _otpVerificationSubscription?.cancel(); // Cancel SignalR subscription
+    _placeholderTimer?.cancel();
+    _placeholderAnimationController?.dispose(); // Cancel timer when widget is disposed
+    _entranceAnimationController.dispose();
     _pickupController.dispose();
     _dropoffController.dispose();
+    _audioPlayer.dispose(); // Dispose audio player to prevent memory leaks
+    _ridesCarouselController.dispose(); // Dispose carousel controller
     super.dispose();
   }
 
-  /// Start periodic refresh to detect trip status changes
+  /// Setup SignalR listener for OTP verification events (replaces polling)
+  void _setupOtpVerificationListener() async {
+    print('🔔 Setting up SignalR OTP verification listener');
+    
+    // Get the socket service singleton
+    final socketService = SocketService();
+    
+    // Check if we have any active rides and join their SignalR rooms
+    await ref.read(passengerRideNotifierProvider.notifier).loadRideHistory();
+    final rideHistory = ref.read(passengerRideNotifierProvider).rideHistory;
+    final activeRides = rideHistory.where((ride) {
+      final status = ride.status.toLowerCase();
+      return status == 'active' || status == 'in-progress' || status == 'scheduled';
+    }).toList();
+    
+    if (activeRides.isNotEmpty) {
+      for (final ride in activeRides) {
+        if (ride.rideId != null && ride.rideId!.isNotEmpty) {
+          print('🚗 Joining SignalR room for active ride: ${ride.rideId}');
+          await socketService.joinRide(ride.rideId!);
+        }
+      }
+    }
+    
+    // Listen to OTP verification events from SignalR
+    _otpVerificationSubscription = socketService.otpVerifications.listen((event) async {
+      print('🎉 OTP Verified via SignalR for booking ${event.bookingId} - Playing sound!');
+      
+      if (!mounted) return;
+      
+      try {
+        // Play verification sound
+        await _audioPlayer.play(AssetSource('sounds/otp_verified.mp3'));
+        HapticFeedback.heavyImpact();
+        
+        // Show a subtle snackbar notification
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  const Icon(Icons.check_circle, color: Colors.white, size: 20),
+                  const SizedBox(width: 8),
+                  Text('Driver verified your OTP - Trip started!'),
+                ],
+              ),
+              backgroundColor: const Color(0xFF4CAF50),
+              duration: const Duration(seconds: 3),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+          
+          // Refresh ride history to get latest data
+          await ref.read(passengerRideNotifierProvider.notifier).loadRideHistory();
+          
+          // Navigate to live tracking screen after a short delay
+          Future.delayed(const Duration(milliseconds: 1500), () {
+            if (mounted && event.rideId.isNotEmpty) {
+              // Find the ride details from ride history
+              final rideHistory = ref.read(passengerRideNotifierProvider).rideHistory;
+              final rideDetails = rideHistory.firstWhere(
+                (ride) => ride.rideId == event.rideId,
+                orElse: () => RideHistoryItem(
+                  bookingNumber: event.bookingNumber,
+                  status: 'In Progress',
+                  pickupLocation: '',
+                  dropoffLocation: '',
+                  travelDate: DateTime.now().toIso8601String(),
+                  timeSlot: '',
+                  vehicleType: '',
+                  totalFare: 0,
+                  driverName: event.passengerName,
+                  driverPhoneNumber: '',
+                  vehicleModel: '',
+                  vehicleNumber: '',
+                  rideId: event.rideId,
+                  otp: '',
+                  isVerified: true,
+                ),
+              );
+              
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => PassengerLiveTrackingScreen(
+                    rideId: event.rideId,
+                    bookingNumber: event.bookingNumber,
+                    rideDetails: rideDetails,
+                  ),
+                ),
+              );
+            }
+          });
+        }
+      } catch (e) {
+        print('❌ Error handling OTP verification event: $e');
+      }
+    });
+    
+    print('✅ SignalR OTP verification listener setup complete');
+  }
+  
+  /// Start periodic refresh to detect trip status changes (DEPRECATED - replaced by SignalR)
+  /// Kept as fallback in case SignalR is unavailable
   void _startPeriodicRefresh() {
-    print('🔄 Starting periodic ride status refresh (every 30 seconds)');
-    _pollingTimer = Timer.periodic(const Duration(seconds: 30), (timer) {
+    print('⚠️ DEPRECATED: Periodic polling should be replaced by SignalR events');
+    print('🔄 Starting periodic ride status refresh (every 3 seconds)');
+    _pollingTimer = Timer.periodic(const Duration(seconds: 3), (timer) async {
       if (mounted) {
         print('🔄 Refreshing ride history...');
-        ref.read(passengerRideNotifierProvider.notifier).loadRideHistory();
+        
+        // Refresh ride history
+        await ref.read(passengerRideNotifierProvider.notifier).loadRideHistory();
+        
+        // Check for OTP verification changes in active/in-progress rides
+        final currentRides = ref.read(passengerRideNotifierProvider).rideHistory;
+        
+        for (final currentRide in currentRides) {
+          // Only check rides that are in-progress or active
+          final status = currentRide.status.toLowerCase();
+          if (status != 'in-progress' && status != 'active') continue;
+          
+          final bookingId = currentRide.bookingNumber;
+          final currentVerified = currentRide.isVerified;
+          
+          // Check if this is a new verification (changed from false to true)
+          if (_previousVerificationStatus.containsKey(bookingId)) {
+            final previousVerified = _previousVerificationStatus[bookingId]!;
+            
+            if (!previousVerified && currentVerified) {
+              // OTP just got verified! Play sound and show haptic feedback
+              print('🎉 OTP Verified for booking $bookingId - Playing sound!');
+              
+              try {
+                await _audioPlayer.play(AssetSource('sounds/otp_verified.mp3'));
+                HapticFeedback.heavyImpact();
+                
+                // Show a subtle snackbar notification
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Row(
+                        children: [
+                          const Icon(Icons.check_circle, color: Colors.white, size: 20),
+                          const SizedBox(width: 8),
+                          const Text('Driver verified your OTP - Trip started!'),
+                        ],
+                      ),
+                      backgroundColor: const Color(0xFF4CAF50),
+                      duration: const Duration(seconds: 3),
+                      behavior: SnackBarBehavior.floating,
+                    ),
+                  );
+                  
+                  // Navigate to live tracking screen after a short delay
+                  Future.delayed(const Duration(milliseconds: 1500), () {
+                    if (mounted && currentRide.rideId != null && currentRide.rideId!.isNotEmpty) {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => PassengerLiveTrackingScreen(
+                            rideId: currentRide.rideId!,
+                            bookingNumber: currentRide.bookingNumber,
+                            rideDetails: currentRide,
+                          ),
+                        ),
+                      );
+                    }
+                  });
+                }
+              } catch (e) {
+                print('❌ Error playing OTP verification sound: $e');
+              }
+            }
+          }
+          
+          // Update the verification status tracking
+          _previousVerificationStatus[bookingId] = currentVerified;
+        }
       }
     });
   }
@@ -336,18 +582,7 @@ class _PassengerHomeScreenState extends ConsumerState<PassengerHomeScreen> with 
             _pickupController.text = nearestLocation.name;
           });
           
-          // Show success message after frame is built
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('✓ Pickup location set to ${nearestLocation.name}'),
-                  backgroundColor: AppColors.success,
-                  duration: const Duration(seconds: 2),
-                ),
-              );
-            }
-          });
+          // Location set silently - no message shown
         }
       }
     } catch (e) {
@@ -398,8 +633,130 @@ class _PassengerHomeScreenState extends ConsumerState<PassengerHomeScreen> with 
     }
   }
   
+  void _showVerificationBottomSheet() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      isDismissible: true,
+      builder: (context) => Container(
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.of(context).viewInsets.bottom,
+        ),
+        decoration: BoxDecoration(
+          color: isDark ? AppColors.darkSurface : Colors.white,
+          borderRadius: const BorderRadius.vertical(
+            top: Radius.circular(24),
+          ),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpacing.xl),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Handle bar
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: isDark 
+                      ? AppColors.darkTextTertiary 
+                      : AppColors.lightTextTertiary,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(height: AppSpacing.xl),
+              
+              // Icon
+              Container(
+                padding: const EdgeInsets.all(AppSpacing.lg),
+                decoration: BoxDecoration(
+                  color: AppColors.primaryYellow.withOpacity(0.2),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  Icons.phone_android,
+                  size: 48,
+                  color: AppColors.primaryYellow,
+                ),
+              ),
+              
+              const SizedBox(height: AppSpacing.xl),
+              
+              // Title
+              Text(
+                'Verify Mobile Number',
+                style: TextStyles.headingLarge.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              
+              const SizedBox(height: AppSpacing.md),
+              
+              // Description
+              Text(
+                'Please verify your mobile number to access this feature and enjoy personalized services',
+                textAlign: TextAlign.center,
+                style: TextStyles.bodyMedium.copyWith(
+                  color: isDark 
+                      ? AppColors.darkTextSecondary 
+                      : AppColors.lightTextSecondary,
+                ),
+              ),
+              
+              const SizedBox(height: AppSpacing.xxxl),
+              
+              // Verify button
+              SizedBox(
+                width: double.infinity,
+                child: PrimaryButton(
+                  text: 'Verify Now',
+                  icon: Icons.arrow_forward,
+                  onPressed: () {
+                    Navigator.pop(context);
+                    Navigator.pushNamedAndRemoveUntil(
+                      context,
+                      '/login-onboarding',
+                      (route) => false,
+                    );
+                  },
+                ),
+              ),
+              
+              const SizedBox(height: AppSpacing.md),
+              
+              // Cancel button
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: Text(
+                  'Maybe Later',
+                  style: TextStyle(
+                    color: isDark 
+                        ? AppColors.darkTextSecondary 
+                        : AppColors.lightTextSecondary,
+                  ),
+                ),
+              ),
+              
+              const SizedBox(height: AppSpacing.md),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Future<void> _handleBookRide() async {
     print('🔍 _handleBookRide called');
+    
+    // Check if user is authenticated
+    final authState = ref.read(authNotifierProvider);
+    if (!authState.isAuthenticated) {
+      _showVerificationBottomSheet();
+      return;
+    }
     
     if (_pickupController.text.isEmpty || _dropoffController.text.isEmpty) {
       print('❌ Validation failed: empty fields');
@@ -1506,42 +1863,238 @@ class _PassengerHomeScreenState extends ConsumerState<PassengerHomeScreen> with 
     );
   }
   
-  Widget _buildHomeContent(bool isDark) {
-    // Use select to only rebuild when rideHistory changes, not entire state
-    final rideHistory = ref.watch(passengerRideNotifierProvider.select((state) => state.rideHistory));
-    
-    // Check for active verified trip first (passenger has been verified and trip is in progress)
-    final activeTrip = rideHistory.firstWhere(
-      (r) {
-        final statusLower = r.status.toLowerCase();
-        return (r.isVerified == true) && 
-               (statusLower == 'active' || 
-                statusLower == 'in_progress' ||
-                statusLower == 'ongoing' ||
-                statusLower == 'started' ||
-                statusLower == 'in-progress' ||
-                statusLower == 'confirmed');
+  // Premium Banner Data
+  final List<Map<String, dynamic>> _premiumBanners = [
+    {
+      'emoji': '🎉',
+      'title': 'First Ride Free!',
+      'subtitle': 'Welcome to VanYatra',
+      'highlights': [
+        'Get your 1st ride absolutely FREE',
+        'No hidden charges',
+      ],
+      'gradientColors': [
+        const Color(0xFFFFF4E6),
+        const Color(0xFFFFE5CC),
+      ],
+    },
+    {
+      'emoji': '⏰',
+      'title': 'On-Time, Every Time',
+      'subtitle': 'Daily Rides Made Easy',
+      'highlights': [
+        'Punctual pickups guaranteed',
+        'Reliable daily commute',
+      ],
+      'gradientColors': [
+        const Color(0xFFE8F5E9),
+        const Color(0xFFC8E6C9),
+      ],
+    },
+    {
+      'emoji': '🚗',
+      'title': 'Comfortable & Safe',
+      'subtitle': 'Ride with Peace of Mind',
+      'highlights': [
+        'Premium comfortable vehicles',
+        'Live tracking every moment',
+      ],
+      'gradientColors': [
+        const Color(0xFFE3F2FD),
+        const Color(0xFFBBDEFB),
+      ],
+    },
+  ];
+  
+  Widget _buildPremiumBannerCarousel(bool isDark) {
+    return CarouselSlider.builder(
+      itemCount: _premiumBanners.length,
+      itemBuilder: (context, index, realIndex) {
+        final banner = _premiumBanners[index];
+        return _buildHorizontalBannerCard(banner, isDark);
       },
-      orElse: () => RideHistoryItem(
-        bookingNumber: '',
-        pickupLocation: '',
-        dropoffLocation: '',
-        travelDate: '',
-        timeSlot: '',
-        vehicleType: '',
-        totalFare: 0,
-        status: '',
+      options: CarouselOptions(
+        height: 140,
+        autoPlay: true,
+        autoPlayInterval: const Duration(seconds: 4),
+        autoPlayAnimationDuration: const Duration(milliseconds: 800),
+        autoPlayCurve: Curves.easeInOutCubic,
+        enlargeCenterPage: true,
+        enlargeFactor: 0.15,
+        viewportFraction: 0.88,
+        enableInfiniteScroll: true,
       ),
     );
+  }
+  
+  Widget _buildHorizontalBannerCard(Map<String, dynamic> banner, bool isDark) {
+    final gradientColors = banner['gradientColors'] as List<Color>;
     
-    // Upcoming rides
-    final upcomingRides = rideHistory
-        .where((r) {
-          final statusLower = r.status.toLowerCase();
-          return (statusLower == 'scheduled' || statusLower == 'confirmed') && 
-                 (r.isVerified != true);
-        })
-        .toList();
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.symmetric(horizontal: 4),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: gradientColors,
+        ),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: gradientColors[0].withOpacity(0.3),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Stack(
+        children: [
+          // Decorative circles
+          Positioned(
+            right: -20,
+            top: -20,
+            child: Container(
+              width: 100,
+              height: 100,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: Colors.white.withOpacity(0.1),
+              ),
+            ),
+          ),
+          Positioned(
+            left: -30,
+            bottom: -30,
+            child: Container(
+              width: 120,
+              height: 120,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: Colors.white.withOpacity(0.1),
+              ),
+            ),
+          ),
+          
+          // Content
+          Padding(
+            padding: const EdgeInsets.all(20),
+            child: Row(
+              children: [
+                // Left side - Text content
+                Expanded(
+                  flex: 6,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      // Title with emoji
+                      Row(
+                        children: [
+                          Text(
+                            banner['emoji'],
+                            style: const TextStyle(fontSize: 24),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              banner['title'],
+                              style: const TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold,
+                                color: Color(0xFF1A1A1A),
+                                height: 1.1,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      
+                      // Subtitle
+                      Text(
+                        banner['subtitle'],
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: const Color(0xFF1A1A1A).withOpacity(0.7),
+                          letterSpacing: 0.3,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+                
+                const SizedBox(width: 12),
+                
+                // Right side - Highlights
+                Expanded(
+                  flex: 4,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: (banner['highlights'] as List<String>)
+                        .map((highlight) => Padding(
+                              padding: const EdgeInsets.only(bottom: 6),
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Container(
+                                    width: 16,
+                                    height: 16,
+                                    margin: const EdgeInsets.only(top: 1),
+                                    decoration: BoxDecoration(
+                                      color: Colors.white.withOpacity(0.9),
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: const Icon(
+                                      Icons.check,
+                                      size: 11,
+                                      color: Color(0xFF2E7D32),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Expanded(
+                                    child: Text(
+                                      highlight,
+                                      style: const TextStyle(
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.w500,
+                                        color: Color(0xFF1A1A1A),
+                                        height: 1.3,
+                                      ),
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ))
+                        .toList(),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    )
+    .animate()
+    .fadeIn(duration: const Duration(milliseconds: 600))
+    .slideX(
+      begin: 0.2,
+      end: 0,
+      curve: Curves.easeOutCubic,
+      duration: const Duration(milliseconds: 600),
+    );
+  }
+
+  Widget _buildHomeContent(bool isDark) {
+    // Active trip and ride history are now checked in build() method for floating card positioning
     
     // New Colors
     final deepForestGreen = const Color(0xFF1B5E20);
@@ -1566,14 +2119,22 @@ class _PassengerHomeScreenState extends ConsumerState<PassengerHomeScreen> with 
                 Stack(
                   clipBehavior: Clip.none,
                   children: [
-                    // 1. The Header Background
+                    // 1. The Header Background with Gradient
                     ClipPath(
                       clipper: _CurvedHeaderClipper(),
                       child: Container(
                         width: double.infinity,
                         height: 280,
                         decoration: BoxDecoration(
-                          color: deepForestGreen,
+                          gradient: LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: [
+                              deepForestGreen,
+                              const Color(0xFF2E7D32),
+                              const Color(0xFF388E3C),
+                            ],
+                          ),
                         ),
                       ),
                     ),
@@ -1586,38 +2147,7 @@ class _PassengerHomeScreenState extends ConsumerState<PassengerHomeScreen> with 
                       height: 180, // Matches the top padding of the card
                       child: SafeArea(
                         bottom: false,
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            const Text(
-                              'VanYatra',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.w900,
-                                fontSize: 42,
-                                letterSpacing: -1.0,
-                                shadows: [
-                                  Shadow(
-                                    color: Colors.black26,
-                                    offset: Offset(0, 2),
-                                    blurRadius: 4,
-                                  ),
-                                ],
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              'Book your Rural Ride',
-                              style: TextStyle(
-                                color: Colors.white.withOpacity(0.9),
-                                fontSize: 18,
-                                fontWeight: FontWeight.w500,
-                                letterSpacing: 0.5,
-                              ),
-                            ),
-                          ],
-                        ),
+                        child: _AnimatedHeaderContent(),
                       ),
                     ),
 
@@ -1719,7 +2249,7 @@ class _PassengerHomeScreenState extends ConsumerState<PassengerHomeScreen> with 
                                         ),
                                       ),
                                       
-                                      // To Field
+                                      // To Field with animated placeholder
                                       GestureDetector(
                                         behavior: HitTestBehavior.opaque,
                                         onTap: () async {
@@ -1748,14 +2278,37 @@ class _PassengerHomeScreenState extends ConsumerState<PassengerHomeScreen> with 
                                           child: Row(
                                             children: [
                                               Expanded(
-                                                child: Text(
-                                                  _dropoffController.text.isEmpty ? 'Dropoff Location' : _dropoffController.text,
-                                                  style: TextStyle(
-                                                    fontSize: 16,
-                                                    fontWeight: FontWeight.w600,
-                                                    color: _dropoffController.text.isEmpty ? Colors.grey : (isDark ? Colors.white : Colors.black),
-                                                  ),
-                                                ),
+                                                child: _dropoffController.text.isEmpty
+                                                    ? (_popularCities.isNotEmpty && _placeholderSlideAnimation != null
+                                                        ? ClipRect(
+                                                            child: SlideTransition(
+                                                              position: _placeholderSlideAnimation!,
+                                                              child: Text(
+                                                                _popularCities[_currentPlaceholderIndex % _popularCities.length],
+                                                                style: TextStyle(
+                                                                  fontSize: 16,
+                                                                  fontWeight: FontWeight.w400,
+                                                                  color: Colors.grey.withOpacity(0.6),
+                                                                ),
+                                                              ),
+                                                            ),
+                                                          )
+                                                        : Text(
+                                                            'Enter Destination',
+                                                            style: TextStyle(
+                                                              fontSize: 16,
+                                                              fontWeight: FontWeight.w400,
+                                                              color: Colors.grey.withOpacity(0.6),
+                                                            ),
+                                                          ))
+                                                    : Text(
+                                                        _dropoffController.text,
+                                                        style: TextStyle(
+                                                          fontSize: 16,
+                                                          fontWeight: FontWeight.w600,
+                                                          color: isDark ? Colors.white : Colors.black,
+                                                        ),
+                                                      ),
                                               ),
                                             ],
                                           ),
@@ -1809,29 +2362,24 @@ class _PassengerHomeScreenState extends ConsumerState<PassengerHomeScreen> with 
                             Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Padding(
-                                  padding: const EdgeInsets.only(left: 4, bottom: 8),
-                                  child: Text(
-                                    'Select Travel Date',
-                                    style: TextStyle(
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w600,
-                                      color: isDark ? Colors.white70 : Colors.black54,
-                                    ),
-                                  ),
-                                ),
                                 Row(
                                   children: [
                                     Expanded(
-                                      child: _buildQuickDateButton('Today', DateTime.now(), isDark, deepForestGreen),
+                                      child: _buildDateButton(
+                                        'Today, ${_dateFormatDay.format(DateTime.now())}-${_dateFormatMonth.format(DateTime.now())}',
+                                        DateTime.now(),
+                                        isDark,
+                                        amber,
+                                      ),
                                     ),
-                                    const SizedBox(width: 8),
+                                    const SizedBox(width: 12),
                                     Expanded(
-                                      child: _buildQuickDateButton('Tomorrow', DateTime.now().add(const Duration(days: 1)), isDark, deepForestGreen),
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Expanded(
-                                      child: _buildCustomDateButton(isDark, deepForestGreen),
+                                      child: _buildDateButton(
+                                        'Tomorrow',
+                                        DateTime.now().add(const Duration(days: 1)),
+                                        isDark,
+                                        amber,
+                                      ),
                                     ),
                                   ],
                                 ),
@@ -1874,26 +2422,128 @@ class _PassengerHomeScreenState extends ConsumerState<PassengerHomeScreen> with 
                 
                 const SizedBox(height: 24),
                 
-                // Dynamic Banner Carousel (Offers) - Temporarily disabled to fix hit testing
-                // if (_banners.isNotEmpty)
-                //   Padding(
-                //     padding: const EdgeInsets.only(left: 16, right: 16, top: 24),
-                //     child: SizedBox(
-                //       height: 220,
-                //       child: DynamicBannerCarousel(banners: _banners),
-                //     ),
-                //   ),
+                // Offers Section
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 4,
+                        height: 24,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFFC107),
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Text(
+                        'Offers',
+                        style: TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                          color: isDark ? Colors.white : const Color(0xFF1A1A1A),
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      const Icon(
+                        Icons.local_offer_rounded,
+                        color: Color(0xFFFFC107),
+                        size: 20,
+                      ),
+                    ],
+                  ),
+                ),
                 
-                // Active Trip Card
-                if (activeTrip.bookingNumber.isNotEmpty)
-                  _buildActiveTripCard(activeTrip, isDark),
-                  
-                // Scheduled Ride Banner
-                if (upcomingRides.isNotEmpty && activeTrip.bookingNumber.isEmpty)
-                  _buildScheduledRideBanner(upcomingRides.first, isDark),
+                const SizedBox(height: 16),
+                
+                // Premium Horizontal Banner Carousel
+                _buildPremiumBannerCarousel(isDark),
+                
+                const SizedBox(height: 24),
+                
+                // Active Trip Card now floating at bottom (see Stack in build method)
                 
                 const SizedBox(height: 100), // Bottom padding
               ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+  
+  // Load popular cities from location service API
+  Future<void> _loadPopularCities() async {
+    final locationService = ref.read(locationServiceProvider);
+    
+    try {
+      // Get popular cities from API asynchronously
+      final cities = await locationService.getPopularCitiesAsync(limit: 10);
+      
+      if (mounted && cities.isNotEmpty) {
+        setState(() {
+          _popularCities = cities;
+        });
+        
+        // Start animation after cities are loaded
+        _startPlaceholderAnimation();
+      }
+    } catch (e) {
+      print('Error loading popular cities: $e');
+    }
+  }
+  
+  // Start animated placeholder rotation
+  void _startPlaceholderAnimation() {
+    _placeholderAnimationController?.forward();
+    
+    _placeholderTimer = Timer.periodic(const Duration(seconds: 2), (timer) {
+      if (mounted && _popularCities.isNotEmpty) {
+        _placeholderAnimationController?.reverse().then((_) {
+          if (mounted) {
+            setState(() {
+              _currentPlaceholderIndex = 
+                  (_currentPlaceholderIndex + 1) % _popularCities.length;
+            });
+            _placeholderAnimationController?.forward();
+          }
+        });
+      }
+    });
+  }
+  
+  // Build date button matching the image design
+  Widget _buildDateButton(String label, DateTime date, bool isDark, Color buttonColor) {
+    final isSelected = _dateFormatYMD.format(_selectedDate) == 
+                       _dateFormatYMD.format(date);
+    
+    return InkWell(
+      onTap: () {
+        setState(() {
+          _selectedDate = date;
+        });
+      },
+      borderRadius: BorderRadius.circular(50),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+        decoration: BoxDecoration(
+          color: isSelected ? buttonColor : (isDark ? Colors.grey[800] : Colors.grey[200]),
+          borderRadius: BorderRadius.circular(50),
+          border: Border.all(
+            color: isSelected ? buttonColor : Colors.transparent,
+            width: 1,
+          ),
+        ),
+        child: Center(
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
+              color: isSelected 
+                  ? Colors.black 
+                  : (isDark ? Colors.white70 : Colors.black87),
             ),
           ),
         ),
@@ -2159,32 +2809,196 @@ class _PassengerHomeScreenState extends ConsumerState<PassengerHomeScreen> with 
   }
   
   Widget _buildServicesContent(bool isDark) {
-    return Center(
+    return SingleChildScrollView(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.lg,
+        vertical: AppSpacing.md,
+      ),
       child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(
-            Icons.grid_view,
-            size: 80,
-            color: AppColors.primaryYellow,
-          ),
-          const SizedBox(height: AppSpacing.lg),
+          const SizedBox(height: AppSpacing.sm),
+          // Header
           Text(
-            'Services',
+            'Our Services',
             style: TextStyles.headingLarge.copyWith(
               fontWeight: FontWeight.bold,
             ),
           ),
-          const SizedBox(height: AppSpacing.sm),
+          const SizedBox(height: AppSpacing.xs),
           Text(
-            'Coming soon',
+            'Explore our upcoming features and services',
             style: TextStyles.bodyMedium.copyWith(
               color: isDark 
                   ? AppColors.darkTextSecondary 
                   : AppColors.lightTextSecondary,
             ),
           ),
+          const SizedBox(height: AppSpacing.lg),
+          
+          // Service Banner 1: On-Location Pickup
+          _buildServiceBanner(
+            title: 'On-Location Pickup Service',
+            description: 'Pick up from your exact location - no need to walk to a pickup point',
+            icon: Icons.location_on,
+            gradient: [
+              const Color(0xFF4CAF50),
+              const Color(0xFF45A049),
+            ],
+            tag: 'Coming Soon',
+            isDark: isDark,
+          ),
+          const SizedBox(height: AppSpacing.lg),
+          
+          // Service Banner 2: One Way Booking
+          _buildServiceBanner(
+            title: 'One Way Booking to Any City',
+            description: 'Book rides to any city across India with flexible routes',
+            icon: Icons.alt_route,
+            gradient: [
+              const Color(0xFF2196F3),
+              const Color(0xFF1976D2),
+            ],
+            tag: 'Coming Soon',
+            isDark: isDark,
+          ),
+          const SizedBox(height: AppSpacing.lg),
+          
+          // Service Banner 3: Customized Trip Packages
+          _buildServiceBanner(
+            title: 'Customized Trip Packages',
+            description: 'Create your own trip package with multiple stops and destinations',
+            icon: Icons.luggage,
+            gradient: [
+              const Color(0xFFFF9800),
+              const Color(0xFFF57C00),
+            ],
+            tag: 'Coming Soon',
+            isDark: isDark,
+          ),
+          const SizedBox(height: AppSpacing.xl),
+          
+          // Info Card
+          Container(
+            padding: const EdgeInsets.all(AppSpacing.lg),
+            decoration: BoxDecoration(
+              color: isDark 
+                  ? AppColors.darkSurface 
+                  : AppColors.lightSurface,
+              borderRadius: BorderRadius.circular(AppSpacing.radiusLG),
+              border: Border.all(
+                color: AppColors.primaryYellow.withOpacity(0.3),
+                width: 1,
+              ),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.info_outline,
+                  color: AppColors.primaryYellow,
+                  size: 24,
+                ),
+                const SizedBox(width: AppSpacing.md),
+                Expanded(
+                  child: Text(
+                    'These exciting features will be available soon. Stay tuned!',
+                    style: TextStyles.bodySmall.copyWith(
+                      color: isDark 
+                          ? AppColors.darkTextSecondary 
+                          : AppColors.lightTextSecondary,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
         ],
+      ),
+    );
+  }
+  
+  /// Build a service banner card
+  Widget _buildServiceBanner({
+    required String title,
+    required String description,
+    required IconData icon,
+    required List<Color> gradient,
+    required String tag,
+    required bool isDark,
+  }) {
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: gradient,
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(AppSpacing.radiusLG),
+        boxShadow: [
+          BoxShadow(
+            color: gradient[0].withOpacity(0.3),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.lg),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(AppSpacing.md),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(AppSpacing.radiusMD),
+                  ),
+                  child: Icon(
+                    icon,
+                    color: Colors.white,
+                    size: 32,
+                  ),
+                ),
+                const Spacer(),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.md,
+                    vertical: AppSpacing.sm,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.25),
+                    borderRadius: BorderRadius.circular(AppSpacing.radiusSM),
+                  ),
+                  child: Text(
+                    tag,
+                    style: TextStyles.bodySmall.copyWith(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 11,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: AppSpacing.md),
+            Text(
+              title,
+              style: TextStyles.headingSmall.copyWith(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            Text(
+              description,
+              style: TextStyles.bodyMedium.copyWith(
+                color: Colors.white.withOpacity(0.9),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -2356,35 +3170,316 @@ class _PassengerHomeScreenState extends ConsumerState<PassengerHomeScreen> with 
     );
   }
   
-  /// Build active trip card for when passenger is verified and trip is in progress
-  Widget _buildActiveTripCard(RideHistoryItem ride, bool isDark) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg, vertical: AppSpacing.sm),
-      child: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [
-              const Color(0xFF1B5E20), // Deep Forest Green
-              const Color(0xFF2E7D32), // Medium Green
-            ],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(
-              color: const Color(0xFF1B5E20).withOpacity(0.3),
-              blurRadius: 12,
-              offset: const Offset(0, 4),
+  /// Build floating rides carousel showing active trip and/or upcoming rides
+  /// Cards are displayed horizontally with swipe navigation
+  Widget _buildFloatingRidesCarousel(RideHistoryItem activeTrip, List<RideHistoryItem> upcomingRides, bool isDark) {
+    // Build list of cards to show
+    final List<Widget> cards = [];
+    
+    // Add active trip card first if exists
+    if (activeTrip.bookingNumber.isNotEmpty) {
+      cards.add(_buildActiveTripCard(activeTrip, isDark));
+    }
+    
+    // Add upcoming ride card if exists
+    if (upcomingRides.isNotEmpty) {
+      cards.add(_buildFloatingUpcomingRideCard(upcomingRides.first, isDark));
+    }
+    
+    // If only one card, show it directly without indicators
+    if (cards.length == 1) {
+      return cards.first;
+    }
+    
+    // Multiple cards - show as carousel with page indicator
+    return SizedBox(
+      height: 80, // 64px card + 16px for indicator space
+      child: Stack(
+        children: [
+          // Carousel
+          Positioned.fill(
+            child: PageView(
+              controller: _ridesCarouselController,
+              children: cards,
+              onPageChanged: (index) {
+                setState(() {
+                  _currentCarouselPage = index;
+                });
+                HapticFeedback.selectionClick();
+              },
             ),
+          ),
+          // Page indicator dots at top
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: Container(
+              height: 16,
+              alignment: Alignment.center,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: List.generate(cards.length, (index) {
+                  final isActive = index == _currentCarouselPage;
+                  return AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    margin: const EdgeInsets.symmetric(horizontal: 3),
+                    width: isActive ? 20 : 6,
+                    height: 6,
+                    decoration: BoxDecoration(
+                      color: isActive 
+                          ? Colors.white.withOpacity(0.9)
+                          : Colors.white.withOpacity(0.4),
+                      borderRadius: BorderRadius.circular(3),
+                    ),
+                  );
+                }),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+  
+  /// Build active trip card for when passenger is verified and trip is in progress
+  /// Compact 64px height floating design matching upcoming ride card
+  Widget _buildActiveTripCard(RideHistoryItem ride, bool isDark) {
+    return Container(
+      margin: const EdgeInsets.only(left: 16, right: 16, bottom: 8),
+      height: 64,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            const Color(0xFFFF6F00), // Deep Orange
+            const Color(0xFFFF8F00), // Amber Orange
           ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
         ),
-        child: Material(
-          color: Colors.transparent,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: Colors.white.withOpacity(0.2),
+          width: 1.5,
+        ),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: () {
+            // Navigate to passenger live tracking screen
+            if (ride.rideId == null || ride.rideId!.isEmpty) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Ride information not available')),
+              );
+              return;
+            }
+            
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => PassengerLiveTrackingScreen(
+                  rideId: ride.rideId!,
+                  bookingNumber: ride.bookingNumber,
+                  rideDetails: ride,
+                ),
+              ),
+            );
+          },
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Row(
+              children: [
+                // Icon with LIVE NOW indicator
+                Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(7),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFFC107).withOpacity(0.25),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Icon(
+                        Icons.directions_car,
+                        color: Color(0xFFFFC107),
+                        size: 18,
+                      ),
+                    ),
+                    // Pulsing live indicator
+                    Positioned(
+                      top: -4,
+                      right: -4,
+                      child: Container(
+                        width: 10,
+                        height: 10,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF4CAF50),
+                          shape: BoxShape.circle,
+                          border: Border.all(color: Colors.white, width: 1.5),
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color(0xFF4CAF50).withOpacity(0.6),
+                              blurRadius: 4,
+                              spreadRadius: 1,
+                            ),
+                          ],
+                        ),
+                      ).animate(
+                        onPlay: (controller) => controller.repeat(),
+                      ).scale(
+                        duration: const Duration(milliseconds: 1000),
+                        begin: const Offset(1.0, 1.0),
+                        end: const Offset(1.3, 1.3),
+                        curve: Curves.easeInOut,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(width: 14),
+                // Route info
+                Expanded(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Text(
+                            'LIVE NOW',
+                            style: TextStyle(
+                              color: const Color(0xFFFFC107),
+                              fontSize: 9,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: 1,
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              '${ride.pickupLocation} → ${ride.dropoffLocation}',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Tap to track live • ${ride.vehicleModel ?? "Vehicle"} • ${ride.vehicleNumber ?? ""}',
+                        style: TextStyle(
+                          color: Colors.white.withOpacity(0.85),
+                          fontSize: 11,
+                          fontWeight: FontWeight.w500,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+                // Arrow
+                Icon(
+                  Icons.gps_fixed,
+                  color: Colors.white.withOpacity(0.9),
+                  size: 16,
+                ).animate(
+                  onPlay: (controller) => controller.repeat(),
+                ).shimmer(
+                  duration: const Duration(milliseconds: 2000),
+                  color: const Color(0xFFFFC107),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+  
+  Widget _buildDebugCard(bool isDark, int upcomingCount, String activeBooking) {
+    return Container(
+      margin: const EdgeInsets.only(left: 16, right: 16, bottom: 8),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.orange.shade700,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.white, width: 2),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.5),
+            blurRadius: 20,
+            spreadRadius: 3,
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.bug_report, color: Colors.white, size: 24),
+              const SizedBox(width: 8),
+              Text(
+                'DEBUG: No Upcoming Rides',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Upcoming rides: $upcomingCount',
+            style: TextStyle(color: Colors.white, fontSize: 13),
+          ),
+          Text(
+            'Active booking: ${activeBooking.isEmpty ? "None" : activeBooking}',
+            style: TextStyle(color: Colors.white, fontSize: 13),
+          ),
+          Text(
+            'Status needed: "scheduled" or "confirmed"',
+            style: TextStyle(color: Colors.white70, fontSize: 12),
+          ),
+        ],
+      ),
+    );
+  }
+  
+  Widget _buildFloatingUpcomingRideCard(RideHistoryItem ride, bool isDark) {
+    return Container(
+      margin: const EdgeInsets.only(left: 16, right: 16, bottom: 8),
+      height: 64, // Increased height
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            const Color(0xFF2E7D32),
+            const Color(0xFF43A047),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: Colors.white.withOpacity(0.2),
+          width: 1.5,
+        ),
+      ),
+      child: Material(
+        color: Colors.transparent,
           child: InkWell(
-            borderRadius: BorderRadius.circular(AppSpacing.radiusLG),
+            borderRadius: BorderRadius.circular(16),
             onTap: () {
-              // Navigate to passenger live tracking screen
+              // Navigate to live tracking for upcoming ride
               if (ride.rideId == null || ride.rideId!.isEmpty) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(content: Text('Ride information not available')),
@@ -2404,245 +3499,63 @@ class _PassengerHomeScreenState extends ConsumerState<PassengerHomeScreen> with 
               );
             },
             child: Padding(
-              padding: const EdgeInsets.all(AppSpacing.lg),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Row(
                 children: [
-                  // Header
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFFFC107).withOpacity(0.2),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: const Icon(
-                          Icons.directions_car,
-                          color: Color(0xFFFFC107),
-                          size: 20,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'LIVE NOW',
-                              style: TextStyles.bodySmall.copyWith(
-                                color: const Color(0xFFFFC107),
-                                fontWeight: FontWeight.bold,
-                                letterSpacing: 1,
-                                fontSize: 10,
-                              ),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              'Trip in Progress',
-                              style: TextStyles.headingMedium.copyWith(
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      Icon(
-                        Icons.arrow_forward_ios,
-                        color: Colors.white.withOpacity(0.8),
-                        size: 16,
-                      ),
-                    ],
-                  ),
-                  
-                  const SizedBox(height: AppSpacing.md),
-                  
-                  // Route
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.trip_origin,
-                        color: Colors.white.withOpacity(0.9),
-                        size: 14,
-                      ),
-                      const SizedBox(width: AppSpacing.xs),
-                      Expanded(
-                        child: Text(
-                          ride.pickupLocation,
-                          style: TextStyles.bodyMedium.copyWith(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w500,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ],
-                  ),
-                  
-                  Padding(
-                    padding: const EdgeInsets.only(left: 6),
-                    child: Container(
-                      width: 2,
-                      height: 16,
-                      color: Colors.white.withOpacity(0.4),
-                    ),
-                  ),
-                  
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.location_on,
-                        color: Colors.white.withOpacity(0.9),
-                        size: 14,
-                      ),
-                      const SizedBox(width: AppSpacing.xs),
-                      Expanded(
-                        child: Text(
-                          ride.dropoffLocation,
-                          style: TextStyles.bodyMedium.copyWith(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w500,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ],
-                  ),
-                  
-                  const SizedBox(height: AppSpacing.md),
-                  const Divider(color: Colors.white24, height: 1),
-                  const SizedBox(height: AppSpacing.md),
-                  
-                  // Driver info
-                  Row(
-                    children: [
-                      CircleAvatar(
-                        radius: 16,
-                        backgroundColor: Colors.white.withOpacity(0.2),
-                        child: Icon(
-                          Icons.person,
-                          color: Colors.white,
-                          size: 18,
-                        ),
-                      ),
-                      const SizedBox(width: AppSpacing.sm),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              ride.driverName ?? 'Driver',
-                              style: TextStyles.bodyMedium.copyWith(
-                                color: Colors.white,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            Text(
-                              '${ride.vehicleModel ?? 'Vehicle'} • ${ride.vehicleNumber ?? ''}',
-                              style: TextStyles.bodySmall.copyWith(
-                                color: Colors.white.withOpacity(0.8),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: AppSpacing.sm,
-                          vertical: AppSpacing.xs,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.15),
-                          borderRadius: BorderRadius.circular(AppSpacing.radiusSM),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              Icons.phone,
-                              color: Colors.white,
-                              size: 14,
-                            ),
-                            const SizedBox(width: 4),
-                            Text(
-                              'Call',
-                              style: TextStyles.bodySmall.copyWith(
-                                color: Colors.white,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                  
-                  const SizedBox(height: AppSpacing.sm),
-                  
-                  // Prominent "Tap to Track" button with animation
+                  // Icon
                   Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.symmetric(
-                      vertical: AppSpacing.md,
-                      horizontal: AppSpacing.lg,
-                    ),
+                    padding: const EdgeInsets.all(7),
                     decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.15),
-                      borderRadius: BorderRadius.circular(AppSpacing.radiusMD),
-                      border: Border.all(
-                        color: Colors.white.withOpacity(0.3),
-                        width: 2,
-                      ),
+                      color: const Color(0xFFFFC107).withOpacity(0.25),
+                      borderRadius: BorderRadius.circular(8),
                     ),
-                    child: Row(
+                    child: const Icon(
+                      Icons.directions_car,
+                      color: Color(0xFFFFC107),
+                      size: 18,
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  // Route info
+                  Expanded(
+                    child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Icon(
-                          Icons.gps_fixed,
-                          color: Colors.greenAccent,
-                          size: 20,
-                        ).animate(
-                          onPlay: (controller) => controller.repeat(),
-                        ).shimmer(
-                          duration: const Duration(milliseconds: 2000),
-                          color: Colors.white,
-                        ),
-                        const SizedBox(width: AppSpacing.sm),
                         Text(
-                          'TAP TO VIEW LIVE TRACKING',
-                          style: TextStyles.bodyMedium.copyWith(
+                          'Upcoming: ${ride.pickupLocation} → ${ride.dropoffLocation}',
+                          style: const TextStyle(
                             color: Colors.white,
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: 0.8,
                             fontSize: 13,
+                            fontWeight: FontWeight.w600,
                           ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
-                        const SizedBox(width: AppSpacing.sm),
-                        Icon(
-                          Icons.arrow_forward_rounded,
-                          color: Colors.white,
-                          size: 18,
+                        const SizedBox(height: 2),
+                        Text(
+                          _getTimeRemaining(ride.travelDate, ride.timeSlot),
+                          style: TextStyle(
+                            color: Colors.white.withOpacity(0.85),
+                            fontSize: 11,
+                            fontWeight: FontWeight.w500,
+                          ),
                         ),
                       ],
                     ),
-                  ).animate(
-                    onPlay: (controller) => controller.repeat(reverse: true),
-                  ).scale(
-                    duration: const Duration(milliseconds: 1500),
-                    begin: const Offset(1.0, 1.0),
-                    end: const Offset(1.02, 1.02),
-                    curve: Curves.easeInOut,
+                  ),
+                  // Arrow
+                  Icon(
+                    Icons.arrow_forward_ios,
+                    color: Colors.white.withOpacity(0.9),
+                    size: 16,
                   ),
                 ],
               ),
             ),
           ),
         ),
-      ),
-    );
+      );
   }
   
   Widget _buildScheduledRideBanner(RideHistoryItem ride, bool isDark) {
@@ -3033,9 +3946,72 @@ class _PassengerHomeScreenState extends ConsumerState<PassengerHomeScreen> with 
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final deepForestGreen = const Color(0xFF1B5E20);
     
-    // Automatically set status bar color to match deep forest green header
+    // Get ride history for floating card
+    final rideHistoryState = ref.watch(passengerRideNotifierProvider);
+    final rideHistory = rideHistoryState.rideHistory;
+    
+    // Active trip (only for checking if exists)
+    final activeTrip = rideHistory.firstWhere(
+      (r) {
+        final statusLower = r.status.toLowerCase();
+        return (statusLower == 'active' ||
+            statusLower == 'started' ||
+            statusLower == 'in-progress' ||
+            statusLower == 'confirmed');
+      },
+      orElse: () => RideHistoryItem(
+        bookingNumber: '',
+        pickupLocation: '',
+        dropoffLocation: '',
+        travelDate: '',
+        timeSlot: '',
+        vehicleType: '',
+        totalFare: 0,
+        status: '',
+      ),
+    );
+    
+    // Upcoming rides
+    final upcomingRides = rideHistory
+        .where((r) {
+          final statusLower = r.status.toLowerCase();
+          return (statusLower == 'scheduled' || statusLower == 'confirmed') && 
+                 (r.isVerified != true);
+        })
+        .toList();
+    
+    // Debug print - COMPREHENSIVE
+    print('\n🚗 ========== UPCOMING RIDE CARD DEBUG ==========');
+    print('🚗 Total ride history count: ${rideHistory.length}');
+    print('🚗 Upcoming rides count: ${upcomingRides.length}');
+    print('🚗 Selected nav index: $_selectedNavIndex (0=home)');
+    print('🚗 Active trip booking: "${activeTrip.bookingNumber}" (empty="${activeTrip.bookingNumber.isEmpty}")');
+    print('🚗 Should show card: ${_selectedNavIndex == 0 && upcomingRides.isNotEmpty && activeTrip.bookingNumber.isEmpty}');
+    if (upcomingRides.isNotEmpty) {
+      print('🚗 First upcoming ride:');
+      print('   - Pickup: ${upcomingRides.first.pickupLocation}');
+      print('   - Dropoff: ${upcomingRides.first.dropoffLocation}');
+      print('   - Status: ${upcomingRides.first.status}');
+      print('   - Verified: ${upcomingRides.first.isVerified}');
+    } else {
+      print('🚗 NO upcoming rides found!');
+      if (rideHistory.isNotEmpty) {
+        print('🚗 Sample of ride history statuses:');
+        for (var i = 0; i < (rideHistory.length > 3 ? 3 : rideHistory.length); i++) {
+          print('   ${i + 1}. Status: "${rideHistory[i].status}", Verified: ${rideHistory[i].isVerified}');
+        }
+      }
+    }
+    print('🚗 ============================================\n');
+    
+    // Set transparent status bar
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      updateStatusBarWithColor(deepForestGreen);
+      SystemChrome.setSystemUIOverlayStyle(
+        const SystemUiOverlayStyle(
+          statusBarColor: Colors.transparent,
+          statusBarIconBrightness: Brightness.light,
+        ),
+      );
     });
     
     // Set navigation bar colors
@@ -3046,10 +4022,17 @@ class _PassengerHomeScreenState extends ConsumerState<PassengerHomeScreen> with 
       ),
     );
     
-    return Scaffold(
-      body: IndexedStack(
-        index: _selectedNavIndex,
-        children: [
+    return FadeTransition(
+      opacity: _fadeAnimation,
+      child: SlideTransition(
+        position: _slideAnimation,
+        child: Scaffold(
+          body: Stack(
+            children: [
+              // Main content
+              IndexedStack(
+                index: _selectedNavIndex,
+                children: [
           // Home Screen Content
           KeyedSubtree(
             key: const ValueKey('home_tab'),
@@ -3070,6 +4053,18 @@ class _PassengerHomeScreenState extends ConsumerState<PassengerHomeScreen> with 
             key: const ValueKey('profile_tab'),
             child: ProfileScreen(),
           ),
+            ],
+          ),
+          
+          // Floating ride cards carousel at bottom (only on Home tab)
+          // Shows active trip and/or upcoming rides in a horizontal carousel
+          if (_selectedNavIndex == 0 && (activeTrip.bookingNumber.isNotEmpty || upcomingRides.isNotEmpty))
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 10, // Just above navigation bar
+              child: _buildFloatingRidesCarousel(activeTrip, upcomingRides, isDark),
+            ),
         ],
       ),
       bottomNavigationBar: BottomNavigationBar(
@@ -3084,6 +4079,15 @@ class _PassengerHomeScreenState extends ConsumerState<PassengerHomeScreen> with 
         showUnselectedLabels: true,
         elevation: 12,
         onTap: (index) {
+          // Check authentication for Bookings (index 2) and Account (index 3) tabs
+          if (index == 2 || index == 3) {
+            final authState = ref.read(authNotifierProvider);
+            if (!authState.isAuthenticated) {
+              _showVerificationBottomSheet();
+              return;
+            }
+          }
+          
           setState(() {
             _selectedNavIndex = index;
           });
@@ -3110,6 +4114,8 @@ class _PassengerHomeScreenState extends ConsumerState<PassengerHomeScreen> with 
             label: 'Account',
           ),
         ],
+      ),
+        ),
       ),
     );
   }
@@ -5471,6 +6477,342 @@ class _DraggableBookingSheetState extends State<_DraggableBookingSheet> {
       },
     );
   }
+}
+
+// Animated Header Content with Text and Logo alternating
+class _AnimatedHeaderContent extends StatefulWidget {
+  const _AnimatedHeaderContent();
+
+  @override
+  State<_AnimatedHeaderContent> createState() => _AnimatedHeaderContentState();
+}
+
+class _AnimatedHeaderContentState extends State<_AnimatedHeaderContent> with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  int _cycleCount = 0;
+  bool _showText = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 4000), // One complete cycle
+    );
+
+    _controller.addStatusListener((status) {
+      if (status == AnimationStatus.completed) {
+        if (_cycleCount < 2) {
+          // Repeat 3 times total (0, 1, 2)
+          _cycleCount++;
+          _controller.reset();
+          _controller.forward();
+        } else {
+          // After 3 cycles, keep logo visible
+          setState(() {
+            _showText = false;
+          });
+        }
+      }
+    });
+
+    // Listen to animation value to switch between text and logo
+    _controller.addListener(() {
+      final shouldShowText = _controller.value < 0.5;
+      if (_showText != shouldShowText && _cycleCount < 3) {
+        setState(() {
+          _showText = shouldShowText;
+        });
+      }
+    });
+
+    _controller.forward();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 500),
+      switchInCurve: Curves.easeInOut,
+      switchOutCurve: Curves.easeInOut,
+      transitionBuilder: (child, animation) {
+        // Scrolling transition from bottom to top
+        final offsetAnimation = Tween<Offset>(
+          begin: const Offset(0, 0.5),
+          end: Offset.zero,
+        ).animate(CurvedAnimation(
+          parent: animation,
+          curve: Curves.easeInOut,
+        ));
+        
+        return SlideTransition(
+          position: offsetAnimation,
+          child: FadeTransition(
+            opacity: animation,
+            child: child,
+          ),
+        );
+      },
+      child: _showText
+          ? Row(
+              key: const ValueKey('text'),
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  '🎉 ',
+                  style: const TextStyle(
+                    fontSize: 24,
+                  ),
+                ),
+                Text(
+                  'First Ride Free!',
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(0.95),
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 0.5,
+                    shadows: const [
+                      Shadow(
+                        color: Colors.black26,
+                        offset: Offset(0, 1),
+                        blurRadius: 3,
+                      ),
+                    ],
+                  ),
+                ),
+                Text(
+                  ' 🎉',
+                  style: const TextStyle(
+                    fontSize: 24,
+                  ),
+                ),
+              ],
+            )
+          : Image.asset(
+              'assets/images/vanyatra_new_logo_home.png',
+              height: 130,
+              key: const ValueKey('logo'),
+            ),
+    );
+  }
+}
+
+// Custom VanYatra Logo Widget
+class VanYatraLogo extends StatelessWidget {
+  final double size;
+
+  const VanYatraLogo({super.key, this.size = 60});
+
+  @override
+  Widget build(BuildContext context) {
+    // Brand Colors
+    const Color brandYellow = Color(0xFFFFC800);
+    const Color brandWhite = Colors.white;
+    
+    // Text Style
+    final TextStyle textStyle = TextStyle(
+      fontSize: size,
+      fontWeight: FontWeight.w900,
+      letterSpacing: -1.5,
+      height: 1.0,
+    );
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        // "Van" Text (White)
+        Text(
+          'Van',
+          style: textStyle.copyWith(color: brandWhite),
+        ),
+        
+        // Custom "Y" Road Icon
+        SizedBox(
+          width: size * 0.75, 
+          height: size * 1.0,
+          child: CustomPaint(
+            painter: RoadYPainter(color: brandYellow),
+          ),
+        ),
+        
+        // "atra" Text (Yellow)
+        Text(
+          'atra',
+          style: textStyle.copyWith(color: brandYellow),
+        ),
+      ],
+    );
+  }
+}
+
+// Custom Painter to draw the Y-shaped Road
+class RoadYPainter extends CustomPainter {
+  final Color color;
+
+  RoadYPainter({required this.color});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final roadWidth = size.width * 0.28; // Wider road for better visibility
+    
+    // Road background paint
+    final roadPaint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = roadWidth
+      ..strokeCap = StrokeCap.butt // Flat cap for clean edges
+      ..strokeJoin = StrokeJoin.miter;
+
+    final centerX = size.width / 2;
+    final bottomY = size.height * 0.95; // Don't cross the baseline
+    final splitY = size.height * 0.45; // Split point slightly higher
+    final topY = size.height * 0.0; // Top of the Y branches
+
+    // Create the Y-shaped road path
+    final roadPath = Path();
+    
+    // Main stem (bottom to split point)
+    roadPath.moveTo(centerX, bottomY);
+    roadPath.lineTo(centerX, splitY);
+
+    // Left branch - straight diagonal line to top-left
+    roadPath.moveTo(centerX, splitY);
+    roadPath.lineTo(size.width * 0.05, topY);
+
+    // Right branch - straight diagonal line to top-right
+    roadPath.moveTo(centerX, splitY);
+    roadPath.lineTo(size.width * 0.95, topY);
+
+    // Draw the road
+    canvas.drawPath(roadPath, roadPaint);
+
+    // Draw dashed center lines in WHITE
+    final dashPaint = Paint()
+      ..color = Colors.white.withOpacity(0.8)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = roadWidth * 0.1
+      ..strokeCap = StrokeCap.round;
+
+    // Center line on main stem
+    _drawDashedLine(
+      canvas,
+      dashPaint,
+      Offset(centerX, bottomY - roadWidth * 0.3),
+      Offset(centerX, splitY + roadWidth * 0.15),
+      dashLength: size.height * 0.04,
+      gapLength: size.height * 0.03,
+    );
+
+    // Center line on left branch
+    _drawDashedLine(
+      canvas,
+      dashPaint,
+      Offset(centerX, splitY),
+      Offset(size.width * 0.05, topY),
+      dashLength: size.height * 0.035,
+      gapLength: size.height * 0.025,
+    );
+
+    // Center line on right branch
+    _drawDashedLine(
+      canvas,
+      dashPaint,
+      Offset(centerX, splitY),
+      Offset(size.width * 0.95, topY),
+      dashLength: size.height * 0.035,
+      gapLength: size.height * 0.025,
+    );
+
+    // Draw direction arrows at the TOP of branches matching the logo
+    final arrowPaint = Paint()
+      ..color = color
+      ..style = PaintingStyle.fill;
+
+    final arrowSize = roadWidth * 0.7;
+    
+    // Calculate arrow angles based on branch direction
+    final leftAngle = -2.356; // ~-135 degrees (pointing up-left)
+    final rightAngle = -0.785; // ~-45 degrees (pointing up-right)
+    
+    // Left arrow pointing up-left
+    _drawDirectionArrow(canvas, arrowPaint, 
+      Offset(size.width * 0.05, topY + arrowSize * 0.3), leftAngle, arrowSize);
+    // Right arrow pointing up-right
+    _drawDirectionArrow(canvas, arrowPaint,
+      Offset(size.width * 0.95, topY + arrowSize * 0.3), rightAngle, arrowSize);
+  }
+
+  void _drawDashedLine(Canvas canvas, Paint paint, Offset start, Offset end,
+      {required double dashLength, required double gapLength}) {
+    final path = Path()..moveTo(start.dx, start.dy)..lineTo(end.dx, end.dy);
+    final pathMetrics = path.computeMetrics().first;
+    final totalLength = pathMetrics.length;
+    double distance = 0;
+
+    while (distance < totalLength) {
+      final nextDistance = distance + dashLength;
+      if (nextDistance > totalLength) break;
+      
+      final startTangent = pathMetrics.getTangentForOffset(distance);
+      final endTangent = pathMetrics.getTangentForOffset(nextDistance);
+      
+      if (startTangent != null && endTangent != null) {
+        canvas.drawLine(startTangent.position, endTangent.position, paint);
+      }
+      distance += dashLength + gapLength;
+    }
+  }
+
+  void _drawDashedPath(Canvas canvas, Paint paint, Path path,
+      {required double dashLength, required double gapLength}) {
+    final pathMetrics = path.computeMetrics().first;
+    final totalLength = pathMetrics.length;
+    double distance = dashLength * 0.5; // Start offset
+
+    while (distance < totalLength) {
+      final nextDistance = distance + dashLength;
+      if (nextDistance > totalLength) break;
+      
+      final startTangent = pathMetrics.getTangentForOffset(distance);
+      final endTangent = pathMetrics.getTangentForOffset(nextDistance);
+      
+      if (startTangent != null && endTangent != null) {
+        canvas.drawLine(startTangent.position, endTangent.position, paint);
+      }
+      distance += dashLength + gapLength;
+    }
+  }
+
+  void _drawDirectionArrow(Canvas canvas, Paint paint, Offset position,
+      double angle, double size) {
+    canvas.save();
+    canvas.translate(position.dx, position.dy);
+    canvas.rotate(angle);
+
+    final arrowPath = Path();
+    // Create a more prominent arrow shape
+    arrowPath.moveTo(0, -size * 0.8); // Arrow tip
+    arrowPath.lineTo(-size * 0.5, size * 0.2); // Left wing
+    arrowPath.lineTo(-size * 0.25, size * 0.2); // Left inner
+    arrowPath.lineTo(-size * 0.25, size * 0.5); // Left shaft bottom
+    arrowPath.lineTo(size * 0.25, size * 0.5); // Right shaft bottom
+    arrowPath.lineTo(size * 0.25, size * 0.2); // Right inner
+    arrowPath.lineTo(size * 0.5, size * 0.2); // Right wing
+    arrowPath.close();
+
+    canvas.drawPath(arrowPath, paint);
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
 // Custom clipper for curved header

@@ -1481,8 +1481,14 @@ class _RideResultsScreenState extends ConsumerState<RideResultsScreen> {
   /// Get relevant stops for display (between passenger's pickup and dropoff)
   List<String> _getRelevantStopsForDisplay(AvailableRide ride) {
     if (ride.intermediateStops == null || ride.intermediateStops!.isEmpty) {
+      print('🔍 No intermediate stops for ride ${ride.rideId}');
       return [];
     }
+    
+    print('🔍 Processing intermediate stops for ride ${ride.rideId}:');
+    print('   Ride route: ${ride.pickupLocation} → ${ride.dropoffLocation}');
+    print('   Intermediate stops: ${ride.intermediateStops}');
+    print('   Passenger searching: ${widget.pickupLocation.address} → ${widget.dropoffLocation.address}');
     
     // Build complete route
     final completeRoute = [
@@ -1491,33 +1497,61 @@ class _RideResultsScreenState extends ConsumerState<RideResultsScreen> {
       ride.dropoffLocation,
     ];
     
-    // Find indices using flexible matching
+    // Extract city/town name for more flexible matching
+    String extractCityName(String location) {
+      // Extract text before first comma or the whole string
+      final parts = location.split(',');
+      return parts.first.trim().toLowerCase();
+    }
+    
+    final passengerPickupCity = extractCityName(widget.pickupLocation.address);
+    final passengerDropoffCity = extractCityName(widget.dropoffLocation.address);
+    
+    // Find indices using flexible city name matching
     int passengerPickupIndex = -1;
     int passengerDropoffIndex = -1;
     
     for (int i = 0; i < completeRoute.length; i++) {
-      final location = completeRoute[i].toLowerCase();
-      if (location.contains(widget.pickupLocation.address.toLowerCase()) ||
-          widget.pickupLocation.address.toLowerCase().contains(location)) {
-        passengerPickupIndex = i;
+      final locationCity = extractCityName(completeRoute[i]);
+      
+      // Check pickup match
+      if (passengerPickupIndex == -1) {
+        if (locationCity == passengerPickupCity ||
+            locationCity.contains(passengerPickupCity) ||
+            passengerPickupCity.contains(locationCity)) {
+          passengerPickupIndex = i;
+          print('   ✓ Found pickup at index $i: ${completeRoute[i]}');
+        }
       }
-      if (location.contains(widget.dropoffLocation.address.toLowerCase()) ||
-          widget.dropoffLocation.address.toLowerCase().contains(location)) {
-        passengerDropoffIndex = i;
+      
+      // Check dropoff match
+      if (passengerDropoffIndex == -1) {
+        if (locationCity == passengerDropoffCity ||
+            locationCity.contains(passengerDropoffCity) ||
+            passengerDropoffCity.contains(locationCity)) {
+          passengerDropoffIndex = i;
+          print('   ✓ Found dropoff at index $i: ${completeRoute[i]}');
+        }
       }
     }
     
-    // If not found or invalid, return all stops
-    if (passengerPickupIndex == -1 || 
-        passengerDropoffIndex == -1 ||
-        passengerDropoffIndex <= passengerPickupIndex) {
+    // If not found or invalid, return all intermediate stops (fallback)
+    if (passengerPickupIndex == -1 || passengerDropoffIndex == -1) {
+      print('   ⚠️ Could not match passenger route, showing all intermediate stops');
+      return ride.intermediateStops!;
+    }
+    
+    if (passengerDropoffIndex <= passengerPickupIndex) {
+      print('   ⚠️ Invalid route order, showing all intermediate stops');
       return ride.intermediateStops!;
     }
     
     // Return stops between pickup and dropoff
-    return completeRoute.sublist(
+    final relevantStops = completeRoute.sublist(
       passengerPickupIndex + 1,
       passengerDropoffIndex,
     );
+    print('   → Relevant stops to display: $relevantStops');
+    return relevantStops;
   }
 }

@@ -201,17 +201,26 @@ class LocationTrackingService {
   /// Get current location once
   Future<Position?> getCurrentLocation() async {
     try {
+      debugPrint('📍 getCurrentLocation() called');
+      
       // Return mock position if mock mode is enabled
       if (_mockLocationService.isMockEnabled) {
+        debugPrint('🧪 Using mock position');
         return _mockLocationService.currentMockPosition ?? _lastPosition;
       }
       
       final hasPermission = await _checkPermissions();
-      if (!hasPermission) return null;
+      if (!hasPermission) {
+        debugPrint('❌ No location permission');
+        return null;
+      }
       
-      return await Geolocator.getCurrentPosition(
+      debugPrint('📍 Querying GPS for current position...');
+      final position = await Geolocator.getCurrentPosition(
         desiredAccuracy: LocationAccuracy.high,
       );
+      debugPrint('📍 GPS returned: ${position.latitude}, ${position.longitude}');
+      return position;
     } catch (e) {
       debugPrint('Failed to get current location: $e');
       return null;

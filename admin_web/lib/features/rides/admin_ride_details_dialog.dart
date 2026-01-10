@@ -214,6 +214,45 @@ class _AdminRideDetailsDialogState extends State<AdminRideDetailsDialog> with Si
                 Icons.location_on,
                 Colors.red,
               ),
+              if (widget.ride.distance != null || widget.ride.duration != null) ...[
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.shade50,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.blue.shade200),
+                  ),
+                  child: Row(
+                    children: [
+                      if (widget.ride.distance != null) ...[
+                        Icon(Icons.straighten, size: 16, color: Colors.blue),
+                        const SizedBox(width: 4),
+                        Text(
+                          '${widget.ride.distance!.toStringAsFixed(1)} km',
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w600,
+                            fontSize: 14,
+                          ),
+                        ),
+                      ],
+                      if (widget.ride.distance != null && widget.ride.duration != null)
+                        const SizedBox(width: 16),
+                      if (widget.ride.duration != null) ...[
+                        Icon(Icons.access_time, size: 16, color: Colors.blue),
+                        const SizedBox(width: 4),
+                        Text(
+                          _formatDuration(widget.ride.duration!),
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w600,
+                            fontSize: 14,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ],
             ],
           ),
 
@@ -333,6 +372,9 @@ class _AdminRideDetailsDialogState extends State<AdminRideDetailsDialog> with Si
       'status': widget.ride.status,
       'segmentPrices': widget.ride.segmentPrices,
       'intermediateStops': widget.ride.intermediateStops,
+      'distance': widget.ride.distance,
+      'duration': widget.ride.duration,
+      'departureTime': widget.ride.departureTime,
       'passengers': [], // TODO: Fetch passengers from API when available
     };
 
@@ -546,5 +588,17 @@ class _AdminRideDetailsDialogState extends State<AdminRideDetailsDialog> with Si
         }),
       ],
     );
+  }
+
+  String _formatDuration(int minutes) {
+    if (minutes < 60) {
+      return '$minutes min';
+    }
+    final hours = minutes ~/ 60;
+    final mins = minutes % 60;
+    if (mins == 0) {
+      return '$hours hr';
+    }
+    return '$hours hr $mins min';
   }
 }

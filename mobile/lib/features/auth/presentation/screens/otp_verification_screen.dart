@@ -2,53 +2,102 @@ import 'package:flutter/material.dart';
 import 'package:pin_code_fields/pin_code_fields.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:sms_autofill/sms_autofill.dart';
 import 'package:allapalli_ride/app/themes/app_colors.dart';
 import 'package:allapalli_ride/app/themes/app_spacing.dart';
 import 'package:allapalli_ride/app/themes/text_styles.dart';
 import 'package:allapalli_ride/shared/widgets/buttons.dart';
 import 'package:allapalli_ride/core/providers/auth_provider.dart';
 import 'package:allapalli_ride/core/providers/user_profile_provider.dart';
+import 'package:allapalli_ride/core/services/firebase_auth_service.dart';
 
-/// OTP verification screen
+/// OTP verification screen with Firebase Auth and Auto OTP fetch
 class OtpVerificationScreen extends ConsumerStatefulWidget {
   final String phoneNumber;
+  final String? verificationId;
   
   const OtpVerificationScreen({
     super.key,
     required this.phoneNumber,
+    this.verificationId,
   });
   
   @override
   ConsumerState<OtpVerificationScreen> createState() => _OtpVerificationScreenState();
 }
 
-class _OtpVerificationScreenState extends ConsumerState<OtpVerificationScreen> {
+class _OtpVerificationScreenState extends ConsumerState<OtpVerificationScreen> with CodeAutoFill {
   final _otpController = TextEditingController();
   final _otpFocusNode = FocusNode();
+  final _firebaseAuth = FirebaseAuthService();
+  
   bool _canResend = false;
   int _resendTimer = 30;
+  int _resendAttempts = 0;
+  int _baseResendDelay = 30; // Base delay in seconds
   
   @override
   void initState() {
     super.initState();
     _startResendTimer();
+    _setupAutoOtpFetch();
+    
     // Auto-focus on first input box
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _otpFocusNode.requestFocus();
     });
   }
   
+  /// Setup SMS auto-fetch for Android
+  Future<void> _setupAutoOtpFetch() async {
+    try {
+      // Listen for SMS
+      listenForCode();
+      
+      // Get app signature for SMS verification
+      final signature = await SmsAutoFill().getAppSignature;
+      print('📱 SMS Auto-fetch initialized - Signature: $signature');
+    } catch (e) {
+      print('⚠️ SMS Auto-fetch setup failed: $e');
+    }
+  }
+  
+  @override
+  void codeUpdated() {
+    // This is called when SMS is received and code is extracted
+    if (code != null && code!.length >= 6) {
+      print('✅ Auto-fetched OTP: $code');
+      
+      // Take first 6 digits as Firebase expects 6-digit OTP
+      final otp = code!.substring(0, 6);
+      _otpController.text = otp;
+      
+      // Auto-verify after a short delay
+      Future.delayed(const Duration(milliseconds: 500), () {
+        if (mounted && _otpController.text.length == 6) {
+          _handleVerify();
+        }
+      });
+    }
+  }
+  
   @override
   void dispose() {
+    cancel(); // Cancel SMS listener
     _otpController.dispose();
     _otpFocusNode.dispose();
     super.dispose();
   }
   
   void _startResendTimer() {
+    // Exponential backoff: 30s, 60s, 120s, 240s (max 4 minutes)
+    final delay = _baseResendDelay * (1 << _resendAttempts.clamp(0, 3));
+    
+    if (!mounted) return;
+    
     setState(() {
       _canResend = false;
-      _resendTimer = 30;
+      _resendTimer = delay;
     });
     
     Future.doWhile(() async {
@@ -60,6 +109,7 @@ class _OtpVerificationScreenState extends ConsumerState<OtpVerificationScreen> {
       });
       
       if (_resendTimer == 0) {
+        if (!mounted) return false;
         setState(() {
           _canResend = true;
         });
@@ -70,46 +120,109 @@ class _OtpVerificationScreenState extends ConsumerState<OtpVerificationScreen> {
   }
   
   Future<void> _handleVerify() async {
-    // API accepts 4-digit OTP as per documentation
-    if (_otpController.text.length != 4) {
+    // Firebase expects 6-digit OTP
+    if (_otpController.text.length != 6) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Please enter the 4-digit OTP'),
+          content: Text('Please enter the 6-digit OTP'),
           backgroundColor: AppColors.error,
         ),
       );
       return;
     }
     
-    if (_otpController.text.isEmpty || !RegExp(r'^\d{4}$').hasMatch(_otpController.text)) {
+    if (_otpController.text.isEmpty || !RegExp(r'^\d{6}$').hasMatch(_otpController.text)) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Please enter a valid 4-digit OTP'),
+          content: Text('Please enter a valid 6-digit OTP'),
           backgroundColor: AppColors.error,
         ),
       );
       return;
     }
     
-    // Verify OTP using auth provider
-    final result = await ref.read(authNotifierProvider.notifier)
-        .verifyOtp(widget.phoneNumber, _otpController.text);
+    if (widget.verificationId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Verification session expired. Please try again.'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+      return;
+    }
     
-    print('🔐 OTP Verification Result: $result');
-    print('🔐 Result is null: ${result == null}');
+    // Show loading
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(
+        child: CircularProgressIndicator(),
+      ),
+    );
     
-    if (mounted) {
+    try {
+      // First, verify OTP with Firebase
+      final userCredential = await _firebaseAuth.verifyOtp(
+        verificationId: widget.verificationId!,
+        smsCode: _otpController.text,
+        onError: (error) {
+          if (mounted) {
+            Navigator.pop(context); // Close loading
+            _otpController.clear();
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(error),
+                backgroundColor: AppColors.error,
+              ),
+            );
+          }
+        },
+      );
+      
+      if (userCredential == null) {
+        // Error already handled in onError callback
+        return;
+      }
+      
+      // Get Firebase ID token
+      final idToken = await userCredential.user?.getIdToken();
+      if (idToken == null) {
+        if (mounted) {
+          Navigator.pop(context); // Close loading
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Failed to get authentication token'),
+              backgroundColor: AppColors.error,
+            ),
+          );
+        }
+        return;
+      }
+      
+      print('✅ Firebase OTP verified, phone: ${userCredential.user?.phoneNumber}');
+      print('🔐 Sending Firebase token to backend...');
+      
+      // Now authenticate with backend using Firebase ID token
+      final result = await ref.read(authNotifierProvider.notifier)
+          .verifyFirebasePhoneAuth(idToken, userCredential.user!.phoneNumber!.substring(3)); // Remove +91
+      
+      if (!mounted) return;
+      
+      // Close loading dialog
+      Navigator.pop(context);
+      
+      print('🔐 OTP Verification Result: $result');
+      print('🔐 Result is null: ${result == null}');
+      
+      // Get current auth state
       final authState = ref.read(authNotifierProvider);
       
       print('🔐 Auth State - isAuthenticated: ${authState.isAuthenticated}');
       print('🔐 Auth State - userType: ${authState.userType}');
       print('🔐 Auth State - errorMessage: ${authState.errorMessage}');
       
+      // Check for errors
       if (authState.errorMessage != null) {
-        // Clear OTP input on error (especially for wrong OTP)
-        _otpController.clear();
-        
-        // Show error message from API response with more context
         final errorMsg = authState.errorMessage!;
         final isInvalidOtp = errorMsg.toLowerCase().contains('invalid') || 
                             errorMsg.toLowerCase().contains('wrong') || 
@@ -184,28 +297,28 @@ class _OtpVerificationScreenState extends ConsumerState<OtpVerificationScreen> {
               // Load profile to get verification status
               await ref.read(userProfileNotifierProvider.notifier).loadProfile();
               
-              if (mounted) {
-                final profileState = ref.read(userProfileNotifierProvider);
-                final verificationStatus = profileState.profile?.verificationStatus;
-                
-                print('🔐 Driver verification status: $verificationStatus');
-                print('🔐 Profile loaded: ${profileState.profile != null}');
-                
-                if (verificationStatus == 'approved') {
-                  // Driver approved - go to dashboard
-                  print('🔐 Driver approved - navigating to dashboard');
-                  Navigator.of(context).pushNamedAndRemoveUntil(
-                    '/driver/dashboard',
-                    (route) => false,
-                  );
-                } else {
-                  // Driver pending or rejected - go to verification pending screen
-                  print('🔐 Driver not approved ($verificationStatus) - navigating to verification pending');
-                  Navigator.of(context).pushNamedAndRemoveUntil(
-                    '/driver/verification-pending',
-                    (route) => false,
-                  );
-                }
+              if (!mounted) return;
+              
+              final profileState = ref.read(userProfileNotifierProvider);
+              final verificationStatus = profileState.profile?.verificationStatus;
+              
+              print('🔐 Driver verification status: $verificationStatus');
+              print('🔐 Profile loaded: ${profileState.profile != null}');
+              
+              if (verificationStatus == 'approved') {
+                // Driver approved - go to dashboard
+                print('🔐 Driver approved - navigating to dashboard');
+                Navigator.of(context).pushNamedAndRemoveUntil(
+                  '/driver/dashboard',
+                  (route) => false,
+                );
+              } else {
+                // Driver pending or rejected - go to verification pending screen
+                print('🔐 Driver not approved ($verificationStatus) - navigating to verification pending');
+                Navigator.of(context).pushNamedAndRemoveUntil(
+                  '/driver/verification-pending',
+                  (route) => false,
+                );
               }
             } catch (e) {
               // On error, default to verification pending screen to be safe
@@ -239,46 +352,130 @@ class _OtpVerificationScreenState extends ConsumerState<OtpVerificationScreen> {
           );
         }
       }
+    } catch (e) {
+      // Handle any unexpected errors
+      print('🔴 Error during verification: $e');
+      if (mounted) {
+        Navigator.pop(context); // Close loading dialog
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Verification failed: ${e.toString()}'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
     }
   }
   
   Future<void> _handleResend() async {
     if (!_canResend) return;
     
-    // Resend OTP using auth provider
-    await ref.read(authNotifierProvider.notifier).sendOtp(widget.phoneNumber);
-    
-    if (mounted) {
-      final authState = ref.read(authNotifierProvider);
-      
-      if (authState.errorMessage == null) {
-        _startResendTimer();
-        _otpController.clear(); // Clear previous OTP input
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Row(
-              children: [
-                const Icon(Icons.check_circle, color: Colors.white),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text('OTP sent successfully to ${widget.phoneNumber}'),
-                ),
-              ],
-            ),
-            backgroundColor: AppColors.success,
-            duration: const Duration(seconds: 3),
+    // Check if too many attempts
+    if (_resendAttempts >= 5) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Row(
+            children: [
+              Icon(Icons.block, color: Colors.white),
+              SizedBox(width: 8),
+              Expanded(
+                child: Text('Too many attempts. Please try again after 24 hours or use test phone numbers.'),
+              ),
+            ],
           ),
-        );
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(authState.errorMessage!),
-            backgroundColor: AppColors.error,
-            duration: const Duration(seconds: 4),
-          ),
-        );
-      }
+          backgroundColor: AppColors.error,
+          duration: Duration(seconds: 6),
+        ),
+      );
+      return;
     }
+    
+    final phoneNumber = '+91${widget.phoneNumber}';
+    
+    // Show loading
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(
+        child: CircularProgressIndicator(),
+      ),
+    );
+    
+    // Resend OTP using Firebase
+    await _firebaseAuth.sendOtp(
+      phoneNumber: phoneNumber,
+      onCodeSent: (verificationId) {
+        if (mounted) {
+          Navigator.pop(context); // Close loading
+          
+          // Increment resend attempts
+          _resendAttempts++;
+          
+          // Start timer with exponential backoff
+          _startResendTimer();
+          _otpController.clear();
+          
+          final nextDelay = _baseResendDelay * (1 << _resendAttempts.clamp(0, 3));
+          
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  const Icon(Icons.check_circle, color: Colors.white),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'OTP sent! Attempt ${_resendAttempts}/5. Next resend in ${nextDelay}s.',
+                    ),
+                  ),
+                ],
+              ),
+              backgroundColor: AppColors.success,
+              duration: const Duration(seconds: 4),
+            ),
+          );
+        }
+      },
+      onError: (error) {
+        if (mounted) {
+          Navigator.pop(context); // Close loading
+          
+          // Check if rate limit error
+          final isRateLimited = error.toLowerCase().contains('too many') ||
+                               error.toLowerCase().contains('unusual activity') ||
+                               error.toLowerCase().contains('blocked');
+          
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  const Icon(Icons.warning_amber_rounded, color: Colors.white),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      isRateLimited
+                          ? '⚠️ Rate limit reached. Use test number +919511803142 with code 123456, or wait 24 hours.'
+                          : error,
+                    ),
+                  ),
+                ],
+              ),
+              backgroundColor: AppColors.error,
+              duration: const Duration(seconds: 6),
+              action: isRateLimited
+                  ? SnackBarAction(
+                      label: 'Got it',
+                      textColor: Colors.white,
+                      onPressed: () {
+                        ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                      },
+                    )
+                  : null,
+            ),
+          );
+        }
+      },
+    );
   }
   
   @override
@@ -347,15 +544,18 @@ class _OtpVerificationScreenState extends ConsumerState<OtpVerificationScreen> {
               
               const SizedBox(height: AppSpacing.massive),
               
-              // OTP Input (4 digits as per API spec)
+              // OTP Input (6 digits for Firebase)
               PinCodeTextField(
                 appContext: context,
-                length: 4,
+                length: 6,
                 controller: _otpController,
                 focusNode: _otpFocusNode,
                 keyboardType: TextInputType.number,
                 animationType: AnimationType.fade,
                 autoFocus: true,
+                enablePinAutofill: true,
+                useExternalAutoFillGroup: false,
+                autoDismissKeyboard: false,
                 pinTheme: PinTheme(
                   shape: PinCodeFieldShape.box,
                   borderRadius: AppSpacing.borderRadiusMD,
@@ -379,10 +579,21 @@ class _OtpVerificationScreenState extends ConsumerState<OtpVerificationScreen> {
                 cursorColor: AppColors.primaryYellow,
                 animationDuration: const Duration(milliseconds: 300),
                 enableActiveFill: true,
+                textInputAction: TextInputAction.done,
+                autovalidateMode: AutovalidateMode.disabled,
                 onCompleted: (code) {
                   _handleVerify();
                 },
-                onChanged: (value) {},
+                onChanged: (value) {
+                  // Check if OTP is complete
+                  if (value.length == 6) {
+                    Future.delayed(const Duration(milliseconds: 300), () {
+                      if (mounted && _otpController.text.length == 6) {
+                        _handleVerify();
+                      }
+                    });
+                  }
+                },
               ).animate()
                   .fadeIn(delay: 400.ms)
                   .slideY(begin: 0.2, end: 0, delay: 400.ms),

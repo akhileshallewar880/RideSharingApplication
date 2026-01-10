@@ -13,13 +13,16 @@ namespace RideSharing.API.Services.Implementation
     {
         private readonly RideSharingDbContext _context;
         private readonly ILogger<LocationTrackingService> _logger;
+        private readonly IGoogleMapsService _googleMapsService;
 
         public LocationTrackingService(
             RideSharingDbContext context,
-            ILogger<LocationTrackingService> logger)
+            ILogger<LocationTrackingService> logger,
+            IGoogleMapsService googleMapsService)
         {
             _context = context;
             _logger = logger;
+            _googleMapsService = googleMapsService;
         }
 
         /// <summary>
@@ -274,11 +277,28 @@ namespace RideSharing.API.Services.Implementation
         }
 
         /// <summary>
-        /// Calculate distance between two coordinates using Haversine formula
+        /// Calculate distance between two coordinates using Google Maps Distance Matrix API
+        /// Falls back to Haversine formula if Google Maps API fails
         /// Returns distance in kilometers
         /// </summary>
-        public Task<double> CalculateDistanceAsync(decimal lat1, decimal lon1, decimal lat2, decimal lon2)
+        public async Task<double> CalculateDistanceAsync(decimal lat1, decimal lon1, decimal lat2, decimal lon2)
         {
+            try
+            {
+                // Try Google Maps API first for accurate road distance
+                var result = await _googleMapsService.GetDistanceAndDurationAsync(lat1, lon1, lat2, lon2);
+                if (result != null)
+                {
+                    _logger.LogDebug("Using Google Maps distance: {Distance} km", result.DistanceKm);
+                    return result.DistanceKm;
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Google Maps API failed, falling back to Haversine formula");
+            }
+
+            // Fallback to Haversine formula for straight-line distance
             const double earthRadiusKm = 6371;
 
             var dLat = DegreesToRadians((double)(lat2 - lat1));
@@ -291,7 +311,8 @@ namespace RideSharing.API.Services.Implementation
             var c = 2 * Math.Atan2(Math.Sqrt(a), Math.Sqrt(1 - a));
             var distance = earthRadiusKm * c;
 
-            return Task.FromResult(distance);
+            _logger.LogDebug("Using Haversine distance: {Distance} km", distance);
+            return distance;
         }
 
         /// <summary>

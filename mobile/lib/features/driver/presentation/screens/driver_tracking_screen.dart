@@ -10,6 +10,8 @@ import '../../../../app/themes/app_colors.dart';
 import '../../../../app/themes/app_spacing.dart';
 import '../../../../app/themes/text_styles.dart';
 import '../widgets/stop_passengers_bottom_sheet.dart';
+import 'location_debug_screen.dart';
+import 'driver_trip_summary_screen.dart';
 
 /// Driver tracking screen - shows live ride tracking in train-style UI
 class DriverTrackingScreen extends ConsumerStatefulWidget {
@@ -28,6 +30,7 @@ class DriverTrackingScreen extends ConsumerStatefulWidget {
 
 class _DriverTrackingScreenState extends ConsumerState<DriverTrackingScreen> {
   int _currentStopIndex = 0;
+  DateTime? _tripStartTime;
   
   // Get the latest ride details from provider, fallback to widget param
   RideDetailsWithPassengers get rideDetails {
@@ -38,6 +41,8 @@ class _DriverTrackingScreenState extends ConsumerState<DriverTrackingScreen> {
   @override
   void initState() {
     super.initState();
+    // Record trip start time
+    _tripStartTime = DateTime.now();
     // Start tracking when screen loads
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(locationTrackingProvider.notifier).startTracking(widget.rideId);
@@ -87,6 +92,18 @@ class _DriverTrackingScreenState extends ConsumerState<DriverTrackingScreen> {
           ],
         ),
         actions: [
+          // Debug button (only in debug mode)
+          if (const bool.fromEnvironment('dart.vm.product') == false)
+            IconButton(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const LocationDebugScreen()),
+                );
+              },
+              icon: const Icon(Icons.bug_report),
+              tooltip: 'Location Debug',
+            ),
           // Passengers button
           IconButton(
             onPressed: () => _showPassengersBottomSheet(context, isDark),
@@ -139,7 +156,17 @@ class _DriverTrackingScreenState extends ConsumerState<DriverTrackingScreen> {
               
               // Stops list (train-style)
               Expanded(
-                child: _buildStopsTimeline(allStops, isDark, currentLocation),
+                child: FutureBuilder<Widget>(
+                  // Force rebuild when currentLocation changes by using it as key
+                  key: ValueKey('${currentLocation?.latitude}_${currentLocation?.longitude}_${currentLocation?.timestamp}'),
+                  future: _buildStopsTimeline(allStops, isDark, currentLocation),
+                  builder: (context, snapshot) {
+                    if (snapshot.hasData) {
+                      return snapshot.data!;
+                    }
+                    return const Center(child: CircularProgressIndicator());
+                  },
+                ),
               ),
               
               // Bottom status bar
@@ -225,6 +252,57 @@ class _DriverTrackingScreenState extends ConsumerState<DriverTrackingScreen> {
     final stops = <TrainStop>[];
     double cumulativeDistance = 0;
     
+    // Get intermediate stops data from tracking state (has lat/lng)
+    final trackingState = ref.read(locationTrackingProvider);
+    final intermediateStopDataList = trackingState.intermediateStops;
+    
+    // Helper to find coordinates for a location
+    Map<String, double>? findCoordinates(String locationName) {
+      final normalized = locationName.split(',').first.trim().toLowerCase();
+      
+      // Check intermediate stops first
+      for (var stopData in intermediateStopDataList) {
+        if (stopData.locationName.split(',').first.trim().toLowerCase() == normalized) {
+          debugPrint('✅ Found coordinates for $locationName: ${stopData.latitude}, ${stopData.longitude}');
+          return {
+            'lat': stopData.latitude,
+            'lng': stopData.longitude,
+          };
+        }
+      }
+      
+      // For pickup/dropoff that aren't in intermediate stops, check passenger data
+      for (var passenger in rideDetails.passengers) {
+        final pickupNormalized = passenger.pickupLocation.split(',').first.trim().toLowerCase();
+        final dropoffNormalized = passenger.dropoffLocation.split(',').first.trim().toLowerCase();
+        
+        // Check if this location matches passenger pickup with coordinates
+        if (pickupNormalized == normalized && 
+            passenger.pickupLatitude != null && 
+            passenger.pickupLongitude != null) {
+          debugPrint('✅ Found coordinates from passenger pickup for $locationName: ${passenger.pickupLatitude}, ${passenger.pickupLongitude}');
+          return {
+            'lat': passenger.pickupLatitude!,
+            'lng': passenger.pickupLongitude!,
+          };
+        }
+        
+        // Check if this location matches passenger dropoff with coordinates
+        if (dropoffNormalized == normalized && 
+            passenger.dropoffLatitude != null && 
+            passenger.dropoffLongitude != null) {
+          debugPrint('✅ Found coordinates from passenger dropoff for $locationName: ${passenger.dropoffLatitude}, ${passenger.dropoffLongitude}');
+          return {
+            'lat': passenger.dropoffLatitude!,
+            'lng': passenger.dropoffLongitude!,
+          };
+        }
+      }
+      
+      debugPrint('⚠️  No coordinates found for: $locationName');
+      return null;
+    }
+    
     // Parse departure time
     final departureTime = DateTime.tryParse(rideDetails.departureTime) ?? DateTime.now();
     
@@ -254,8 +332,8 @@ class _DriverTrackingScreenState extends ConsumerState<DriverTrackingScreen> {
     
     for (var passenger in rideDetails.passengers) {
       print('  👤 Passenger: ${passenger.passengerName}');
-      print('     📍 Pickup: ${passenger.pickupLocation}');
-      print('     📍 Dropoff: ${passenger.dropoffLocation}');
+      print('     📍 Pickup: ${passenger.pickupLocation} (${passenger.pickupLatitude}, ${passenger.pickupLongitude})');
+      print('     📍 Dropoff: ${passenger.dropoffLocation} (${passenger.dropoffLatitude}, ${passenger.dropoffLongitude})');
     }
     
     // Count for origin
@@ -349,6 +427,10 @@ class _DriverTrackingScreenState extends ConsumerState<DriverTrackingScreen> {
       
       print('🚏 Stop: $location - Pickup: $pickupCount, Dropoff: $dropoffCount, SegDist: ${segmentDist?.toStringAsFixed(1)}km, SegDur: ${segmentDur}min');
       
+      // Find coordinates for this stop
+      final coords = findCoordinates(location);
+      print('   🎯 Coordinates for $location: ${coords?['lat']}, ${coords?['lng']}');
+      
       stops.add(TrainStop(
         name: location,
         distance: cumulativeDistance,
@@ -358,6 +440,8 @@ class _DriverTrackingScreenState extends ConsumerState<DriverTrackingScreen> {
         dropoffCount: dropoffCount,
         segmentDistance: segmentDist,
         segmentDuration: segmentDur,
+        latitude: coords?['lat'],
+        longitude: coords?['lng'],
       ));
       
       if (!isLast && segmentDist != null) {
@@ -370,19 +454,11 @@ class _DriverTrackingScreenState extends ConsumerState<DriverTrackingScreen> {
     print('📊 Origin pickup count: $originPickupCount');
     print('📊 Destination dropoff count: $destinationDropoffCount');
     
-    // Log all stops with their expected coordinates
-    print('\n📍 ========== ROUTE STOPS WITH COORDINATES ==========');
-    final locationCoords = _getLocationCoordinates();
+    // Log all stops
+    print('\n📍 ========== ROUTE STOPS ==========');
     for (int i = 0; i < stops.length; i++) {
       final stop = stops[i];
-      final coords = locationCoords[stop.name];
       print('Stop ${i + 1}/${stops.length}: ${stop.name}');
-      if (coords != null) {
-        print('  📌 Latitude: ${coords['lat']}');
-        print('  📌 Longitude: ${coords['lng']}');
-      } else {
-        print('  ⚠️  No coordinates found for this location!');
-      }
       print('  🚶 Pickups: ${stop.pickupCount}, Dropoffs: ${stop.dropoffCount}');
       print('');
     }
@@ -670,6 +746,79 @@ class _DriverTrackingScreenState extends ConsumerState<DriverTrackingScreen> {
               ),
             ],
           ),
+          
+          SizedBox(height: AppSpacing.md),
+          
+          // Fare and payment status
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Fare Amount',
+                    style: TextStyles.bodySmall.copyWith(
+                      color: isDark ? Colors.white60 : AppColors.lightTextSecondary,
+                    ),
+                  ),
+                  SizedBox(height: 2),
+                  Text(
+                    '₹${passenger.totalAmount.toStringAsFixed(0)}',
+                    style: TextStyles.headingSmall.copyWith(
+                      color: isDark ? Colors.white : AppColors.lightTextPrimary,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+              Container(
+                padding: EdgeInsets.symmetric(
+                  horizontal: AppSpacing.sm,
+                  vertical: AppSpacing.xs,
+                ),
+                decoration: BoxDecoration(
+                  color: passenger.paymentStatus.toLowerCase() == 'paid'
+                      ? AppColors.success.withOpacity(0.1)
+                      : passenger.paymentStatus.toLowerCase() == 'pending'
+                          ? AppColors.warning.withOpacity(0.1)
+                          : AppColors.error.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(AppSpacing.radiusSM),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      passenger.paymentStatus.toLowerCase() == 'paid'
+                          ? Icons.check_circle
+                          : passenger.paymentStatus.toLowerCase() == 'pending'
+                              ? Icons.schedule
+                              : Icons.error,
+                      size: 14,
+                      color: passenger.paymentStatus.toLowerCase() == 'paid'
+                          ? AppColors.success
+                          : passenger.paymentStatus.toLowerCase() == 'pending'
+                              ? AppColors.warning
+                              : AppColors.error,
+                    ),
+                    SizedBox(width: 4),
+                    Text(
+                      passenger.paymentStatus.toUpperCase(),
+                      style: TextStyles.bodySmall.copyWith(
+                        color: passenger.paymentStatus.toLowerCase() == 'paid'
+                            ? AppColors.success
+                            : passenger.paymentStatus.toLowerCase() == 'pending'
+                                ? AppColors.warning
+                                : AppColors.error,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 11,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ],
       ),
     );
@@ -702,7 +851,7 @@ class _DriverTrackingScreenState extends ConsumerState<DriverTrackingScreen> {
     }
   }
 
-  void _updateCurrentStop(Position currentLocation, List<TrainStop> stops) {
+  Future<void> _updateCurrentStop(Position currentLocation, List<TrainStop> stops) async {
     if (stops.isEmpty) return;
     
     print('\n🎯 ========== LOCATION UPDATE ==========');
@@ -712,22 +861,19 @@ class _DriverTrackingScreenState extends ConsumerState<DriverTrackingScreen> {
     print('   Accuracy: ${currentLocation.accuracy.toStringAsFixed(1)}m');
     print('\n🚗 Current Stop: ${_currentStopIndex + 1}/${stops.length} - ${stops[_currentStopIndex].name}');
     
-    // Get predefined locations coordinates for comparison
-    final locationCoords = _getLocationCoordinates();
-    
     // Find which stop the vehicle is closest to
     double minDistance = double.infinity;
     int closestStopIndex = _currentStopIndex;
     
     print('\n🔍 Checking distances to all stops:');
     for (int i = 0; i < stops.length; i++) {
-      final stopCoords = locationCoords[stops[i].name];
-      if (stopCoords != null) {
+      // Get coordinates from stop object
+      if (stops[i].latitude != null && stops[i].longitude != null) {
         final distance = _calculateDistance(
           currentLocation.latitude,
           currentLocation.longitude,
-          stopCoords['lat']!,
-          stopCoords['lng']!,
+          stops[i].latitude!,
+          stops[i].longitude!,
         );
         
         final status = distance < 0.5 ? '✅' : (i == _currentStopIndex ? '🔵' : '⏸️');
@@ -775,53 +921,28 @@ class _DriverTrackingScreenState extends ConsumerState<DriverTrackingScreen> {
     }
   }
   
-  // Helper to get predefined location coordinates
-  Map<String, Map<String, double>> _getLocationCoordinates() {
-    // This should ideally come from backend or be stored in a constants file
-    // Hyderabad Metro stations and Maharashtra cities
-    return {
-      // Test route - Exact names as they come from backend
-      'Asian Living, Gachibowli, Hyderabad': {'lat': 17.4243, 'lng': 78.3463},
-      'Wipro Circle, Gachibowli, Hyderabad': {'lat': 17.4410, 'lng': 78.3668},
-      
-      // Hyderabad Metro - Red Line (with exact backend names)
-      'Raidurg Metro Station, Hyderabad': {'lat': 17.4347, 'lng': 78.3473},
-      'Hitec City Metro Station, Hyderabad': {'lat': 17.4484, 'lng': 78.3908},
-      'Durgam Cheruvu Metro Station, Hyderabad': {'lat': 17.4500, 'lng': 78.3875},
-      'Madhapur Metro Station, Hyderabad': {'lat': 17.4481, 'lng': 78.3915},
-      
-      // Alternative short names (for backward compatibility)
-      'Asian Living Gachibowli': {'lat': 17.4243, 'lng': 78.3463},
-      'Wipro Circle': {'lat': 17.4410, 'lng': 78.3668},
-      'Raidurg': {'lat': 17.4347, 'lng': 78.3473},
-      'Hitec City': {'lat': 17.4484, 'lng': 78.3908},
-      'Durgam Cheruvu': {'lat': 17.4500, 'lng': 78.3875},
-      'Madhapur': {'lat': 17.4481, 'lng': 78.3915},
-      'Peddamma Gudi': {'lat': 17.4436, 'lng': 78.3996},
-      'Jubilee Hills Checkpost': {'lat': 17.4392, 'lng': 78.4077},
-      'Jubilee Hills': {'lat': 17.4327, 'lng': 78.4087},
-      'Yousufguda': {'lat': 17.4347, 'lng': 78.4286},
-      'Madhura Nagar': {'lat': 17.4347, 'lng': 78.4415},
-      'Ameerpet': {'lat': 17.4374, 'lng': 78.4482},
-      
-      // Hyderabad Metro - Blue Line (Ameerpet to Secunderabad)
-      'SR Nagar': {'lat': 17.4423, 'lng': 78.4643},
-      'Prakash Nagar': {'lat': 17.4467, 'lng': 78.4767},
-      'Begumpet': {'lat': 17.4501, 'lng': 78.4754},
-      'Rasoolpura': {'lat': 17.4520, 'lng': 78.4891},
-      'Paradise': {'lat': 17.4427, 'lng': 78.4952},
-      'Parade Grounds': {'lat': 17.4296, 'lng': 78.5034},
-      'Secunderabad': {'lat': 17.4399, 'lng': 78.4983},
-      
-      // Maharashtra cities
-      'Allapalli': {'lat': 19.8333, 'lng': 80.0500},
-      'Ballarpur': {'lat': 20.0500, 'lng': 79.3500},
-      'Gondpipri': {'lat': 20.0333, 'lng': 80.2000},
-      'Chandrapur': {'lat': 19.9615, 'lng': 79.3012},
-      'Nagpur': {'lat': 21.1458, 'lng': 79.0882},
-      'Mumbai': {'lat': 19.0760, 'lng': 72.8777},
-      'Pune': {'lat': 18.5204, 'lng': 73.8567},
-    };
+  // Get coordinates for a location using geocoding or API
+  Future<Map<String, double>?> _getCoordinatesForLocation(String locationName) async {
+    // First try to extract coordinates if they're embedded in the location string
+    // Format: "Location Name (lat, lng)"
+    final coordPattern = RegExp(r'\((-?\d+\.?\d*),\s*(-?\d+\.?\d*)\)');
+    final match = coordPattern.firstMatch(locationName);
+    
+    if (match != null) {
+      try {
+        return {
+          'lat': double.parse(match.group(1)!),
+          'lng': double.parse(match.group(2)!)
+        };
+      } catch (e) {
+        print('Error parsing embedded coordinates: $e');
+      }
+    }
+    
+    // If no embedded coordinates, use geocoding service (Google Maps or similar)
+    // This would require implementing a geocoding service call
+    // For now, return null to indicate coordinates need to be fetched
+    return null;
   }
   
   // Calculate distance between two coordinates in km (Haversine formula)
@@ -924,11 +1045,11 @@ class _DriverTrackingScreenState extends ConsumerState<DriverTrackingScreen> {
     );
   }
 
-  Widget _buildStopsTimeline(List<TrainStop> stops, bool isDark, Position? currentLocation) {
+  Future<Widget> _buildStopsTimeline(List<TrainStop> stops, bool isDark, Position? currentLocation) async {
     // Calculate vehicle position between stops
     Map<String, dynamic>? vehiclePosition;
     if (currentLocation != null) {
-      vehiclePosition = _calculateVehiclePosition(currentLocation, stops);
+      vehiclePosition = await _calculateVehiclePosition(currentLocation, stops);
     }
     
     return ListView.builder(
@@ -959,10 +1080,26 @@ class _DriverTrackingScreenState extends ConsumerState<DriverTrackingScreen> {
   }
   
   /// Calculate vehicle position relative to stops
-  Map<String, dynamic>? _calculateVehiclePosition(Position currentLocation, List<TrainStop> stops) {
+  Future<Map<String, dynamic>?> _calculateVehiclePosition(Position currentLocation, List<TrainStop> stops) async {
     if (stops.length < 2) return null;
     
-    final locationCoords = _getLocationCoordinates();
+    // Check if we have coordinates for stops
+    bool hasCoordinates = false;
+    for (var stop in stops) {
+      if (stop.latitude != null && stop.longitude != null) {
+        hasCoordinates = true;
+        break;
+      }
+    }
+    
+    // If no stop coordinates available, just show vehicle at current stop index
+    if (!hasCoordinates) {
+      debugPrint('⚠️  No stop coordinates available - showing vehicle at current stop index: $_currentStopIndex');
+      return {
+        'segmentIndex': _currentStopIndex,
+        'progress': 0.5, // Show in middle of segment
+      };
+    }
     
     // Find closest segment (pair of stops)
     double minDistanceToSegment = double.infinity;
@@ -970,22 +1107,21 @@ class _DriverTrackingScreenState extends ConsumerState<DriverTrackingScreen> {
     double progressOnSegment = 0.0;
     
     for (int i = 0; i < stops.length - 1; i++) {
-      final fromCoords = locationCoords[stops[i].name];
-      final toCoords = locationCoords[stops[i + 1].name];
-      
-      if (fromCoords != null && toCoords != null) {
+      // Get coordinates from stop objects
+      if (stops[i].latitude != null && stops[i].longitude != null &&
+          stops[i + 1].latitude != null && stops[i + 1].longitude != null) {
         // Calculate distance from current position to both stops
         final distToFrom = _calculateDistance(
           currentLocation.latitude, currentLocation.longitude,
-          fromCoords['lat']!, fromCoords['lng']!,
+          stops[i].latitude!, stops[i].longitude!,
         );
         final distToTo = _calculateDistance(
           currentLocation.latitude, currentLocation.longitude,
-          toCoords['lat']!, toCoords['lng']!,
+          stops[i + 1].latitude!, stops[i + 1].longitude!,
         );
         final segmentLength = _calculateDistance(
-          fromCoords['lat']!, fromCoords['lng']!,
-          toCoords['lat']!, toCoords['lng']!,
+          stops[i].latitude!, stops[i].longitude!,
+          stops[i + 1].latitude!, stops[i + 1].longitude!,
         );
         
         // Check if vehicle is roughly on this segment
@@ -1417,14 +1553,21 @@ class _DriverTrackingScreenState extends ConsumerState<DriverTrackingScreen> {
     );
     
     // Complete trip via API
+    final tripEndTime = DateTime.now();
     final success = await ref.read(driverRideNotifierProvider.notifier).completeTrip(widget.rideId, request);
     
     if (success && mounted) {
-      Navigator.pop(context);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Trip completed successfully!'),
-          backgroundColor: AppColors.success,
+      // Navigate to trip summary screen
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (context) => DriverTripSummaryScreen(
+            rideId: widget.rideId,
+            rideNumber: rideDetails.rideNumber,
+            rideDetails: rideDetails,
+            tripStartTime: _tripStartTime,
+            tripEndTime: tripEndTime,
+          ),
         ),
       );
     } else if (mounted) {
@@ -1514,6 +1657,8 @@ class TrainStop {
   final double? segmentDistance; // Distance from previous stop
   final int? segmentDuration; // Duration from previous stop in minutes
   DateTime? actualArrivalTime; // Actual time vehicle reached this stop
+  final double? latitude; // Stop coordinates
+  final double? longitude; // Stop coordinates
   
   TrainStop({
     required this.name,
@@ -1526,6 +1671,8 @@ class TrainStop {
     this.segmentDistance,
     this.segmentDuration,
     this.actualArrivalTime,
+    this.latitude,
+    this.longitude,
   });
 }
 

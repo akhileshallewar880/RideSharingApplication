@@ -52,6 +52,13 @@ class PassengerRideNotifier extends StateNotifier<PassengerRideState> {
     try {
       final response = await _service.searchRides(request);
       if (response.success && response.data != null) {
+        print('🔍 Search Results: Found ${response.data!.length} rides');
+        for (var ride in response.data!) {
+          print('   Ride ${ride.rideId}:');
+          print('     Route: ${ride.pickupLocation} → ${ride.dropoffLocation}');
+          print('     Intermediate Stops: ${ride.intermediateStops}');
+          print('     Stops Count: ${ride.intermediateStops?.length ?? 0}');
+        }
         state = state.copyWith(
           availableRides: response.data!,
           isLoading: false,
@@ -75,6 +82,10 @@ class PassengerRideNotifier extends StateNotifier<PassengerRideState> {
     try {
       final response = await _service.bookRide(request);
       if (response.success && response.data != null) {
+        print('🎫 [PROVIDER] BookingResponse received:');
+        print('   Booking Number: ${response.data!.bookingNumber}');
+        print('   Selected Seats from API: ${response.data!.selectedSeats}');
+        
         // Convert BookingResponse to BookingDetails
         final bookingDetails = BookingDetails(
           bookingNumber: response.data!.bookingNumber,
@@ -88,7 +99,11 @@ class PassengerRideNotifier extends StateNotifier<PassengerRideState> {
           totalFare: response.data!.totalFare,
           paymentStatus: response.data!.paymentStatus,
           driverDetails: response.data!.driverDetails,
+          selectedSeats: response.data!.selectedSeats,
         );
+        
+        print('🎫 [PROVIDER] BookingDetails created:');
+        print('   Selected Seats in BookingDetails: ${bookingDetails.selectedSeats}');
         
         state = state.copyWith(
           currentBooking: bookingDetails,

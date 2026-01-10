@@ -35,23 +35,9 @@ class _LocationSearchScreenState extends ConsumerState<LocationSearchScreen> {
   bool _isLoading = false;
   Timer? _debounceTimer;
   
-  // Popular boarding points
-  final List<Map<String, String>> _popularPoints = [
-    {'name': 'Allapalli Bus Stand', 'city': 'Allapalli, Maharashtra'},
-    {'name': 'Chandrapur Railway Station', 'city': 'Chandrapur, Maharashtra'},
-    {'name': 'Nagpur Airport', 'city': 'Nagpur, Maharashtra'},
-    {'name': 'Gadchiroli Bus Station', 'city': 'Gadchiroli, Maharashtra'},
-  ];
-  
-  // Popular cities
-  final List<String> _popularCities = [
-    'Allapalli',
-    'Chandrapur',
-    'Nagpur',
-    'Gadchiroli',
-    'Wardha',
-    'Gondia',
-  ];
+  // Popular locations fetched from API
+  List<LocationSuggestion> _popularLocations = [];
+  bool _isLoadingPopular = false;
   
   @override
   void initState() {
@@ -65,6 +51,9 @@ class _LocationSearchScreenState extends ConsumerState<LocationSearchScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _searchFocusNode.requestFocus();
     });
+    
+    // Load popular locations from API
+    _loadPopularLocations();
   }
   
   @override
@@ -136,26 +125,28 @@ class _LocationSearchScreenState extends ConsumerState<LocationSearchScreen> {
     Navigator.pop(context, location);
   }
   
-  void _selectPopularPoint(String name, String city) {
-    final location = LocationSuggestion(
-      id: name.toLowerCase().replaceAll(' ', '_'),
-      name: name,
-      fullAddress: '$name, $city',
-      latitude: 0.0,
-      longitude: 0.0,
-    );
-    Navigator.pop(context, location);
-  }
-  
-  void _selectCity(String city) {
-    final location = LocationSuggestion(
-      id: city.toLowerCase().replaceAll(' ', '_'),
-      name: city,
-      fullAddress: city,
-      latitude: 0.0,
-      longitude: 0.0,
-    );
-    Navigator.pop(context, location);
+  Future<void> _loadPopularLocations() async {
+    setState(() {
+      _isLoadingPopular = true;
+    });
+    
+    try {
+      // Fetch popular cities and locations from API
+      final locations = await ref.read(locationServiceProvider).getPopularLocations();
+      
+      if (!mounted) return;
+      
+      setState(() {
+        _popularLocations = locations;
+        _isLoadingPopular = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      
+      setState(() {
+        _isLoadingPopular = false;
+      });
+    }
   }
   
   void _selectSavedLocation(SavedLocation saved) async {
@@ -411,85 +402,70 @@ class _LocationSearchScreenState extends ConsumerState<LocationSearchScreen> {
           ),
         ),
         const SizedBox(height: AppSpacing.md),
-        ..._popularPoints.map((point) {
-          return InkWell(
-            onTap: () => _selectPopularPoint(point['name']!, point['city']!),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.directions_bus,
-                    color: isDark 
-                        ? AppColors.darkTextSecondary 
-                        : AppColors.lightTextSecondary,
-                    size: 28,
-                  ),
-                  const SizedBox(width: AppSpacing.lg),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          point['name']!,
-                          style: TextStyles.bodyLarge.copyWith(
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          point['city']!,
-                          style: TextStyles.bodySmall.copyWith(
-                            color: isDark 
-                                ? AppColors.darkTextSecondary 
-                                : AppColors.lightTextSecondary,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          );
-        }).toList(),
         
         const SizedBox(height: AppSpacing.xl),
         
-        // Popular Cities
-        Text(
-          'Popular cities',
-          style: TextStyles.headingSmall.copyWith(
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        const SizedBox(height: AppSpacing.md),
-        ..._popularCities.map((city) {
-          return InkWell(
-            onTap: () => _selectCity(city),
+        // Popular Locations
+        if (_isLoadingPopular)
+          const Center(
             child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.location_city,
-                    color: isDark 
-                        ? AppColors.darkTextSecondary 
-                        : AppColors.lightTextSecondary,
-                    size: 28,
-                  ),
-                  const SizedBox(width: AppSpacing.lg),
-                  Text(
-                    city,
-                    style: TextStyles.bodyLarge.copyWith(
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ],
-              ),
+              padding: EdgeInsets.all(AppSpacing.lg),
+              child: CircularProgressIndicator(),
             ),
-          );
-        }).toList(),
+          )
+        else if (_popularLocations.isNotEmpty) ...[
+          Text(
+            'Popular locations',
+            style: TextStyles.headingSmall.copyWith(
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          ..._popularLocations.take(10).map((location) {
+            return InkWell(
+              onTap: () => _selectLocation(location),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.location_city,
+                      color: isDark 
+                          ? AppColors.darkTextSecondary 
+                          : AppColors.lightTextSecondary,
+                      size: 28,
+                    ),
+                    const SizedBox(width: AppSpacing.lg),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            location.name,
+                            style: TextStyles.bodyLarge.copyWith(
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                          if (location.fullAddress != location.name) ...[
+                            const SizedBox(height: 2),
+                            Text(
+                              location.fullAddress,
+                              style: TextStyles.bodySmall.copyWith(
+                                color: isDark 
+                                    ? AppColors.darkTextSecondary 
+                                    : AppColors.lightTextSecondary,
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }).toList(),
+        ],
       ],
     );
   }

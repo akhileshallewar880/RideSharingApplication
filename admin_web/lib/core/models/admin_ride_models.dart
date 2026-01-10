@@ -58,6 +58,8 @@ class AdminRideInfo {
   final String? passengerOtp;
   final List<dynamic>? segmentPrices;
   final List<String>? intermediateStops;
+  final double? distance; // in kilometers
+  final int? duration; // in minutes
 
   AdminRideInfo({
     required this.rideId,
@@ -80,6 +82,8 @@ class AdminRideInfo {
     this.passengerOtp,
     this.segmentPrices,
     this.intermediateStops,
+    this.distance,
+    this.duration,
   });
 
   factory AdminRideInfo.fromJson(Map<String, dynamic> json) {
@@ -106,6 +110,8 @@ class AdminRideInfo {
       intermediateStops: json['intermediateStops'] != null
           ? List<String>.from(json['intermediateStops'])
           : null,
+      distance: json['distance'] != null ? (json['distance'] as num).toDouble() : null,
+      duration: json['duration'] as int?,
     );
   }
 }
@@ -115,6 +121,7 @@ class AdminScheduleRideRequest {
   final LocationDto pickupLocation;
   final LocationDto dropoffLocation;
   final List<String>? intermediateStops;
+  final List<Map<String, dynamic>>? intermediateStopLocations;  // Full location data with coordinates
   final DateTime travelDate;
   final String departureTime;
   final int totalSeats;
@@ -130,6 +137,7 @@ class AdminScheduleRideRequest {
     required this.pickupLocation,
     required this.dropoffLocation,
     this.intermediateStops,
+    this.intermediateStopLocations,
     required this.travelDate,
     required this.departureTime,
     required this.totalSeats,
@@ -147,6 +155,8 @@ class AdminScheduleRideRequest {
         'dropoffLocation': dropoffLocation.toJson(),
         if (intermediateStops != null && intermediateStops!.isNotEmpty)
           'intermediateStops': intermediateStops,
+        if (intermediateStopLocations != null && intermediateStopLocations!.isNotEmpty)
+          'intermediateStopLocations': intermediateStopLocations,
         'travelDate': travelDate.toIso8601String(),
         'departureTime': departureTime,
         'totalSeats': totalSeats,

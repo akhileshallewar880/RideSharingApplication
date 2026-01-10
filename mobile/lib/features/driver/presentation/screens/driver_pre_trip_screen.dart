@@ -10,6 +10,7 @@ import 'package:allapalli_ride/core/models/driver_models.dart';
 import 'package:allapalli_ride/core/providers/driver_ride_provider.dart';
 import 'package:allapalli_ride/features/driver/presentation/screens/active_trip_screen.dart';
 import 'package:allapalli_ride/features/driver/presentation/screens/driver_tracking_screen.dart';
+import 'package:allapalli_ride/features/driver/presentation/screens/driver_trip_summary_screen.dart';
 
 /// Driver pre-trip screen showing passenger details and start trip option
 class DriverPreTripScreen extends ConsumerStatefulWidget {
@@ -181,13 +182,34 @@ class _DriverPreTripScreenState extends ConsumerState<DriverPreTripScreen> {
     final success = await ref.read(driverRideNotifierProvider.notifier).completeTrip(widget.ride.rideId, request);
     
     if (success && mounted) {
-      Navigator.pop(context);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Trip completed successfully!'),
-          backgroundColor: AppColors.success,
-        ),
-      );
+      // Fetch ride details for summary screen
+      await ref.read(driverRideNotifierProvider.notifier).loadRideDetails(widget.ride.rideId);
+      final rideDetails = ref.read(driverRideNotifierProvider).currentRideDetails;
+      
+      if (rideDetails != null && mounted) {
+        // Navigate to trip summary screen
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (context) => DriverTripSummaryScreen(
+              rideId: widget.ride.rideId,
+              rideNumber: widget.ride.rideNumber,
+              rideDetails: rideDetails,
+              tripStartTime: null,
+              tripEndTime: DateTime.now(),
+            ),
+          ),
+        );
+      } else {
+        // Fallback if ride details couldn't be fetched
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Trip completed successfully!'),
+            backgroundColor: AppColors.success,
+          ),
+        );
+      }
     } else if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(

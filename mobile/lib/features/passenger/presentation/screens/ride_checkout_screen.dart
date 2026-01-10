@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:audioplayers/audioplayers.dart';
+import 'package:dio/dio.dart';
 import 'package:allapalli_ride/app/themes/app_colors.dart';
 import 'package:allapalli_ride/app/themes/app_spacing.dart';
 import 'package:allapalli_ride/app/themes/text_styles.dart';
 import 'package:allapalli_ride/core/models/passenger_ride_models.dart';
 import 'package:allapalli_ride/core/providers/passenger_ride_provider.dart';
+import 'package:allapalli_ride/core/services/coupon_service.dart';
 import 'package:allapalli_ride/features/passenger/presentation/screens/booking_confirmation_screen.dart';
 import 'package:allapalli_ride/features/passenger/presentation/screens/passenger_home_screen.dart';
 import 'package:allapalli_ride/features/passenger/presentation/widgets/seat_selection/compact_seat_widget.dart';
@@ -47,8 +51,20 @@ class _RideCheckoutScreenState extends ConsumerState<RideCheckoutScreen> {
   bool _addInsurance = false;
   bool _addDonation = false;
   bool _isProcessing = false;
-  bool _isRouteExpanded = false;
+  bool _isRouteExpanded = false; // Collapsed by default
   late int _passengerCount;
+  
+  // Audio player for confirmation sound
+  final AudioPlayer _audioPlayer = AudioPlayer();
+  
+  // Coupon service
+  late final CouponService _couponService;
+  
+  // Coupon state
+  bool _isCouponApplied = false;
+  String? _appliedCouponCode;
+  String? _appliedCouponId;
+  double _couponDiscount = 0.0;
   
   // Seat selection state
   List<String> _selectedSeats = [];
@@ -61,13 +77,20 @@ class _RideCheckoutScreenState extends ConsumerState<RideCheckoutScreen> {
   double get _basePrice => widget.ride.pricePerSeat * _passengerCount;
   double get _insuranceFee => _addInsurance ? (29 * _passengerCount).toDouble() : 0.0;
   double get _donationAmount => _addDonation ? 5.0 : 0.0;
-  double get _discount => 0; // TODO: Apply coupon discount
+  double get _discount => _couponDiscount;
   double get _totalAmount => _basePrice + _insuranceFee + _donationAmount - _discount;
   
   @override
   void initState() {
     super.initState();
     _passengerCount = widget.passengerCount;
+    
+    // Initialize coupon service
+    _couponService = CouponService(
+      dio: Dio(),
+      baseUrl: 'http://20.219.172.199:5159', // Update with your API URL
+    );
+    
     // Pre-fill with user data if available
     _phoneController.text = '+91 9511803142'; // TODO: Get from auth
     _emailController.text = 'akhileshallewar880@gmail.com'; // TODO: Get from auth
@@ -77,8 +100,34 @@ class _RideCheckoutScreenState extends ConsumerState<RideCheckoutScreen> {
     print('🪑 DEBUG: Booked Seats = ${widget.ride.bookedSeats}');
     print('🪑 DEBUG: Has Layout = ${widget.ride.seatingLayout != null && widget.ride.seatingLayout!.isNotEmpty}');
     
+    // Auto-apply active coupon
+    _autoApplyCouponOnLoad();
+    
     // Start countdown timer
     _startCountdownTimer();
+  }
+  
+  // Auto-apply the currently active coupon
+  Future<void> _autoApplyCouponOnLoad() async {
+    try {
+      print('🎟️ Checking for active coupon...');
+      final activeCoupon = await _couponService.getActiveCoupon();
+      
+      if (activeCoupon != null) {
+        print('🎟️ Found active coupon: ${activeCoupon.code}');
+        setState(() {
+          _couponController.text = activeCoupon.code;
+        });
+        
+        // Automatically validate and apply the coupon
+        await _applyCoupon();
+      } else {
+        print('🎟️ No active coupon available');
+      }
+    } catch (e) {
+      print('❌ Error auto-applying coupon: $e');
+      // Silently fail - don't show error to user for auto-apply
+    }
   }
   
   void _startCountdownTimer() {
@@ -139,6 +188,7 @@ class _RideCheckoutScreenState extends ConsumerState<RideCheckoutScreen> {
     _phoneController.dispose();
     _emailController.dispose();
     _couponController.dispose();
+    _audioPlayer.dispose();
     super.dispose();
   }
   
@@ -1044,6 +1094,11 @@ class _RideCheckoutScreenState extends ConsumerState<RideCheckoutScreen> {
   }
   
   Widget _buildCouponSection(bool isDark) {
+    // Only show if coupon is applied
+    if (!_isCouponApplied) {
+      return const SizedBox.shrink();
+    }
+    
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
       padding: const EdgeInsets.all(AppSpacing.lg),
@@ -1059,10 +1114,10 @@ class _RideCheckoutScreenState extends ConsumerState<RideCheckoutScreen> {
         children: [
           Row(
             children: [
-              const Icon(Icons.local_offer, size: 20),
+              const Icon(Icons.local_offer, size: 20, color: AppColors.primaryGreen),
               const SizedBox(width: AppSpacing.sm),
               Text(
-                'Have a coupon code?',
+                'Active Offer',
                 style: TextStyles.headingSmall.copyWith(
                   fontWeight: FontWeight.bold,
                 ),
@@ -1070,51 +1125,94 @@ class _RideCheckoutScreenState extends ConsumerState<RideCheckoutScreen> {
             ],
           ),
           const SizedBox(height: AppSpacing.md),
-          Row(
-            children: [
-              Expanded(
-                child: TextField(
-                  controller: _couponController,
-                  decoration: InputDecoration(
-                    hintText: 'Coupon code',
-                    filled: true,
-                    fillColor: isDark 
-                        ? AppColors.darkBackground 
-                        : const Color(0xFFF5F5F5),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                      borderSide: BorderSide.none,
-                    ),
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: AppSpacing.md,
-                      vertical: AppSpacing.sm,
-                    ),
-                  ),
-                ),
+          // Show applied coupon with discount
+          Container(
+            padding: const EdgeInsets.all(AppSpacing.md),
+            decoration: BoxDecoration(
+              color: AppColors.primaryGreen.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: AppColors.primaryGreen,
+                width: 1,
               ),
-              const SizedBox(width: AppSpacing.sm),
-              ElevatedButton(
-                onPressed: () {
-                  // Apply coupon
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: isDark 
-                      ? AppColors.darkBorder 
-                      : Colors.grey.shade300,
-                  foregroundColor: isDark 
-                      ? AppColors.darkTextSecondary 
-                      : AppColors.lightTextSecondary,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: AppSpacing.lg,
-                    vertical: AppSpacing.md,
-                  ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Show auto-applied message
+                Row(
+                  children: [
+                    Icon(
+                      Icons.celebration,
+                      color: AppColors.primaryGreen,
+                      size: 18,
+                    ),
+                    const SizedBox(width: AppSpacing.xs),
+                    Expanded(
+                      child: Text(
+                        'Coupon automatically applied!',
+                        style: TextStyles.bodySmall.copyWith(
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.primaryGreen,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-                child: const Text('Apply'),
-              ),
-            ],
+                const SizedBox(height: AppSpacing.sm),
+                Row(
+                  children: [
+                    Icon(
+                      Icons.check_circle,
+                      color: AppColors.primaryGreen,
+                      size: 20,
+                    ),
+                    const SizedBox(width: AppSpacing.sm),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            _appliedCouponCode ?? '',
+                            style: TextStyles.bodyMedium.copyWith(
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.primaryGreen,
+                              fontSize: 16,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'You saved ₹${_couponDiscount.toStringAsFixed(0)}',
+                            style: TextStyles.bodyMedium.copyWith(
+                              color: AppColors.primaryGreen,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: () {
+                        setState(() {
+                          _isCouponApplied = false;
+                          _appliedCouponCode = null;
+                          _appliedCouponId = null;
+                          _couponDiscount = 0.0;
+                          _couponController.clear();
+                        });
+                      },
+                      child: Text(
+                        'Remove',
+                        style: TextStyle(
+                          color: AppColors.error,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
         ],
       ),
@@ -1333,9 +1431,9 @@ class _RideCheckoutScreenState extends ConsumerState<RideCheckoutScreen> {
                             strokeWidth: 2,
                           ),
                         )
-                      : const Text(
-                          'Pay now',
-                          style: TextStyle(
+                      : Text(
+                          _selectedUpiApp == 'cash' ? 'Book Now' : 'Pay now',
+                          style: const TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
                           ),
@@ -1458,6 +1556,307 @@ class _RideCheckoutScreenState extends ConsumerState<RideCheckoutScreen> {
     );
   }
   
+  /// Apply coupon code
+  Future<void> _applyCoupon() async {
+    print('🎟️ [_applyCoupon] Starting coupon application...');
+    final couponCode = _couponController.text.trim().toUpperCase();
+    
+    if (couponCode.isEmpty) {
+      print('❌ [_applyCoupon] Empty coupon code');
+      _showErrorDialog('Invalid Coupon', 'Please enter a coupon code');
+      return;
+    }
+    
+    print('🎟️ [_applyCoupon] Coupon code: $couponCode');
+    
+    if (!mounted) {
+      print('❌ [_applyCoupon] Widget not mounted, aborting');
+      return;
+    }
+    
+    try {
+      // Get user ID from auth - TODO: Replace with actual user ID
+      final userId = 'c9b07350-0fc6-4cfd-95ca-014aa70877fd'; // Temporary hardcoded user ID
+      
+      print('🎟️ [_applyCoupon] Calling validateCoupon API...');
+      // Call backend API to validate coupon
+      final response = await _couponService.validateCoupon(
+        couponCode: couponCode,
+        userId: userId,
+        orderAmount: _basePrice,
+      );
+      
+      print('🎟️ [_applyCoupon] API response received - isValid: ${response.isValid}');
+      
+      if (response.isValid && response.coupon != null) {
+        print('✅ [_applyCoupon] Coupon valid, applying...');
+        if (!mounted) {
+          print('❌ [_applyCoupon] Widget unmounted after API call');
+          return;
+        }
+        
+        setState(() {
+          _isCouponApplied = true;
+          _appliedCouponCode = response.coupon!.code;
+          _appliedCouponId = response.coupon!.id;
+          _couponDiscount = response.discountAmount;
+        });
+        
+        print('✅ [_applyCoupon] Coupon applied successfully');
+        
+        print('✅ [_applyCoupon] Coupon applied successfully');
+        
+        // Show success message with actual discount
+        if (mounted) {
+          final discountPercent = response.coupon!.discountType == 'percentage' 
+              ? '${response.coupon!.discountValue.toStringAsFixed(0)}%'
+              : '\u20b9${response.coupon!.discountValue.toStringAsFixed(0)}';
+          
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                '🎉 Coupon "$couponCode" applied! You saved \u20b9${response.discountAmount.toStringAsFixed(0)} ($discountPercent discount)',
+              ),
+              backgroundColor: AppColors.primaryGreen,
+              duration: const Duration(seconds: 3),
+            ),
+          );
+        }
+      } else {
+        print('❌ [_applyCoupon] Coupon invalid: ${response.message}');
+        // Provide specific error messages based on validation failure
+        String errorTitle = 'Invalid Coupon';
+        String errorMessage = response.message ?? 'The coupon code "$couponCode" is not valid';
+        
+        // Check for specific error types in the message
+        final msgLower = errorMessage.toLowerCase();
+        if (msgLower.contains('already used') || msgLower.contains('already been used')) {
+          errorTitle = 'Coupon Already Used';
+          errorMessage = 'You have already used this coupon code. Each coupon can only be used once per user.';
+        } else if (msgLower.contains('expired') || msgLower.contains('no longer valid')) {
+          errorTitle = 'Expired Coupon';
+          errorMessage = 'This coupon has expired and is no longer valid.';
+        } else if (msgLower.contains('not found') || msgLower.contains('does not exist')) {
+          errorTitle = 'Invalid Coupon Code';
+          errorMessage = 'The coupon code "$couponCode" does not exist. Please check and try again.';
+        } else if (msgLower.contains('minimum') || msgLower.contains('order amount')) {
+          errorTitle = 'Minimum Order Not Met';
+          errorMessage = 'This coupon requires a minimum order amount. Your current order does not meet the requirement.';
+        } else if (msgLower.contains('first time') || msgLower.contains('new user')) {
+          errorTitle = 'New User Only';
+          errorMessage = 'This coupon is only valid for first-time users.';
+        }
+        
+        _showErrorDialog(errorTitle, errorMessage);
+      }
+    } catch (e) {
+      print('❌ [_applyCoupon] Exception caught: $e');
+      print('❌ [_applyCoupon] Stack trace: ${StackTrace.current}');
+      if (mounted) {
+        _showErrorDialog(
+          'Connection Error', 
+          'Unable to verify coupon code. Please check your internet connection and try again.',
+        );
+      }
+    } finally {
+      print('🎟️ [_applyCoupon] Finally block completed');
+    }
+  }
+  
+  /// Show booking confirmation dialog with vibration and sound
+  Future<bool> _showBookingConfirmationDialog() async {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    
+    // Trigger haptic feedback
+    HapticFeedback.mediumImpact();
+    
+    // Show confirmation dialog
+    final result = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        backgroundColor: isDark ? AppColors.darkCardBg : Colors.white,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+        contentPadding: const EdgeInsets.all(24),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Success icon
+            Container(
+              width: 80,
+              height: 80,
+              decoration: BoxDecoration(
+                color: AppColors.primaryGreen.withOpacity(0.1),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                Icons.check_circle_rounded,
+                size: 50,
+                color: AppColors.primaryGreen,
+              ),
+            ),
+            const SizedBox(height: 20),
+            
+            // Title
+            Text(
+              'Confirm Booking',
+              style: TextStyles.headingMedium.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 12),
+            
+            // Booking details
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: isDark 
+                    ? AppColors.darkBackground 
+                    : Colors.grey.shade50,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Column(
+                children: [
+                  // Show selected seat numbers if available
+                  if (_selectedSeats.isNotEmpty)
+                    _buildConfirmationRow(
+                      'Seat Numbers',
+                      _selectedSeats.join(', '),
+                      Icons.event_seat,
+                    )
+                  else
+                    _buildConfirmationRow(
+                      'Seats',
+                      '$_passengerCount seat${_passengerCount > 1 ? 's' : ''}',
+                      Icons.airline_seat_recline_normal,
+                    ),
+                  const SizedBox(height: 12),
+                  _buildConfirmationRow(
+                    'Amount',
+                    '₹${_totalAmount.toStringAsFixed(0)}',
+                    Icons.currency_rupee,
+                  ),
+                  if (_isCouponApplied) ...[
+                    const SizedBox(height: 12),
+                    _buildConfirmationRow(
+                      'Discount',
+                      '- ₹${_couponDiscount.toStringAsFixed(0)}',
+                      Icons.local_offer,
+                      valueColor: AppColors.primaryGreen,
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            const SizedBox(height: 20),
+            
+            // Confirmation message
+            Text(
+              _selectedUpiApp == 'cash' 
+                  ? 'Ready to confirm your booking?'
+                  : 'Proceed to payment?',
+              style: TextStyles.bodyMedium.copyWith(
+                color: isDark 
+                    ? AppColors.darkTextSecondary 
+                    : AppColors.lightTextSecondary,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+        actions: [
+          // Cancel button
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            style: TextButton.styleFrom(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 24,
+                vertical: 12,
+              ),
+            ),
+            child: Text(
+              'Cancel',
+              style: TextStyle(
+                color: isDark 
+                    ? AppColors.darkTextSecondary 
+                    : AppColors.lightTextSecondary,
+              ),
+            ),
+          ),
+          
+          // Confirm button
+          ElevatedButton(
+            onPressed: () async {
+              // Trigger success haptic
+              HapticFeedback.heavyImpact();
+              
+              // Sound will play on confirmation screen, not here
+              Navigator.of(context).pop(true);
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primaryGreen,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(
+                horizontal: 32,
+                vertical: 12,
+              ),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+              elevation: 0,
+            ),
+            child: Text(
+              _selectedUpiApp == 'cash' ? 'Confirm Booking' : 'Proceed to Pay',
+              style: const TextStyle(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ],
+        actionsAlignment: MainAxisAlignment.spaceBetween,
+        actionsPadding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
+      ),
+    );
+    
+    return result ?? false;
+  }
+  
+  Widget _buildConfirmationRow(String label, String value, IconData icon, {Color? valueColor}) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    
+    return Row(
+      children: [
+        Icon(
+          icon,
+          size: 18,
+          color: isDark 
+              ? AppColors.darkTextSecondary 
+              : AppColors.lightTextSecondary,
+        ),
+        const SizedBox(width: 8),
+        Text(
+          label,
+          style: TextStyles.bodySmall.copyWith(
+            color: isDark 
+                ? AppColors.darkTextSecondary 
+                : AppColors.lightTextSecondary,
+          ),
+        ),
+        const Spacer(),
+        Text(
+          value,
+          style: TextStyles.bodyMedium.copyWith(
+            fontWeight: FontWeight.w600,
+            color: valueColor,
+          ),
+        ),
+      ],
+    );
+  }
+  
   Future<void> _processPayment() async {
     // Check if time has expired
     if (_remainingSeconds <= 0) {
@@ -1485,6 +1884,10 @@ class _RideCheckoutScreenState extends ConsumerState<RideCheckoutScreen> {
       );
       return;
     }
+    
+    // Show confirmation dialog first
+    final confirmed = await _showBookingConfirmationDialog();
+    if (!confirmed) return;
     
     setState(() => _isProcessing = true);
     
@@ -1518,6 +1921,11 @@ class _RideCheckoutScreenState extends ConsumerState<RideCheckoutScreen> {
       }
       
       // Proceed with booking
+      print('🎫 [BOOKING] Creating BookRideRequest:');
+      print('   Selected Seats: $_selectedSeats');
+      print('   Is Empty: ${_selectedSeats.isEmpty}');
+      print('   Sending to API: ${_selectedSeats.isEmpty ? null : _selectedSeats}');
+      
       final bookRequest = BookRideRequest(
         rideId: widget.ride.rideId,
         passengerCount: _passengerCount,
@@ -1527,6 +1935,8 @@ class _RideCheckoutScreenState extends ConsumerState<RideCheckoutScreen> {
         selectedSeats: _selectedSeats.isEmpty ? null : _selectedSeats,
       );
       
+      print('🎫 [BOOKING] BookRideRequest JSON: ${bookRequest.toJson()}');
+      
       final success = await ref
           .read(passengerRideNotifierProvider.notifier)
           .bookRide(bookRequest);
@@ -1535,6 +1945,23 @@ class _RideCheckoutScreenState extends ConsumerState<RideCheckoutScreen> {
         if (success) {
           final state = ref.read(passengerRideNotifierProvider);
           if (state.currentBooking != null) {
+            // Record coupon usage if coupon was applied
+            if (_isCouponApplied && _appliedCouponId != null) {
+              try {
+                final userId = 'c9b07350-0fc6-4cfd-95ca-014aa70877fd'; // TODO: Replace with actual user ID
+                await _couponService.applyCoupon(
+                  couponId: _appliedCouponId!,
+                  userId: userId,
+                  bookingId: state.currentBooking!.bookingNumber,
+                  discountApplied: _couponDiscount,
+                );
+                print('✅ Coupon usage recorded successfully');
+              } catch (e) {
+                print('⚠️ Failed to record coupon usage: $e');
+                // Don't fail the booking if coupon recording fails
+              }
+            }
+            
             // Navigate to confirmation screen
             Navigator.pushReplacement(
               context,
@@ -1542,6 +1969,7 @@ class _RideCheckoutScreenState extends ConsumerState<RideCheckoutScreen> {
                 builder: (context) => BookingConfirmationScreen(
                   bookingId: state.currentBooking!.bookingNumber,
                   otp: state.currentBooking!.otp,
+                  selectedSeats: state.currentBooking!.selectedSeats,
                 ),
               ),
             );
@@ -1644,9 +2072,9 @@ class _RideCheckoutScreenState extends ConsumerState<RideCheckoutScreen> {
   
   /// Build comprehensive route information card
   Widget _buildRouteInformationCard(bool isDark) {
-    // Get intermediate stops between passenger's pickup and dropoff
-    final relevantStops = _getRelevantIntermediateStops();
-    final hasIntermediateStops = relevantStops.isNotEmpty;
+    // Show ALL intermediate stops from the complete route
+    final hasIntermediateStops = (widget.ride.intermediateStops != null && widget.ride.intermediateStops!.isNotEmpty) ||
+                                  (widget.ride.routeStopsWithTiming != null && widget.ride.routeStopsWithTiming!.length > 2);
     
     // Debug logging
     print('🚗 Route Card Debug:');
@@ -1654,7 +2082,13 @@ class _RideCheckoutScreenState extends ConsumerState<RideCheckoutScreen> {
     print('  Driver dropoff: ${widget.ride.dropoffLocation}');
     print('  Intermediate stops: ${widget.ride.intermediateStops}');
     print('  Intermediate stops count: ${widget.ride.intermediateStops?.length ?? 0}');
-    print('  Relevant stops count: ${relevantStops.length}');
+    print('  Route stops with timing: ${widget.ride.routeStopsWithTiming?.length ?? 0}');
+    if (widget.ride.routeStopsWithTiming != null) {
+      for (var i = 0; i < widget.ride.routeStopsWithTiming!.length; i++) {
+        final stop = widget.ride.routeStopsWithTiming![i];
+        print('    Stop $i: ${stop.location} at ${stop.arrivalTime}');
+      }
+    }
     print('  Passenger pickup: ${widget.pickupLocation}');
     print('  Passenger dropoff: ${widget.dropoffLocation}');
     
@@ -1702,7 +2136,7 @@ class _RideCheckoutScreenState extends ConsumerState<RideCheckoutScreen> {
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Text(
-                      '${relevantStops.length} stop${relevantStops.length > 1 ? 's' : ''}',
+                      '${widget.ride.intermediateStops?.length ?? 0} stop${(widget.ride.intermediateStops?.length ?? 0) > 1 ? 's' : ''}',
                       style: TextStyles.caption.copyWith(
                         color: AppColors.primaryGreen,
                         fontWeight: FontWeight.w600,
@@ -1759,7 +2193,7 @@ class _RideCheckoutScreenState extends ConsumerState<RideCheckoutScreen> {
                   if (hasIntermediateStops)
                     Expanded(
                       child: Text(
-                        '${relevantStops.length} intermediate stop${relevantStops.length > 1 ? 's' : ''}',
+                        '${widget.ride.intermediateStops?.length ?? 0} intermediate stop${(widget.ride.intermediateStops?.length ?? 0) > 1 ? 's' : ''}',
                         style: TextStyles.caption.copyWith(
                           color: isDark ? AppColors.darkTextSecondary : const Color(0xFF757575),
                           fontStyle: FontStyle.italic,
@@ -1796,138 +2230,82 @@ class _RideCheckoutScreenState extends ConsumerState<RideCheckoutScreen> {
             
             // Expanded view with full timeline
             if (_isRouteExpanded) ...[
-          
-              // Route Timeline
-              IntrinsicHeight(
-                child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Timeline indicator column
-                  Column(
-                    children: [
-                      // Pickup indicator
-                      _buildRouteIndicator(
-                        icon: Icons.trip_origin,
-                        color: AppColors.primaryGreen,
-                        isLarge: true,
-                      ),
-                      
-                      // Vertical line for intermediate stops
-                      if (hasIntermediateStops) ...[
-                        for (int i = 0; i < relevantStops.length; i++) ...[
-                          _buildVerticalLine(isDark),
-                          _buildRouteIndicator(
-                            icon: Icons.location_on,
-                            color: AppColors.primaryYellow,
-                            isLarge: false,
-                          ),
-                        ],
-                      ],
-                      
-                      // Vertical line to dropoff
-                      _buildVerticalLine(isDark),
-                      
-                      // Dropoff indicator
-                      _buildRouteIndicator(
-                        icon: Icons.location_on,
-                        color: AppColors.error,
-                        isLarge: true,
-                      ),
-                    ],
-                  ),
+              // Build complete driver route: pickup → all intermediateStops → dropoff
+              ...() {
+                // Build ordered route locations
+                final List<String> orderedRoute = [];
+                
+                // 1. Add driver's pickup location (origin)
+                orderedRoute.add(widget.ride.pickupLocation);
+                
+                // 2. Add all intermediate stops
+                if (widget.ride.intermediateStops != null && widget.ride.intermediateStops!.isNotEmpty) {
+                  orderedRoute.addAll(widget.ride.intermediateStops!);
+                }
+                
+                // 3. Add driver's dropoff location (destination)
+                orderedRoute.add(widget.ride.dropoffLocation);
+                
+                // Build list of widgets for each stop
+                final List<Widget> routeWidgets = [];
+                
+                for (int i = 0; i < orderedRoute.length; i++) {
+                  final location = orderedRoute[i];
+                  final isFirst = i == 0;
+                  final isLast = i == orderedRoute.length - 1;
                   
-                  const SizedBox(width: AppSpacing.md),
+                  // Determine label
+                  String label;
+                  if (isFirst) {
+                    label = 'Origin (Driver Start)';
+                  } else if (isLast) {
+                    label = 'Destination (Driver End)';
+                  } else {
+                    label = 'Stop $i';
+                  }
                   
-                  // Location details column
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // Use routeStopsWithTiming if available to get accurate times
-                        if (widget.ride.routeStopsWithTiming != null && widget.ride.routeStopsWithTiming!.isNotEmpty) ...[
-                          // Filter stops to show only passenger's journey (from pickup to dropoff)
-                          ...() {
-                            final passengerStops = <Widget>[];
-                            bool foundPickup = false;
-                            bool foundDropoff = false;
-                            
-                            for (int i = 0; i < widget.ride.routeStopsWithTiming!.length; i++) {
-                              final stop = widget.ride.routeStopsWithTiming![i];
-                              final isPickup = stop.location.toLowerCase().contains(widget.pickupLocation.toLowerCase()) ||
-                                               widget.pickupLocation.toLowerCase().contains(stop.location.toLowerCase());
-                              final isDropoff = stop.location.toLowerCase().contains(widget.dropoffLocation.toLowerCase()) ||
-                                                widget.dropoffLocation.toLowerCase().contains(stop.location.toLowerCase());
-                              
-                              if (isPickup) {
-                                foundPickup = true;
-                                passengerStops.add(_buildLocationItem(
-                                  label: 'Pickup',
-                                  location: widget.pickupLocation,
-                                  time: stop.arrivalTime,
-                                  isDark: isDark,
-                                  isHighlight: true,
-                                ));
-                              } else if (isDropoff) {
-                                foundDropoff = true;
-                                passengerStops.add(_buildLocationItem(
-                                  label: 'Dropoff',
-                                  location: widget.dropoffLocation,
-                                  time: stop.arrivalTime,
-                                  isDark: isDark,
-                                  isHighlight: true,
-                                ));
-                                break; // Stop after dropoff
-                              } else if (foundPickup && !foundDropoff) {
-                                // This is an intermediate stop between pickup and dropoff
-                                passengerStops.add(_buildLocationItem(
-                                  label: 'Stop',
-                                  location: stop.location,
-                                  time: stop.arrivalTime,
-                                  isDark: isDark,
-                                  isHighlight: false,
-                                ));
-                              }
-                            }
-                            
-                            return passengerStops;
-                          }(),
-                        ] else ...[
-                          // Fallback to old method if routeStopsWithTiming not available
-                          _buildLocationItem(
-                            label: 'Pickup',
-                            location: widget.pickupLocation,
-                            time: widget.ride.departureTime,
-                            isDark: isDark,
-                            isHighlight: true,
-                          ),
-                          
-                          // Intermediate stops with arrival times
-                          if (hasIntermediateStops) ...[
-                            for (int i = 0; i < relevantStops.length; i++)
-                              _buildLocationItem(
-                                label: 'Stop',
-                                location: relevantStops[i],
-                                time: _getStopArrivalTime(relevantStops[i]),
-                                isDark: isDark,
-                                isHighlight: false,
-                              ),
-                          ],
-                          
-                          // Dropoff location with arrival time
-                          _buildLocationItem(
-                            label: 'Dropoff',
-                            location: widget.dropoffLocation,
-                            time: _getStopArrivalTime(widget.dropoffLocation),
-                            isDark: isDark,
-                            isHighlight: true,
-                          ),
-                        ],
-                      ],
+                  // Check if passenger pickup/dropoff
+                  final isPassengerPickup = location.toLowerCase().contains(widget.pickupLocation.toLowerCase()) ||
+                                           widget.pickupLocation.toLowerCase().contains(location.toLowerCase());
+                  final isPassengerDropoff = location.toLowerCase().contains(widget.dropoffLocation.toLowerCase()) ||
+                                            widget.dropoffLocation.toLowerCase().contains(location.toLowerCase());
+                  
+                  // Get arrival time from routeStopsWithTiming if available
+                  String? arrivalTime;
+                  if (isFirst) {
+                    arrivalTime = widget.ride.departureTime;
+                  } else if (widget.ride.routeStopsWithTiming != null) {
+                    // Find matching stop in routeStopsWithTiming
+                    for (var stop in widget.ride.routeStopsWithTiming!) {
+                      if (stop.location.toLowerCase() == location.toLowerCase() ||
+                          stop.location.toLowerCase().contains(location.toLowerCase()) ||
+                          location.toLowerCase().contains(stop.location.toLowerCase())) {
+                        arrivalTime = stop.arrivalTime;
+                        break;
+                      }
+                    }
+                  }
+                  
+                  // Add stop row
+                  routeWidgets.add(
+                    _buildRouteStopRow(
+                      icon: isFirst ? Icons.trip_origin : Icons.location_on,
+                      color: isFirst 
+                          ? AppColors.primaryGreen 
+                          : (isLast ? AppColors.error : AppColors.primaryYellow),
+                      isLarge: isFirst || isLast,
+                      label: label,
+                      location: location,
+                      time: arrivalTime,
+                      isDark: isDark,
+                      isHighlight: isPassengerPickup || isPassengerDropoff,
+                      showLine: !isLast,
                     ),
-                  ),
-                ],
-                ),
-              ),
+                  );
+                }
+                
+                return routeWidgets;
+              }(),
               
               // Journey summary
               if (hasIntermediateStops) ...[
@@ -1948,7 +2326,7 @@ class _RideCheckoutScreenState extends ConsumerState<RideCheckoutScreen> {
                     const SizedBox(width: AppSpacing.xs),
                     Expanded(
                       child: Text(
-                        'Driver has scheduled ${relevantStops.length} intermediate stop${relevantStops.length > 1 ? 's' : ''} on this route',
+                        'Complete driver route with ${widget.ride.intermediateStops?.length ?? 0} intermediate stop${(widget.ride.intermediateStops?.length ?? 0) > 1 ? 's' : ''}. Your pickup/dropoff locations are highlighted.',
                         style: TextStyles.caption.copyWith(
                           color: isDark ? AppColors.darkTextSecondary : const Color(0xFF757575),
                           fontSize: 11,
@@ -1995,90 +2373,119 @@ class _RideCheckoutScreenState extends ConsumerState<RideCheckoutScreen> {
     );
   }
   
-  /// Build vertical line connector
-  Widget _buildVerticalLine(bool isDark) {
-    return Container(
-      width: 2,
-      height: 40,
-      margin: const EdgeInsets.symmetric(vertical: 2),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            AppColors.primaryGreen.withOpacity(0.5),
-            AppColors.primaryYellow.withOpacity(0.5),
-          ],
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-        ),
-      ),
-    );
-  }
-  
-  /// Build location item with label and details
-  Widget _buildLocationItem({
+  /// Build complete route stop row with indicator and location
+  Widget _buildRouteStopRow({
+    required IconData icon,
+    required Color color,
+    required bool isLarge,
     required String label,
     required String location,
     required String? time,
     required bool isDark,
     required bool isHighlight,
+    required bool showLine,
   }) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 36),
-      child: Column(
+    return IntrinsicHeight(
+      child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
         children: [
-          // Label
-          Text(
-            label.toUpperCase(),
-            style: TextStyles.caption.copyWith(
-              color: isHighlight
-                  ? (isDark ? AppColors.primaryYellow : const Color(0xFFF57C00))
-                  : (isDark ? AppColors.darkTextSecondary : const Color(0xFF9E9E9E)),
-              fontWeight: FontWeight.w600,
-              letterSpacing: 0.5,
-              height: 1.2,
-            ),
-          ),
-          const SizedBox(height: 4),
-          
-          // Location
-          Text(
-            location,
-            style: TextStyles.bodyMedium.copyWith(
-              fontWeight: isHighlight ? FontWeight.w600 : FontWeight.w500,
-              color: isDark ? AppColors.darkTextPrimary : const Color(0xFF212121),
-              height: 1.3,
-            ),
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-          ),
-          
-          // Time if provided
-          if (time != null) ...[
-            const SizedBox(height: 2),
-            Row(
-              children: [
-                Icon(
-                  Icons.access_time,
-                  size: 12,
-                  color: isDark ? AppColors.darkTextSecondary : const Color(0xFF757575),
-                ),
-                const SizedBox(width: 4),
-                Text(
-                  _formatTimeTo12Hour(time),
-                  style: TextStyles.caption.copyWith(
-                    color: isDark ? AppColors.darkTextSecondary : const Color(0xFF757575),
+          // Timeline indicator column with line
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Indicator icon
+              _buildRouteIndicator(
+                icon: icon,
+                color: color,
+                isLarge: isLarge,
+              ),
+              
+              // Vertical connecting line
+              if (showLine)
+                Expanded(
+                  child: Container(
+                    width: 2,
+                    margin: const EdgeInsets.symmetric(vertical: 4),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          color.withOpacity(0.5),
+                          AppColors.primaryYellow.withOpacity(0.5),
+                        ],
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                      ),
+                    ),
                   ),
                 ),
-              ],
+            ],
+          ),
+          
+          const SizedBox(width: AppSpacing.md),
+          
+          // Location details
+          Expanded(
+            child: Padding(
+              padding: EdgeInsets.only(bottom: showLine ? 20 : 0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Label
+                  Text(
+                    label.toUpperCase(),
+                    style: TextStyles.caption.copyWith(
+                      color: isHighlight
+                          ? (isDark ? AppColors.primaryYellow : const Color(0xFFF57C00))
+                          : (isDark ? AppColors.darkTextSecondary : const Color(0xFF9E9E9E)),
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: 0.5,
+                      height: 1.2,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  
+                  // Location
+                  Text(
+                    location,
+                    style: TextStyles.bodyMedium.copyWith(
+                      fontWeight: isHighlight ? FontWeight.w600 : FontWeight.w500,
+                      color: isDark ? AppColors.darkTextPrimary : const Color(0xFF212121),
+                      height: 1.3,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  
+                  // Time if provided
+                  if (time != null) ...[
+                    const SizedBox(height: 2),
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.access_time,
+                          size: 12,
+                          color: isDark ? AppColors.darkTextSecondary : const Color(0xFF757575),
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          _formatTimeTo12Hour(time),
+                          style: TextStyles.caption.copyWith(
+                            color: isDark ? AppColors.darkTextSecondary : const Color(0xFF757575),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ],
+              ),
             ),
-          ],
+          ),
         ],
       ),
     );
   }
-  
+
   /// Get intermediate stops that are relevant to passenger's journey
   /// (between their pickup and dropoff locations)
   List<String> _getRelevantIntermediateStops() {

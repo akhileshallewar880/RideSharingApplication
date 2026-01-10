@@ -3,7 +3,6 @@ import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:allapalli_ride/app/themes/app_spacing.dart';
-import 'package:allapalli_ride/app/themes/text_styles.dart';
 import 'package:allapalli_ride/core/providers/auth_provider.dart';
 import 'package:allapalli_ride/core/providers/user_profile_provider.dart';
 
@@ -99,13 +98,13 @@ class _SplashScreenState extends ConsumerState<SplashScreen> with SingleTickerPr
           }
         }
       } else {
-        print('⚠️ Unknown user type, redirecting to onboarding');
-        Navigator.of(context).pushReplacementNamed('/onboarding');
+        print('⚠️ Unknown user type, redirecting to login-onboarding');
+        Navigator.of(context).pushReplacementNamed('/login-onboarding');
       }
     } else {
-      print('🔴 No valid session found, redirecting to onboarding');
-      // User not logged in, go to onboarding
-      Navigator.of(context).pushReplacementNamed('/onboarding');
+      print('🔴 No valid session found, redirecting to login-onboarding');
+      // User not logged in, go to new merged login-onboarding screen
+      Navigator.of(context).pushReplacementNamed('/login-onboarding');
     }
   }
   
@@ -118,10 +117,21 @@ class _SplashScreenState extends ConsumerState<SplashScreen> with SingleTickerPr
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
       extendBodyBehindAppBar: true,
-      body: SafeArea(
-        child: Center(
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              Color(0xFF1B5E20), // deepForestGreen
+              Color(0xFF2E7D32),
+              Color(0xFF388E3C),
+            ],
+          ),
+        ),
+        child: SafeArea(
+          child: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
@@ -143,19 +153,20 @@ class _SplashScreenState extends ConsumerState<SplashScreen> with SingleTickerPr
             const SizedBox(height: AppSpacing.xl),
             
             // Tagline - Simple fade in
-            Text(
-              'Rural Rides, Reliable Rides',
-              style: TextStyles.headingSmall.copyWith(
-                color: const Color(0xFF2D5F3E),
-                fontWeight: FontWeight.w600,
-                letterSpacing: 0.5,
-              ),
-              textAlign: TextAlign.center,
-            ).animate(controller: _controller)
-                .fadeIn(delay: 400.ms, duration: 600.ms),
+            // Text(
+            //   'Rural Rides, Reliable Rides',
+            //   style: TextStyles.headingSmall.copyWith(
+            //     color: const Color(0xFF2D5F3E),
+            //     fontWeight: FontWeight.w600,
+            //     letterSpacing: 0.5,
+            //   ),
+            //   textAlign: TextAlign.center,
+            // ).animate(controller: _controller)
+            //     .fadeIn(delay: 400.ms, duration: 600.ms),
           ],
         ),
       ),
+        ),
       ),
     );
   }

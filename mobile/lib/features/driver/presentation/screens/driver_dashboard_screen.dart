@@ -93,9 +93,9 @@ class _DriverDashboardScreenState extends ConsumerState<DriverDashboardScreen> {
         // Close loading dialog
         Navigator.pop(context);
         
-        // Navigate to onboarding screen and clear entire navigation stack
+        // Navigate to login with onboarding screen and clear entire navigation stack
         Navigator.of(context).pushNamedAndRemoveUntil(
-          '/onboarding',
+          '/login-onboarding',
           (route) => false,
         );
         
@@ -165,8 +165,8 @@ class _DriverDashboardScreenState extends ConsumerState<DriverDashboardScreen> {
         index: _selectedNavIndex,
         children: [
           _buildHomeContent(isDark, dashboardState, isOnline),
-          DriverRidesScreen(),
-          DriverEarningsScreen(),
+          const DriverRidesScreen(),
+          const DriverEarningsScreen(),
           _buildProfileContent(isDark),
         ],
       ),
@@ -227,35 +227,69 @@ class _DriverDashboardScreenState extends ConsumerState<DriverDashboardScreen> {
     
     // If there's an error and no data, show error message
     if (dashboardState.errorMessage != null && dashboardData == null) {
+      final isProfileNotFound = dashboardState.errorMessage?.contains('Driver profile not found') ?? false;
+      
       return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.error_outline, size: 64, color: AppColors.error),
-            SizedBox(height: AppSpacing.md),
-            Text(
-              'Failed to load dashboard',
-              style: TextStyles.headingSmall,
-            ),
-            SizedBox(height: AppSpacing.sm),
-            Text(
-              dashboardState.errorMessage ?? 'Unknown error',
-              style: TextStyles.bodyMedium.copyWith(color: AppColors.error),
-              textAlign: TextAlign.center,
-            ),
-            SizedBox(height: AppSpacing.lg),
-            ElevatedButton.icon(
-              onPressed: () {
-                ref.read(driverDashboardNotifierProvider.notifier).loadDashboard();
-              },
-              icon: Icon(Icons.refresh),
-              label: Text('Retry'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primaryYellow,
-                foregroundColor: Colors.black,
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpacing.lg),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                isProfileNotFound ? Icons.person_off : Icons.error_outline, 
+                size: 64, 
+                color: AppColors.error
               ),
-            ),
-          ],
+              SizedBox(height: AppSpacing.md),
+              Text(
+                isProfileNotFound ? 'Driver Profile Not Found' : 'Failed to load dashboard',
+                style: TextStyles.headingSmall,
+                textAlign: TextAlign.center,
+              ),
+              SizedBox(height: AppSpacing.sm),
+              Text(
+                isProfileNotFound 
+                  ? 'Your driver profile hasn\'t been created yet. Please contact support to complete your driver registration.'
+                  : (dashboardState.errorMessage ?? 'Unknown error'),
+                style: TextStyles.bodyMedium.copyWith(
+                  color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              SizedBox(height: AppSpacing.lg),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  ElevatedButton.icon(
+                    onPressed: () {
+                      ref.read(driverDashboardNotifierProvider.notifier).loadDashboard();
+                    },
+                    icon: Icon(Icons.refresh),
+                    label: Text('Retry'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primaryYellow,
+                      foregroundColor: Colors.black,
+                    ),
+                  ),
+                  if (isProfileNotFound) ...[
+                    SizedBox(width: AppSpacing.md),
+                    OutlinedButton.icon(
+                      onPressed: () {
+                        // Navigate back to user type selection or logout
+                        _handleLogout(context);
+                      },
+                      icon: Icon(Icons.logout),
+                      label: Text('Logout'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppColors.error,
+                        side: BorderSide(color: AppColors.error),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ],
+          ),
         ),
       );
     }

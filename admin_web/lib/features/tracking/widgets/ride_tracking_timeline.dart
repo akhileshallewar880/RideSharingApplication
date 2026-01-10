@@ -639,33 +639,91 @@ class RideTrackingTimeline extends StatelessWidget {
 
       // Create TrainStop objects
       double cumulativeDistance = 0.0;
+      int cumulativeMinutes = 0;
       final scheduledTime = ride['scheduledTime'] != null
           ? DateTime.parse(ride['scheduledTime'].toString())
           : DateTime.now();
+      
+      // Parse departure time (HH:mm format) and set it on scheduled date
+      DateTime startTime = scheduledTime;
+      if (ride['departureTime'] != null) {
+        try {
+          final timeParts = ride['departureTime'].toString().split(':');
+          if (timeParts.length >= 2) {
+            final hour = int.parse(timeParts[0]);
+            final minute = int.parse(timeParts[1]);
+            startTime = DateTime(
+              scheduledTime.year,
+              scheduledTime.month,
+              scheduledTime.day,
+              hour,
+              minute,
+            );
+          }
+        } catch (e) {
+          print('Error parsing departure time: $e');
+        }
+      }
+      
+      // Get total distance and duration for calculating segment times
+      final totalDistance = _parseDouble(ride['distance']);
+      final totalDuration = ride['duration'] as int? ?? 0;
 
       for (int i = 0; i < orderedLocations.length; i++) {
         final location = orderedLocations[i];
         final locationData = locationMap[location]!;
         
-        // Find segment distance
+        // Find segment distance and duration
         double? segmentDistance;
+        int? segmentDuration;
         if (i < orderedLocations.length - 1) {
           final nextLocation = orderedLocations[i + 1];
           
           // Find matching segment
           for (var segment in segmentPrices) {
-            final from = _normalizeLocation(segment['from'] ?? '');
-            final to = _normalizeLocation(segment['to'] ?? '');
+            final from = _normalizeLocation(
+              segment['from'] ?? 
+              segment['fromLocation'] ?? 
+              segment['FromLocation'] ?? ''
+            );
+            final to = _normalizeLocation(
+              segment['to'] ?? 
+              segment['toLocation'] ?? 
+              segment['ToLocation'] ?? ''
+            );
             
             if (from == location && to == nextLocation) {
-              segmentDistance = _parseDouble(segment['distance']);
+              segmentDistance = _parseDouble(
+                segment['distance'] ?? 
+                segment['Distance'] ?? 
+                segment['distanceKm'] ?? 0
+              );
+              segmentDuration = segment['duration'] as int? ?? 
+                               segment['Duration'] as int? ?? 
+                               segment['durationMinutes'] as int?;
               break;
             }
+          }
+          
+          // If no segment data found, estimate based on proportion of total
+          if (segmentDistance == null && totalDistance > 0) {
+            // Estimate this segment as equal portion of remaining distance
+            final remainingStops = orderedLocations.length - i - 1;
+            segmentDistance = (totalDistance - cumulativeDistance) / remainingStops;
+          }
+          
+          if (segmentDuration == null && totalDuration > 0 && segmentDistance != null) {
+            // Estimate duration proportionally to distance
+            segmentDuration = ((segmentDistance / totalDistance) * totalDuration).round();
           }
         }
 
         if (segmentDistance != null) {
           cumulativeDistance += segmentDistance;
+        }
+        
+        if (segmentDuration != null) {
+          cumulativeMinutes += segmentDuration;
         }
 
         // Determine stop type
@@ -678,9 +736,8 @@ class RideTrackingTimeline extends StatelessWidget {
           stopType = StopType.intermediate;
         }
 
-        // Calculate estimated time (add 30 mins per 30km)
-        final estimatedMinutes = (cumulativeDistance / 30 * 30).round();
-        final estimatedTime = scheduledTime.add(Duration(minutes: estimatedMinutes));
+        // Calculate estimated arrival time
+        final estimatedTime = startTime.add(Duration(minutes: cumulativeMinutes));
 
         // Check if stop has been passed (for in-progress rides)
         final status = ride['status']?.toString().toLowerCase() ?? '';

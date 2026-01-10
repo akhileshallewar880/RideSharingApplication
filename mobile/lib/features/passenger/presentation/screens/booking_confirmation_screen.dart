@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:audioplayers/audioplayers.dart';
 import 'package:allapalli_ride/app/themes/app_colors.dart';
 import 'package:allapalli_ride/app/themes/app_spacing.dart';
 import 'package:allapalli_ride/app/themes/text_styles.dart';
@@ -7,11 +9,13 @@ import 'package:allapalli_ride/features/passenger/presentation/screens/passenger
 class BookingConfirmationScreen extends StatefulWidget {
   final String bookingId;
   final String otp;
+  final List<String>? selectedSeats;
   
   const BookingConfirmationScreen({
     super.key,
     required this.bookingId,
     required this.otp,
+    this.selectedSeats,
   });
   
   @override
@@ -23,6 +27,7 @@ class _BookingConfirmationScreenState extends State<BookingConfirmationScreen>
   late AnimationController _controller;
   late Animation<double> _scaleAnimation;
   late Animation<double> _fadeAnimation;
+  final AudioPlayer _audioPlayer = AudioPlayer();
   
   @override
   void initState() {
@@ -49,6 +54,9 @@ class _BookingConfirmationScreenState extends State<BookingConfirmationScreen>
     
     _controller.forward();
     
+    // Play success sound and vibration
+    _playSuccessSoundAndVibrate();
+    
     // Auto-redirect to home page after 3 seconds
     Future.delayed(const Duration(seconds: 3), () {
       if (mounted) {
@@ -60,7 +68,20 @@ class _BookingConfirmationScreenState extends State<BookingConfirmationScreen>
   @override
   void dispose() {
     _controller.dispose();
+    _audioPlayer.dispose();
     super.dispose();
+  }
+  
+  Future<void> _playSuccessSoundAndVibrate() async {
+    try {
+      // Vibrate
+      await HapticFeedback.heavyImpact();
+      
+      // Play sound
+      await _audioPlayer.play(AssetSource('sounds/booking_success.mp3'));
+    } catch (e) {
+      print('Error playing success sound: $e');
+    }
   }
   
   void _navigateToHome() {
@@ -203,6 +224,53 @@ class _BookingConfirmationScreenState extends State<BookingConfirmationScreen>
                             ),
                           ],
                         ),
+                        if (widget.selectedSeats != null && widget.selectedSeats!.isNotEmpty) ...[
+                          const SizedBox(height: AppSpacing.md),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Seat Number${widget.selectedSeats!.length > 1 ? 's' : ''}',
+                                style: TextStyles.bodyMedium.copyWith(
+                                  color: isDark 
+                                      ? AppColors.darkTextSecondary 
+                                      : AppColors.lightTextSecondary,
+                                ),
+                              ),
+                              Flexible(
+                                child: Wrap(
+                                  alignment: WrapAlignment.end,
+                                  spacing: 8,
+                                  runSpacing: 8,
+                                  children: widget.selectedSeats!.map((seat) => Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                      vertical: 6,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: AppColors.primaryYellow.withOpacity(0.15),
+                                      borderRadius: BorderRadius.circular(6),
+                                      border: Border.all(
+                                        color: AppColors.primaryYellow.withOpacity(0.4),
+                                        width: 1,
+                                      ),
+                                    ),
+                                    child: Text(
+                                      seat,
+                                      style: TextStyles.bodyMedium.copyWith(
+                                        fontWeight: FontWeight.w600,
+                                        color: isDark 
+                                            ? AppColors.primaryYellow 
+                                            : const Color(0xFFF57C00),
+                                      ),
+                                    ),
+                                  )).toList(),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
                       ],
                     ),
                   ),

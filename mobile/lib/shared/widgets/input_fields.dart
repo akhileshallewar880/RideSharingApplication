@@ -9,6 +9,7 @@ class CustomTextField extends StatefulWidget {
   final String? label;
   final String? hint;
   final TextEditingController? controller;
+  final FocusNode? focusNode;
   final TextInputType keyboardType;
   final bool obscureText;
   final String? Function(String?)? validator;
@@ -19,12 +20,15 @@ class CustomTextField extends StatefulWidget {
   final bool enabled;
   final List<TextInputFormatter>? inputFormatters;
   final bool autofocus;
+  final Iterable<String>? autofillHints;
+  final VoidCallback? onTap;
   
   const CustomTextField({
     super.key,
     this.label,
     this.hint,
     this.controller,
+    this.focusNode,
     this.keyboardType = TextInputType.text,
     this.obscureText = false,
     this.validator,
@@ -35,6 +39,8 @@ class CustomTextField extends StatefulWidget {
     this.enabled = true,
     this.inputFormatters,
     this.autofocus = false,
+    this.autofillHints,
+    this.onTap,
   });
   
   @override
@@ -47,6 +53,10 @@ class _CustomTextFieldState extends State<CustomTextField> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    
+    if (widget.onTap != null) {
+      print('🔧 CustomTextField built with onTap callback');
+    }
     
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -70,12 +80,21 @@ class _CustomTextFieldState extends State<CustomTextField> {
           },
           child: TextFormField(
             controller: widget.controller,
+            focusNode: widget.focusNode,
             keyboardType: widget.keyboardType,
             obscureText: widget.obscureText,
             validator: widget.validator,
             onChanged: widget.onChanged,
+            onTap: () {
+              print('🔧 TextFormField onTap fired!');
+              if (widget.onTap != null) {
+                print('🔧 Calling widget.onTap callback');
+                widget.onTap!();
+              }
+            },
             maxLines: widget.maxLines,
             enabled: widget.enabled,
+            autofillHints: widget.autofillHints,
             inputFormatters: widget.inputFormatters,
             autofocus: widget.autofocus,
             style: TextStyles.bodyMedium.copyWith(
@@ -156,35 +175,49 @@ class _PasswordFieldState extends State<PasswordField> {
   }
 }
 
-/// Phone number input field with country code
+/// Phone number input field with country code and autofill support
 class PhoneField extends StatelessWidget {
   final String? label;
   final TextEditingController? controller;
+  final FocusNode? focusNode;
   final String? Function(String?)? validator;
   final void Function(String)? onChanged;
+  final bool enableAutofill;
+  final VoidCallback? onTap;
+  final Widget? suffixIcon;
   
   const PhoneField({
     super.key,
     this.label,
     this.controller,
+    this.focusNode,
     this.validator,
     this.onChanged,
+    this.enableAutofill = true,
+    this.onTap,
+    this.suffixIcon,
   });
   
   @override
   Widget build(BuildContext context) {
+    print('🔧 PhoneField build - onTap is ${onTap == null ? "NULL" : "NOT NULL"}');
     return CustomTextField(
       label: label ?? 'Phone Number',
       hint: 'Enter 10-digit mobile number',
       controller: controller,
+      focusNode: focusNode,
       keyboardType: TextInputType.phone,
       validator: validator,
       onChanged: onChanged,
+      onTap: onTap,
       prefixIcon: Icons.phone_outlined,
+      suffixIcon: suffixIcon,
       inputFormatters: [
         FilteringTextInputFormatter.digitsOnly,
         LengthLimitingTextInputFormatter(10),
       ],
+      // Enable phone autofill hints
+      autofillHints: enableAutofill ? [AutofillHints.telephoneNumber] : null,
     );
   }
 }

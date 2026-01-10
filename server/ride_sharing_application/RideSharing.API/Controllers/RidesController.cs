@@ -66,10 +66,42 @@ namespace RideSharing.API.Controllers
                         try
                         {
                             intermediateStops = System.Text.Json.JsonSerializer.Deserialize<List<string>>(ride.IntermediateStops);
+                            _logger.LogInformation($"✅ Loaded {intermediateStops?.Count ?? 0} intermediate stops from IntermediateStops for ride {ride.Id}");
                         }
                         catch (Exception ex)
                         {
                             _logger.LogError(ex, $"Failed to parse intermediate stops for ride {ride.Id}");
+                        }
+                    }
+                    
+                    // FALLBACK: Extract intermediate stops from SegmentPrices if IntermediateStops is empty
+                    if ((intermediateStops == null || !intermediateStops.Any()) && !string.IsNullOrEmpty(ride.SegmentPrices))
+                    {
+                        try
+                        {
+                            _logger.LogInformation($"🔄 IntermediateStops empty, extracting from SegmentPrices for ride {ride.Id}");
+                            var segmentPrices = System.Text.Json.JsonSerializer.Deserialize<List<System.Text.Json.JsonElement>>(ride.SegmentPrices);
+                            if (segmentPrices != null && segmentPrices.Count > 1)
+                            {
+                                intermediateStops = new List<string>();
+                                // Extract ToLocation from all segments except the last one
+                                for (int i = 0; i < segmentPrices.Count - 1; i++)
+                                {
+                                    if (segmentPrices[i].TryGetProperty("ToLocation", out var toLocation))
+                                    {
+                                        var loc = toLocation.GetString();
+                                        if (!string.IsNullOrEmpty(loc) && !intermediateStops.Contains(loc))
+                                        {
+                                            intermediateStops.Add(loc);
+                                        }
+                                    }
+                                }
+                                _logger.LogInformation($"✅ Extracted {intermediateStops.Count} intermediate stops from SegmentPrices: {string.Join(", ", intermediateStops)}");
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogError(ex, $"Failed to extract intermediate stops from SegmentPrices for ride {ride.Id}");
                         }
                     }
                     
@@ -138,26 +170,65 @@ namespace RideSharing.API.Controllers
                         _logger.LogInformation($"   Passenger pickup time: {passengerPickupHour:D2}:{passengerPickupMinute:D2}");
                         _logger.LogInformation($"   Passenger dropoff time: {passengerDropoffHour:D2}:{passengerDropoffMinute:D2}");
                         
-                        // Step 4: Build route stops with timing for passenger's journey
+                        // Step 4: Build COMPLETE DRIVER ROUTE with timing - ALWAYS show full route
                         routeStopsWithTiming = new List<RideStopWithTimeDto>();
                         
-                        // Add passenger's pickup location
+                        // Build complete route: driver origin -> ALL intermediate stops -> driver destination
+                        var completeRoute = new List<string> { ride.PickupLocation };
+                        
+                        // Add intermediate stops if they exist
+                        if (intermediateStops != null && intermediateStops.Count > 0)
+                        {
+                            completeRoute.AddRange(intermediateStops);
+                            _logger.LogInformation($"📍 Found {intermediateStops.Count} intermediate stops: {string.Join(" → ", intermediateStops)}");
+                        }
+                        
+                        completeRoute.Add(ride.DropoffLocation);
+                        
+                        _logger.LogInformation($"🗺️ Complete driver route: {string.Join(" → ", completeRoute)}");
+                        
+                        // Calculate timing for each stop along the route
+                        int cumulativeMinutes = 0;
+                        
+                        // Add driver's origin (departure time)
                         routeStopsWithTiming.Add(new RideStopWithTimeDto
                         {
-                            Location = request.PickupLocation.Address,
-                            ArrivalTime = $"{passengerPickupHour:D2}:{passengerPickupMinute:D2}",
+                            Location = ride.PickupLocation,
+                            ArrivalTime = $"{depHour:D2}:{depMinute:D2}",
                             CumulativeDurationMinutes = 0
                         });
                         
-                        // Add passenger's dropoff location
-                        routeStopsWithTiming.Add(new RideStopWithTimeDto
+                        // Calculate timing for each subsequent stop
+                        for (int i = 1; i < completeRoute.Count; i++)
                         {
-                            Location = request.DropoffLocation.Address,
-                            ArrivalTime = $"{passengerDropoffHour:D2}:{passengerDropoffMinute:D2}",
-                            CumulativeDurationMinutes = passengerJourneyMinutes
-                        });
+                            var segment = _routeDistanceService.GetDistanceAndDuration(
+                                completeRoute[i - 1],
+                                completeRoute[i]);
+                            
+                            if (segment != null)
+                            {
+                                cumulativeMinutes += segment.Value.durationMinutes;
+                                
+                                int totalMinutes = depHour * 60 + depMinute + cumulativeMinutes;
+                                int arrHour = (totalMinutes / 60) % 24;
+                                int arrMinute = totalMinutes % 60;
+                                
+                                routeStopsWithTiming.Add(new RideStopWithTimeDto
+                                {
+                                    Location = completeRoute[i],
+                                    ArrivalTime = $"{arrHour:D2}:{arrMinute:D2}",
+                                    CumulativeDurationMinutes = cumulativeMinutes
+                                });
+                                
+                                _logger.LogInformation($"   📍 Stop {i}: {completeRoute[i]} at {arrHour:D2}:{arrMinute:D2}");
+                            }
+                            else
+                            {
+                                _logger.LogWarning($"⚠️ Could not calculate route segment: {completeRoute[i - 1]} → {completeRoute[i]}");
+                            }
+                        }
                         
-                        _logger.LogInformation($"✅ Route stops created: 2 stops for passenger's journey");
+                        _logger.LogInformation($"✅ Built complete route with {routeStopsWithTiming.Count} stops (origin + {intermediateStops?.Count ?? 0} intermediate + destination)");
                     }
                     
                     // Legacy code - only used if passenger journey calculation fails
@@ -673,6 +744,21 @@ namespace RideSharing.API.Controllers
                     return Forbid();
                 }
 
+                // Deserialize selected seats
+                List<string>? selectedSeats = null;
+                if (!string.IsNullOrEmpty(booking.SelectedSeats))
+                {
+                    try
+                    {
+                        selectedSeats = System.Text.Json.JsonSerializer.Deserialize<List<string>>(booking.SelectedSeats);
+                        _logger.LogInformation($"🎫 [GetBooking] Deserialized {selectedSeats?.Count ?? 0} seats for {booking.BookingNumber}");
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, $"❌ [GetBooking] Failed to deserialize seats for {booking.BookingNumber}");
+                    }
+                }
+
                 var response = new BookingResponseDto
                 {
                     BookingId = booking.Id,
@@ -686,6 +772,8 @@ namespace RideSharing.API.Controllers
                     DepartureTime = booking.Ride?.DepartureTime.ToString(@"hh\:mm") ?? "",
                     PassengerCount = booking.PassengerCount,
                     TotalFare = booking.TotalAmount,
+                    SelectedSeats = selectedSeats,
+                    SeatingArrangementImage = booking.SeatingArrangementImage,
                     DriverDetails = new DriverDetailsDto
                     {
                         Id = booking.Ride?.DriverId ?? Guid.Empty,
@@ -865,6 +953,25 @@ namespace RideSharing.API.Controllers
                         _logger.LogWarning($"⚠️  No intermediate stops data for {b.BookingNumber}");
                     }
 
+                    // Deserialize selected seats
+                    List<string>? selectedSeats = null;
+                    if (!string.IsNullOrEmpty(b.SelectedSeats))
+                    {
+                        try
+                        {
+                            selectedSeats = System.Text.Json.JsonSerializer.Deserialize<List<string>>(b.SelectedSeats);
+                            _logger.LogInformation($"🎫 Deserialized {selectedSeats?.Count ?? 0} selected seats for {b.BookingNumber}: {string.Join(", ", selectedSeats ?? new List<string>())}");
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogError(ex, $"❌ Failed to deserialize selected seats for {b.BookingNumber}");
+                        }
+                    }
+                    else
+                    {
+                        _logger.LogWarning($"⚠️  No selected seats data for {b.BookingNumber}");
+                    }
+
                     // Check if passenger has rated this booking
                     int? passengerRating = null;
                     if (passengerRatings.ContainsKey(b.Id))
@@ -877,6 +984,14 @@ namespace RideSharing.API.Controllers
                         _logger.LogWarning($"⚠️ No rating found for booking {b.BookingNumber} (ID: {b.Id})");
                     }
 
+                    // Debug: Log driver information
+                    _logger.LogInformation($"🔍 Driver Info for {b.BookingNumber}:");
+                    _logger.LogInformation($"   Ride exists: {b.Ride != null}");
+                    _logger.LogInformation($"   Driver exists: {b.Ride?.Driver != null}");
+                    _logger.LogInformation($"   Driver.User exists: {b.Ride?.Driver?.User != null}");
+                    _logger.LogInformation($"   Driver Phone: {b.Ride?.Driver?.User?.PhoneNumber}");
+                    _logger.LogInformation($"   Driver Name: {b.Ride?.Driver?.User?.Profile?.Name}");
+
                     return new RideHistoryItemDto
                     {
                         BookingId = b.Id,
@@ -888,18 +1003,21 @@ namespace RideSharing.API.Controllers
                         VehicleType = b.Ride?.Vehicle?.VehicleType ?? "",
                         VehicleModel = $"{b.Ride?.Vehicle?.Make} {b.Ride?.Vehicle?.Model}",
                         VehicleNumber = b.Ride?.Vehicle?.RegistrationNumber ?? "",
-                        Fare = b.TotalAmount,
+                        Fare = b.TotalFare,
                         Status = b.Status,
                         PassengerCount = b.PassengerCount,
                             DriverName = b.Ride?.Driver?.User?.Profile?.Name ?? "",
                             DriverId = b.Ride?.Driver?.User?.Id,
+                            DriverPhoneNumber = b.Ride?.Driver?.User?.PhoneNumber,
                         DriverRating = b.Ride?.Driver?.User?.Profile?.Rating ?? 0,
                         PassengerRating = passengerRating,
                         Otp = b.OTP,
                         CompletedAt = null, // No CompletedAt field in Booking
                         IsVerified = b.IsVerified,
                         RideId = b.RideId,
-                        IntermediateStops = intermediateStops
+                        IntermediateStops = intermediateStops,
+                        SelectedSeats = selectedSeats,
+                        SeatingArrangementImage = b.SeatingArrangementImage
                     };
                 }).ToList();
 

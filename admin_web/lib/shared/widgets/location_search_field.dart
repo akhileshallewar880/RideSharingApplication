@@ -119,7 +119,7 @@ class _LocationSearchFieldState extends State<LocationSearchField> {
     });
   }
 
-  void _searchLocations(String query) {
+  Future<void> _searchLocations(String query) async {
     if (!mounted || query.length < 2) {
       if (mounted) {
         setState(() {
@@ -133,7 +133,7 @@ class _LocationSearchFieldState extends State<LocationSearchField> {
     }
 
     try {
-      final results = _locationService.searchLocations(query);
+      final results = await _locationService.searchLocations(query);
 
       if (!mounted) return;
 

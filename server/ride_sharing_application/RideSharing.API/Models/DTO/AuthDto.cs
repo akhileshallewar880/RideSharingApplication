@@ -60,6 +60,14 @@ namespace RideSharing.API.Models.DTO
         public string PhoneNumber { get; set; }
     }
 
+    public class FirebasePhoneAuthRequestDto
+    {
+        [Required]
+        public string FirebaseIdToken { get; set; }
+        [Required]
+        public string PhoneNumber { get; set; }
+    }
+
     public class AuthResponseDto
     {
         public UserDto User { get; set; }
@@ -75,7 +83,7 @@ namespace RideSharing.API.Models.DTO
 
     public class UserDto
     {
-        public Guid Id { get; set; }
+        public string UserId { get; set; }
         public string Name { get; set; }
         public string PhoneNumber { get; set; }
         public string? Email { get; set; }
@@ -83,6 +91,22 @@ namespace RideSharing.API.Models.DTO
         public string? ProfilePicture { get; set; }
         public bool IsVerified { get; set; }
         public DateTime CreatedAt { get; set; }
+    }
+
+    public class GoogleSignInRequestDto
+    {
+        [Required]
+        public string IdToken { get; set; }
+        
+        [Required, EmailAddress]
+        public string Email { get; set; }
+        
+        public string? Name { get; set; }
+        
+        public string? PhotoUrl { get; set; }
+        
+        [Phone]
+        public string? PhoneNumber { get; set; } // Optional: Firebase-verified phone number
     }
     
     // Legacy support - keep old records
