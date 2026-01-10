@@ -520,9 +520,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         // Close loading dialog
         Navigator.pop(context);
         
-        // Navigate to onboarding screen and clear entire navigation stack
+        // Navigate to login with onboarding screen and clear entire navigation stack
         Navigator.of(context).pushNamedAndRemoveUntil(
-          '/onboarding',
+          '/login-onboarding',
           (route) => false,
         );
         

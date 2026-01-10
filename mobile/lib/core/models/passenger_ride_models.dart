@@ -244,6 +244,7 @@ class BookingResponse {
   final String paymentStatus;
   final DriverDetails driverDetails;
   final String bookedAt;
+  final List<String>? selectedSeats;
 
   BookingResponse({
     required this.bookingNumber,
@@ -259,9 +260,20 @@ class BookingResponse {
     required this.paymentStatus,
     required this.driverDetails,
     required this.bookedAt,
+    this.selectedSeats,
   });
 
   factory BookingResponse.fromJson(Map<String, dynamic> json) {
+    print('📦 [BookingResponse] Parsing from JSON:');
+    print('   Raw selectedSeats: ${json['selectedSeats']}');
+    print('   Type: ${json['selectedSeats']?.runtimeType}');
+    
+    final selectedSeats = json['selectedSeats'] != null 
+        ? List<String>.from(json['selectedSeats'] as List)
+        : null;
+    
+    print('   Parsed selectedSeats: $selectedSeats');
+    
     return BookingResponse(
       bookingNumber: json['bookingNumber'] ?? '',
       status: json['status'] ?? '',
@@ -276,6 +288,7 @@ class BookingResponse {
       paymentStatus: json['paymentStatus'] ?? '',
       driverDetails: DriverDetails.fromJson(json['driverDetails'] ?? {}),
       bookedAt: json['bookedAt'] ?? '',
+      selectedSeats: selectedSeats,
     );
   }
 }
@@ -293,6 +306,7 @@ class BookingDetails {
   final String paymentStatus;
   final DriverDetails driverDetails;
   final bool isVerified;
+  final List<String>? selectedSeats;
 
   BookingDetails({
     required this.bookingNumber,
@@ -307,9 +321,16 @@ class BookingDetails {
     required this.paymentStatus,
     required this.driverDetails,
     this.isVerified = false,
+    this.selectedSeats,
   });
 
   factory BookingDetails.fromJson(Map<String, dynamic> json) {
+    print('📦 [BookingDetails] Parsing from JSON:');
+    print('   Raw selectedSeats: ${json['selectedSeats']}');
+    final selectedSeats = json['selectedSeats'] != null 
+        ? List<String>.from(json['selectedSeats'] as List)
+        : null;
+    print('   Parsed selectedSeats: $selectedSeats');
     return BookingDetails(
       bookingNumber: json['bookingNumber'] ?? '',
       status: json['status'] ?? '',
@@ -323,6 +344,7 @@ class BookingDetails {
       paymentStatus: json['paymentStatus'] ?? '',
       driverDetails: DriverDetails.fromJson(json['driverDetails'] ?? {}),
       isVerified: json['isVerified'] ?? false,
+      selectedSeats: selectedSeats,
     );
   }
 }
@@ -382,6 +404,7 @@ class RideHistoryItem {
   final double? driverRating;  // Driver's overall rating
   final String? driverName;
   final String? driverId;
+  final String? driverPhoneNumber;
   final String? vehicleModel;
   final String? vehicleNumber;
   final String? scheduledDeparture;
@@ -389,6 +412,7 @@ class RideHistoryItem {
   final bool isVerified;
   final String? rideId;
   final List<String>? intermediateStops;
+  final List<String>? selectedSeats;
 
   RideHistoryItem({
     this.bookingId,
@@ -404,6 +428,7 @@ class RideHistoryItem {
     this.driverRating,
     this.driverName,
     this.driverId,
+    this.driverPhoneNumber,
     this.vehicleModel,
     this.vehicleNumber,
     this.scheduledDeparture,
@@ -411,12 +436,18 @@ class RideHistoryItem {
     this.isVerified = false,
     this.rideId,
     this.intermediateStops,
+    this.selectedSeats,
   });
 
   factory RideHistoryItem.fromJson(Map<String, dynamic> json) {
-    // Debug: Print intermediate stops
+    // Debug: Print intermediate stops and selected seats
     print('🔍 RideHistoryItem.fromJson:');
+    print('   Booking: ${json['bookingNumber']}');
+    print('   Driver Name: ${json['driverName']}');
+    print('   Driver Phone: ${json['driverPhoneNumber']}');
     print('   intermediateStops raw: ${json['intermediateStops']}');
+    print('   selectedSeats raw: ${json['selectedSeats']}');
+    print('   selectedSeats type: ${json['selectedSeats']?.runtimeType}');
     
     return RideHistoryItem(
       bookingId: json['bookingId']?.toString() ?? json['BookingId']?.toString(),
@@ -432,6 +463,7 @@ class RideHistoryItem {
       driverRating: json['driverRating'] != null ? (json['driverRating'] as num).toDouble() : null,
       driverName: json['driverName'],
       driverId: json['driverId']?.toString(),
+      driverPhoneNumber: json['driverPhoneNumber'],
       vehicleModel: json['vehicleModel'],
       vehicleNumber: json['vehicleNumber'],
       scheduledDeparture: json['scheduledDeparture'],
@@ -440,6 +472,9 @@ class RideHistoryItem {
       rideId: json['rideId']?.toString(),
       intermediateStops: json['intermediateStops'] != null
           ? List<String>.from(json['intermediateStops'])
+          : null,
+      selectedSeats: json['selectedSeats'] != null
+          ? List<String>.from(json['selectedSeats'])
           : null,
     );
   }

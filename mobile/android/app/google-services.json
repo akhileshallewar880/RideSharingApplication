@@ -12,7 +12,20 @@
           "package_name": "com.allapalli.allapalli_ride"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "657234227532-h2a1jc21bhhfp63l0hi51t0i4p6dter2.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.allapalli.allapalli_ride",
+            "certificate_hash": "c85876472cd98d46c8a5fd75962002b0d833f872"
+          }
+        },
+        {
+          "client_id": "657234227532-huehlrive2scm4b4nu623j9edllnc23m.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyA-3oBOl-D-ErM5JyFKGHWEGtORMo4iBn8"
@@ -20,7 +33,12 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "657234227532-huehlrive2scm4b4nu623j9edllnc23m.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
         }
       }
     }

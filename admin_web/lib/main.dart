@@ -12,6 +12,7 @@ import 'features/tracking/live_tracking_screen.dart';
 import 'features/users/user_management_screen.dart';
 import 'screens/locations_management_screen.dart';
 import 'screens/banner_management_screen.dart';
+import 'screens/otp_banner_management_screen.dart';
 import 'shared/layouts/admin_layout.dart';
 
 void main() {
@@ -90,6 +91,10 @@ class VanYatraAdminApp extends StatelessWidget {
         '/banners': (context) => AdminLayout(
               currentRoute: '/banners',
               child: BannerManagementScreen(),
+            ),
+        '/otp-banners': (context) => AdminLayout(
+              currentRoute: '/otp-banners',
+              child: OTPBannerManagementScreen(),
             ),
       },
     );

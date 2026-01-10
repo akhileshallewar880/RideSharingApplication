@@ -7,6 +7,7 @@ using RideSharing.API.Models.Domain;
 using RideSharing.API.Models.DTO;
 using RideSharing.API.Repositories.Interface;
 using RideSharing.API.Services.Implementation;
+using RideSharing.API.Services.Interface;
 using System.Security.Claims;
 using System.Text.Json;
 
@@ -20,6 +21,7 @@ namespace RideSharing.API.Controllers
         private readonly IDriverRepository _driverRepository;
         private readonly IRideRepository _rideRepository;
         private readonly RouteDistanceService _routeDistanceService;
+        private readonly IGoogleMapsService _googleMapsService;
         private readonly ILogger<AdminRidesController> _logger;
         private readonly RideSharingDbContext _context;
 
@@ -27,12 +29,14 @@ namespace RideSharing.API.Controllers
             IDriverRepository driverRepository,
             IRideRepository rideRepository,
             RouteDistanceService routeDistanceService,
+            IGoogleMapsService googleMapsService,
             ILogger<AdminRidesController> logger,
             RideSharingDbContext context)
         {
             _driverRepository = driverRepository;
             _rideRepository = rideRepository;
             _routeDistanceService = routeDistanceService;
+            _googleMapsService = googleMapsService;
             _logger = logger;
             _context = context;
         }
@@ -96,27 +100,76 @@ namespace RideSharing.API.Controllers
                     segmentPricesJson = System.Text.Json.JsonSerializer.Serialize(request.SegmentPrices);
                 }
 
-                // Calculate route if possible
+                // Calculate route using Google Maps API for accurate multi-stop distance
                 try
                 {
-                    var cities = new List<string> { request.PickupLocation.Address };
-                    if (request.IntermediateStops != null)
+                    _logger.LogInformation("🗺️  Calculating route with Google Maps: {Pickup} → {Dropoff}", 
+                        request.PickupLocation.Address, request.DropoffLocation.Address);
+                    
+                    // Debug: Log incoming request data
+                    _logger.LogInformation("📥 IntermediateStopLocations count: {Count}", 
+                        request.IntermediateStopLocations?.Count ?? 0);
+                    _logger.LogInformation("📥 IntermediateStops count: {Count}", 
+                        request.IntermediateStops?.Count ?? 0);
+                    
+                    if (request.IntermediateStopLocations != null && request.IntermediateStopLocations.Any())
                     {
-                        cities.AddRange(request.IntermediateStops);
+                        foreach (var loc in request.IntermediateStopLocations)
+                        {
+                            _logger.LogInformation("📍 Intermediate stop: {Address} ({Lat}, {Lng})", 
+                                loc.Address, loc.Latitude, loc.Longitude);
+                        }
                     }
-                    cities.Add(request.DropoffLocation.Address);
 
-                    _logger.LogInformation("🗺️  Calculating route: {Route}", string.Join(" → ", cities));
-
-                    var routeResult = _routeDistanceService.CalculateMultiLegRoute(cities);
-
-                    if (routeResult != null)
+                    // Build waypoints list from IntermediateStopLocations if available
+                    List<(decimal lat, decimal lng)>? waypoints = null;
+                    
+                    if (request.IntermediateStopLocations != null && request.IntermediateStopLocations.Any())
                     {
-                        totalDistance = (decimal)routeResult.Value.totalDistanceKm;
-                        totalDuration = routeResult.Value.totalDurationMinutes;
+                        // We have full location data with coordinates - use Google Maps API
+                        waypoints = request.IntermediateStopLocations
+                            .Select(loc => (lat: loc.Latitude, lng: loc.Longitude))
+                            .ToList();
+                        
+                        _logger.LogInformation("🎯 Using {Count} intermediate stops with coordinates for Google Maps", waypoints.Count);
+                    }
+                    else if (request.IntermediateStops != null && request.IntermediateStops.Any())
+                    {
+                        // Only have addresses without coordinates - fall back to database calculation
+                        _logger.LogWarning("⚠️  Intermediate stops provided without coordinates, using database calculation");
+                        
+                        var cities = new List<string> { request.PickupLocation.Address };
+                        cities.AddRange(request.IntermediateStops);
+                        cities.Add(request.DropoffLocation.Address);
+                        
+                        var dbRouteResult = _routeDistanceService.CalculateMultiLegRoute(cities);
+                        if (dbRouteResult != null)
+                        {
+                            totalDistance = (decimal)dbRouteResult.Value.totalDistanceKm;
+                            totalDuration = dbRouteResult.Value.totalDurationMinutes;
+                            _logger.LogInformation("✅ Route calculated from database: {Distance}km, {Duration}min",
+                                totalDistance, totalDuration);
+                        }
+                    }
+                    
+                    // If we have waypoints or no intermediate stops, use Google Maps API
+                    if (waypoints != null || request.IntermediateStops == null || !request.IntermediateStops.Any())
+                    {
+                        var directionsResult = await _googleMapsService.GetDirectionsAsync(
+                            request.PickupLocation.Latitude,
+                            request.PickupLocation.Longitude,
+                            request.DropoffLocation.Latitude,
+                            request.DropoffLocation.Longitude,
+                            waypoints
+                        );
 
-                        _logger.LogInformation("✅ Route calculated: {Distance}km, {Duration}min",
-                            totalDistance, totalDuration);
+                        if (directionsResult != null)
+                        {
+                            totalDistance = (decimal)directionsResult.DistanceKm;
+                            totalDuration = directionsResult.DurationMinutes;
+                            _logger.LogInformation("✅ Route calculated with Google Maps: {Distance}km, {Duration}min",
+                                totalDistance, totalDuration);
+                        }
                     }
                 }
                 catch (Exception ex)
@@ -156,6 +209,10 @@ namespace RideSharing.API.Controllers
                 ride = await _driverRepository.CreateRideAsync(ride);
 
                 var driverName = driver.User?.Profile?.Name ?? "Unknown Driver";
+                var driverPhone = driver.User?.PhoneNumber ?? "N/A";
+                
+                _logger.LogInformation("✅ Admin scheduled ride - RideId: {RideId}, RideNumber: {RideNumber}, DriverId: {DriverId}, DriverName: {DriverName}, DriverPhone: {DriverPhone}, DriverUserId: {DriverUserId}",
+                    ride.Id, ride.RideNumber, driver.Id, driverName, driverPhone, driver.UserId);
 
                 var response = new AdminScheduleRideResponseDto
                 {
@@ -562,7 +619,9 @@ namespace RideSharing.API.Controllers
                         : null,
                     IntermediateStops = !string.IsNullOrEmpty(r.IntermediateStops)
                         ? JsonSerializer.Deserialize<List<string>>(r.IntermediateStops)
-                        : null
+                        : null,
+                    Distance = r.Distance,
+                    Duration = r.Duration
                 }).ToList();
 
                 var response = new
@@ -629,7 +688,9 @@ namespace RideSharing.API.Controllers
                     VehicleNumber = ride.Vehicle?.RegistrationNumber,
                     VehicleModel = ride.Vehicle?.VehicleModel?.Name,
                     CreatedAt = ride.CreatedAt,
-                    AdminNotes = ride.AdminNotes
+                    AdminNotes = ride.AdminNotes,
+                    Distance = ride.Distance,
+                    Duration = ride.Duration
                 };
 
                 return Ok(ApiResponseDto<AdminRideInfoDto>.SuccessResponse(rideInfo, "Ride details retrieved successfully"));
@@ -639,6 +700,93 @@ namespace RideSharing.API.Controllers
                 _logger.LogError(ex, "Error getting ride details");
                 return StatusCode(500, ApiResponseDto<object>.ErrorResponse("An error occurred while retrieving ride details"));
             }
+        }
+
+        /// <summary>
+        /// Calculate route distance and duration for multiple locations using Google Maps API
+        /// </summary>
+        [HttpPost("calculate-route")]
+        public async Task<IActionResult> CalculateRoute([FromBody] CalculateRouteRequestDto request)
+        {
+            try
+            {
+                if (request?.Locations == null || request.Locations.Count < 2)
+                {
+                    return BadRequest(ApiResponseDto<object>.ErrorResponse("At least 2 locations are required"));
+                }
+
+                _logger.LogInformation("🗺️  Calculating route with Google Maps for {Count} locations", request.Locations.Count);
+
+                // First location is origin, last is destination, rest are waypoints
+                var origin = request.Locations[0];
+                var destination = request.Locations[^1];
+                var waypoints = request.Locations.Count > 2 
+                    ? request.Locations.Skip(1).Take(request.Locations.Count - 2).ToList() 
+                    : null;
+
+                if (origin.Latitude == null || origin.Longitude == null ||
+                    destination.Latitude == null || destination.Longitude == null)
+                {
+                    return BadRequest(ApiResponseDto<object>.ErrorResponse("All locations must have latitude and longitude"));
+                }
+
+                // Use Google Maps Directions API for multi-stop routes
+                var waypointCoords = waypoints?.Where(w => w.Latitude != null && w.Longitude != null)
+                    .Select(w => (lat: w.Latitude!.Value, lng: w.Longitude!.Value))
+                    .ToList();
+
+                var result = await _googleMapsService.GetDirectionsAsync(
+                    origin.Latitude.Value,
+                    origin.Longitude.Value,
+                    destination.Latitude.Value,
+                    destination.Longitude.Value,
+                    waypointCoords
+                );
+
+                if (result == null)
+                {
+                    _logger.LogWarning("⚠️  Google Maps API returned null result");
+                    return Ok(ApiResponseDto<object>.SuccessResponse(new
+                    {
+                        distanceKm = 0,
+                        durationMinutes = 0,
+                        distanceText = "Unable to calculate",
+                        durationText = "Unable to calculate",
+                        message = "Unable to calculate route"
+                    }, "Route calculation unavailable"));
+                }
+
+                _logger.LogInformation("✅ Route calculated: {Distance}km, {Duration}min", 
+                    result.DistanceKm, result.DurationMinutes);
+
+                return Ok(ApiResponseDto<object>.SuccessResponse(new
+                {
+                    distanceKm = result.DistanceKm,
+                    durationMinutes = result.DurationMinutes,
+                    distanceText = $"{result.DistanceKm:F1} km",
+                    durationText = FormatDuration(result.DurationMinutes),
+                    polyline = result.Polyline
+                }, "Route calculated successfully"));
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error calculating route with Google Maps");
+                return StatusCode(500, ApiResponseDto<object>.ErrorResponse("An error occurred while calculating route"));
+            }
+        }
+
+        private string FormatDuration(int minutes)
+        {
+            if (minutes < 60)
+                return $"{minutes} min";
+            
+            int hours = minutes / 60;
+            int mins = minutes % 60;
+            
+            if (mins == 0)
+                return $"{hours} hr";
+            
+            return $"{hours} hr {mins} min";
         }
     }
 }

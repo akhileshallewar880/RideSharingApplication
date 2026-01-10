@@ -41,7 +41,7 @@ class PrimaryButton extends StatelessWidget {
               ? AppColors.darkBorder 
               : AppColors.lightBorder,
           shape: RoundedRectangleBorder(
-            borderRadius: AppSpacing.borderRadiusMD,
+            borderRadius: BorderRadius.circular(50),
           ),
           elevation: AppSpacing.elevationSM,
         ),
@@ -116,7 +116,7 @@ class SecondaryButton extends StatelessWidget {
             width: 2,
           ),
           shape: RoundedRectangleBorder(
-            borderRadius: AppSpacing.borderRadiusMD,
+            borderRadius: BorderRadius.circular(50),
           ),
         ),
         child: isLoading
@@ -188,6 +188,92 @@ class RoundedIconButton extends StatelessWidget {
     ).animate().scale(
       duration: 200.ms,
       curve: Curves.easeOut,
+    );
+  }
+}
+
+/// Google Sign-In button following official Google branding guidelines
+/// Uses pre-approved Google Sign-In button assets
+class GoogleSignInButton extends StatelessWidget {
+  final VoidCallback? onPressed;
+  final bool isLoading;
+  final bool isFullWidth;
+  
+  const GoogleSignInButton({
+    super.key,
+    this.onPressed,
+    this.isLoading = false,
+    this.isFullWidth = true,
+  });
+  
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    
+    return SizedBox(
+      width: isFullWidth ? double.infinity : null,
+      height: 48,
+      child: isLoading
+          ? Container(
+              decoration: BoxDecoration(
+                color: isDark ? Color(0xFF4285F4) : Colors.white,
+                border: isDark ? null : Border.all(color: Color(0xFF747775), width: 1),
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Center(
+                child: SizedBox(
+                  height: 20,
+                  width: 20,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: isDark ? Colors.white : Color(0xFF1F1F1F),
+                  ),
+                ),
+              ),
+            )
+          : InkWell(
+              onTap: onPressed,
+              borderRadius: BorderRadius.circular(4),
+              child: Image.asset(
+                isDark
+                    ? 'assets/images/dark/android_dark_sq.png'
+                    : 'assets/images/light/android_light_sq.png',
+                height: 48,
+                fit: BoxFit.contain,
+                errorBuilder: (context, error, stackTrace) {
+                  print('Error loading Google Sign-In image: $error');
+                  // Fallback button with icon and text
+                  return Container(
+                    decoration: BoxDecoration(
+                      color: isDark ? Color(0xFF4285F4) : Colors.white,
+                      border: isDark ? null : Border.all(color: Color(0xFF747775), width: 1),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.g_mobiledata,
+                          size: 24,
+                          color: isDark ? Colors.white : Color(0xFF1F1F1F),
+                        ),
+                        const SizedBox(width: 12),
+                        Text(
+                          'Sign in with Google',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                            fontFamily: 'Roboto',
+                            color: isDark ? Colors.white : Color(0xFF1F1F1F),
+                            letterSpacing: 0.25,
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ),
     );
   }
 }

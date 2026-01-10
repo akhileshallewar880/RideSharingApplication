@@ -110,6 +110,42 @@ class AuthNotifier extends StateNotifier<AuthState> {
       if (response.success && response.data != null) {
         final userType = await _authService.getUserType();
         final userId = await _authService.getUserId();
+        print('✅ OTP verified successfully - UserType: $userType, UserId: $userId, IsNewUser: ${response.data!.isNewUser}');
+        state = state.copyWith(
+          isLoading: false,
+          isAuthenticated: !response.data!.isNewUser,
+          userType: userType,
+          userId: userId,
+        );
+        return response.data;
+      } else {
+        state = state.copyWith(
+          isLoading: false,
+          errorMessage: response.message,
+        );
+        return null;
+      }
+    } catch (e) {
+      state = state.copyWith(
+        isLoading: false,
+        errorMessage: e.toString(),
+      );
+      return null;
+    }
+  }
+
+  /// Verify Firebase phone authentication and sync with backend
+  /// This is called after Firebase OTP verification is successful
+  Future<VerifyOtpResponse?> verifyFirebasePhoneAuth(String firebaseIdToken, String phoneNumber) async {
+    state = state.copyWith(isLoading: true, errorMessage: null);
+    try {
+      print('🔐 Verifying Firebase phone auth with backend...');
+      
+      final response = await _authService.verifyFirebasePhoneAuth(firebaseIdToken, phoneNumber);
+      if (response.success && response.data != null) {
+        final userType = await _authService.getUserType();
+        final userId = await _authService.getUserId();
+        print('✅ Firebase auth verified - UserType: $userType, UserId: $userId, IsNewUser: ${response.data!.isNewUser}');
         state = state.copyWith(
           isLoading: false,
           isAuthenticated: !response.data!.isNewUser,
@@ -221,6 +257,8 @@ class AuthNotifier extends StateNotifier<AuthState> {
     state = state.copyWith(isLoading: true, errorMessage: null);
     try {
       await _authService.logout();
+      // Sign out from Google if needed
+      await _authService.signOutFromGoogle();
       // Reset to initial unauthenticated state
       state = AuthState(
         isAuthenticated: false,
@@ -245,6 +283,34 @@ class AuthNotifier extends StateNotifier<AuthState> {
         errorMessage: null,
         otpId: null,
         isExistingUser: null,
+      );
+    }
+  }
+
+  /// Sign in with Google
+  Future<void> signInWithGoogle({String? phoneNumber}) async {
+    state = state.copyWith(isLoading: true, errorMessage: null);
+    try {
+      final response = await _authService.signInWithGoogle(phoneNumber: phoneNumber);
+      if (response.success && response.data != null) {
+        final userType = await _authService.getUserType();
+        final userId = await _authService.getUserId();
+        state = state.copyWith(
+          isLoading: false,
+          isAuthenticated: true,
+          userType: userType,
+          userId: userId,
+        );
+      } else {
+        state = state.copyWith(
+          isLoading: false,
+          errorMessage: response.message,
+        );
+      }
+    } catch (e) {
+      state = state.copyWith(
+        isLoading: false,
+        errorMessage: e.toString(),
       );
     }
   }

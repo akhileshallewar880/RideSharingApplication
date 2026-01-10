@@ -1,0 +1,10 @@
+<svg width="600" height="150" viewBox="0 0 600 150" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <text x="10" y="118" font-family="'Arial Black', 'Arial Bold', sans-serif" font-weight="900" font-size="125" fill="#FFFFFF" letter-spacing="-6">Van</text>
+  
+  <g transform="translate(235, 28)">
+    <path d="M 28 92 L 8 92 L 8 60 C 8 30 -5 25 -25 15 L -20 25 L -45 0 L -15 -5 L -20 10 C 5 15 28 25 28 60 L 28 92 Z" fill="#FFC800"/>
+    <path d="M 36 92 L 56 92 L 56 60 C 56 30 69 25 89 15 L 84 25 L 109 0 L 79 -5 L 84 10 C 59 15 36 25 36 60 L 36 92 Z" fill="#FFC800"/>
+  </g>
+  
+  <text x="345" y="118" font-family="'Arial Black', 'Arial Bold', sans-serif" font-weight="900" font-size="125" fill="#FFC800" letter-spacing="-6">atra</text>
+</svg>

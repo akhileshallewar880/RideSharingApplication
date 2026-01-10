@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:qr_flutter/qr_flutter.dart';
+import 'package:audioplayers/audioplayers.dart';
 import 'package:allapalli_ride/app/themes/app_colors.dart';
 import 'package:allapalli_ride/app/themes/app_spacing.dart';
 import 'package:allapalli_ride/app/themes/text_styles.dart';
@@ -10,7 +11,7 @@ import 'package:allapalli_ride/features/passenger/domain/models/vehicle_option.d
 import 'package:allapalli_ride/core/models/passenger_ride_models.dart';
 
 /// Ride details screen with QR code and booking information
-class RideDetailsScreen extends StatelessWidget {
+class RideDetailsScreen extends StatefulWidget {
   final String pickupLocation;
   final String dropoffLocation;
   final VehicleOption vehicle;
@@ -29,11 +30,32 @@ class RideDetailsScreen extends StatelessWidget {
     required this.timeSlot,
     this.bookingResponse,
   });
+
+  @override
+  State<RideDetailsScreen> createState() => _RideDetailsScreenState();
+}
+
+class _RideDetailsScreenState extends State<RideDetailsScreen> {
+  final AudioPlayer _audioPlayer = AudioPlayer();
   
-  String get _bookingId => bookingResponse?.bookingNumber ?? 'ALR${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}';
-  String get _otp => bookingResponse?.otp ?? '${DateTime.now().millisecondsSinceEpoch % 10000}'.padLeft(4, '0');
-  String get _dateStr => '${travelDate.day}/${travelDate.month}/${travelDate.year}';
-  int get _estimatedPrice => bookingResponse?.totalFare.toInt() ?? (vehicle.basePrice + (5 * vehicle.pricePerKm));
+  @override
+  void dispose() {
+    _audioPlayer.dispose();
+    super.dispose();
+  }
+  
+  String get _bookingId => widget.bookingResponse?.bookingNumber ?? 'ALR${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}';
+  String get _otp => widget.bookingResponse?.otp ?? '${DateTime.now().millisecondsSinceEpoch % 10000}'.padLeft(4, '0');
+  String get _dateStr => '${widget.travelDate.day}/${widget.travelDate.month}/${widget.travelDate.year}';
+  int get _estimatedPrice => widget.bookingResponse?.totalFare.toInt() ?? (widget.vehicle.basePrice + (5 * widget.vehicle.pricePerKm));
+  
+  Future<void> _playCancellationSound() async {
+    try {
+      await _audioPlayer.play(AssetSource('sounds/ride_cancellation.mp3'));
+    } catch (e) {
+      print('Error playing cancellation sound: $e');
+    }
+  }
   
   void _showRescheduleDialog(BuildContext context) {
     showDialog(
@@ -76,8 +98,12 @@ class RideDetailsScreen extends StatelessWidget {
             child: const Text('No, Keep it'),
           ),
           ElevatedButton(
-            onPressed: () {
+            onPressed: () async {
               Navigator.pop(context);
+              
+              // Play cancellation sound
+              await _playCancellationSound();
+              
               Navigator.pop(context); // Go back to home
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
@@ -270,7 +296,7 @@ class RideDetailsScreen extends StatelessWidget {
                         child: _CompactInfoRow(
                           icon: Icons.location_on,
                           iconColor: AppColors.success,
-                          label: pickupLocation,
+                          label: widget.pickupLocation,
                         ),
                       ),
                       Icon(Icons.arrow_forward, size: 16, color: isDark ? AppColors.darkTextTertiary : AppColors.lightTextTertiary),
@@ -279,7 +305,7 @@ class RideDetailsScreen extends StatelessWidget {
                         child: _CompactInfoRow(
                           icon: Icons.location_on,
                           iconColor: AppColors.error,
-                          label: dropoffLocation,
+                          label: widget.dropoffLocation,
                         ),
                       ),
                     ],
@@ -298,7 +324,7 @@ class RideDetailsScreen extends StatelessWidget {
                         child: _CompactInfoRow(
                           icon: Icons.access_time,
                           iconColor: AppColors.info,
-                          label: timeSlot,
+                          label: widget.timeSlot,
                         ),
                       ),
                     ],
@@ -308,9 +334,9 @@ class RideDetailsScreen extends StatelessWidget {
                     children: [
                       Expanded(
                         child: _CompactInfoRow(
-                          icon: vehicle.icon,
+                          icon: widget.vehicle.icon,
                           iconColor: AppColors.primaryYellow,
-                          label: '${vehicle.name} • $passengerCount pax',
+                          label: '${widget.vehicle.name} • ${widget.passengerCount} pax',
                         ),
                       ),
                       Expanded(

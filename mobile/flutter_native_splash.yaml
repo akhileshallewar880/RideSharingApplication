@@ -3,8 +3,8 @@
 # Using minimal native splash to prevent double splash screens
 
 flutter_native_splash:
-  # Disable native splash completely to prevent double splash
-  color: "#FFFFFF"
+  # Match home screen gradient start color
+  color: "#1B5E20"
   
   # Disable for all platforms to show Flutter splash only
   android: false

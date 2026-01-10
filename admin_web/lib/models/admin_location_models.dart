@@ -29,17 +29,17 @@ class AdminLocation {
 
   factory AdminLocation.fromJson(Map<String, dynamic> json) {
     return AdminLocation(
-      id: json['id'],
-      name: json['name'],
-      state: json['state'],
-      district: json['district'],
-      subLocation: json['subLocation'],
-      pincode: json['pincode'],
-      latitude: json['latitude']?.toDouble(),
-      longitude: json['longitude']?.toDouble(),
-      isActive: json['isActive'],
-      createdAt: DateTimeParser.parse(json['createdAt']),
-      updatedAt: DateTimeParser.parse(json['updatedAt']),
+      id: json['id']?.toString() ?? json['Id']?.toString() ?? '',
+      name: json['name'] ?? json['Name'] ?? '',
+      state: json['state'] ?? json['State'] ?? '',
+      district: json['district'] ?? json['District'] ?? '',
+      subLocation: json['subLocation'] ?? json['SubLocation'],
+      pincode: json['pincode'] ?? json['Pincode'],
+      latitude: (json['latitude'] ?? json['Latitude'])?.toDouble(),
+      longitude: (json['longitude'] ?? json['Longitude'])?.toDouble(),
+      isActive: json['isActive'] ?? json['IsActive'] ?? false,
+      createdAt: DateTimeParser.parse(json['createdAt'] ?? json['CreatedAt']),
+      updatedAt: DateTimeParser.parse(json['updatedAt'] ?? json['UpdatedAt']),
     );
   }
 

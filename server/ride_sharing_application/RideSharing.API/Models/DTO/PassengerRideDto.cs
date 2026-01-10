@@ -113,6 +113,8 @@ namespace RideSharing.API.Models.DTO
         public int PassengerCount { get; set; }
         public decimal TotalFare { get; set; }
         public string PaymentStatus { get; set; }
+        public List<string>? SelectedSeats { get; set; }
+        public string? SeatingArrangementImage { get; set; }
         public DriverDetailsDto DriverDetails { get; set; }
         public TrackingStatusDto? TrackingStatus { get; set; }
         public DateTime CreatedAt { get; set; }
@@ -140,6 +142,7 @@ namespace RideSharing.API.Models.DTO
         public int PassengerCount { get; set; }
         public string DriverName { get; set; }
         public Guid? DriverId { get; set; }
+        public string? DriverPhoneNumber { get; set; }
         public decimal DriverRating { get; set; }
         public int? PassengerRating { get; set; } // The rating given by passenger for this specific ride
         public string Otp { get; set; }

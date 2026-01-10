@@ -21,11 +21,13 @@ class SocketService {
   final _locationUpdateController = StreamController<LocationUpdateEvent>.broadcast();
   final _tripStatusController = StreamController<TripStatusEvent>.broadcast();
   final _passengerUpdateController = StreamController<PassengerUpdateEvent>.broadcast();
+  final _otpVerificationController = StreamController<OtpVerificationEvent>.broadcast();
   final _connectionController = StreamController<bool>.broadcast();
   
   Stream<LocationUpdateEvent> get locationUpdates => _locationUpdateController.stream;
   Stream<TripStatusEvent> get tripStatusUpdates => _tripStatusController.stream;
   Stream<PassengerUpdateEvent> get passengerUpdates => _passengerUpdateController.stream;
+  Stream<OtpVerificationEvent> get otpVerifications => _otpVerificationController.stream;
   Stream<bool> get connectionStatus => _connectionController.stream;
   
   /// Connect to SignalR hub
@@ -139,6 +141,13 @@ class SocketService {
       }
     });
     
+    // Event: OtpVerified (new event for OTP verification)
+    _hubConnection!.on('OtpVerified', (args) {
+      if (args != null && args.isNotEmpty) {
+        _handleOtpVerification(args[0]);
+      }
+    });
+    
     // Event: Error messages from hub
     _hubConnection!.on('Error', (args) {
       debugPrint('❌ SignalR hub error: ${args?[0]}');
@@ -247,6 +256,17 @@ class SocketService {
     }
   }
   
+  /// Handle OTP verification event
+  void _handleOtpVerification(dynamic data) {
+    try {
+      final event = OtpVerificationEvent.fromJson(data as Map<String, dynamic>);
+      _otpVerificationController.add(event);
+      debugPrint('🎉 OTP verified event received: ${event.bookingId}');
+    } catch (e) {
+      debugPrint('❌ Error parsing OTP verification: $e');
+    }
+  }
+  
   /// Notify passenger boarding status
   Future<void> notifyPassengerBoarded({
     required String rideId,
@@ -319,6 +339,7 @@ class SocketService {
     await _locationUpdateController.close();
     await _tripStatusController.close();
     await _passengerUpdateController.close();
+    await _otpVerificationController.close();
     await _connectionController.close();
   }
 }
@@ -420,6 +441,38 @@ class PassengerUpdateEvent {
         json['timestamp'] as String? ?? DateTime.now().toIso8601String(),
       ),
       data: json['data'] as Map<String, dynamic>?,
+    );
+  }
+}
+
+/// Event model for OTP verification
+class OtpVerificationEvent {
+  final String rideId;
+  final String bookingId;
+  final String bookingNumber;
+  final String passengerName;
+  final DateTime timestamp;
+  final bool isVerified;
+  
+  OtpVerificationEvent({
+    required this.rideId,
+    required this.bookingId,
+    required this.bookingNumber,
+    required this.passengerName,
+    required this.timestamp,
+    required this.isVerified,
+  });
+  
+  factory OtpVerificationEvent.fromJson(Map<String, dynamic> json) {
+    return OtpVerificationEvent(
+      rideId: json['rideId'] as String? ?? '',
+      bookingId: json['bookingId'] as String? ?? '',
+      bookingNumber: json['bookingNumber'] as String? ?? '',
+      passengerName: json['passengerName'] as String? ?? '',
+      timestamp: DateTime.parse(
+        json['timestamp'] as String? ?? DateTime.now().toIso8601String(),
+      ),
+      isVerified: json['isVerified'] as bool? ?? true,
     );
   }
 }

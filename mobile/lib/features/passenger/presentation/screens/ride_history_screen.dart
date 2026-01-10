@@ -663,7 +663,11 @@ class _RideHistoryCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isClickable = onTap != null;
-    print('📅 Building card for booking: ${ride.bookingNumber}, travelDate: "${ride.travelDate}"');
+    print('📅 Building card for booking: ${ride.bookingNumber}');
+    print('   travelDate: "${ride.travelDate}"');
+    print('   selectedSeats: ${ride.selectedSeats}');
+    print('   selectedSeats count: ${ride.selectedSeats?.length ?? 0}');
+    
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -912,6 +916,77 @@ class _RideHistoryCard extends StatelessWidget {
                 ),
               ),
             if (isClickable && ride.otp != null && ride.otp!.isNotEmpty)
+              SizedBox(height: AppSpacing.sm),
+
+            // Seat Numbers - Display if available
+            if (ride.selectedSeats != null && ride.selectedSeats!.isNotEmpty)
+              Container(
+                padding: EdgeInsets.all(AppSpacing.sm),
+                decoration: BoxDecoration(
+                  color: isDark 
+                      ? AppColors.primaryYellow.withOpacity(0.15)
+                      : AppColors.primaryYellow.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(AppSpacing.radiusMD),
+                  border: Border.all(
+                    color: AppColors.primaryYellow.withOpacity(0.3),
+                    width: 1,
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.event_seat,
+                      size: 16,
+                      color: isDark 
+                          ? AppColors.primaryYellow 
+                          : const Color(0xFFF57C00),
+                    ),
+                    SizedBox(width: AppSpacing.xs),
+                    Text(
+                      'Seat${ride.selectedSeats!.length > 1 ? 's' : ''}: ',
+                      style: TextStyles.bodySmall.copyWith(
+                        color: isDark 
+                            ? Colors.white.withOpacity(0.9) 
+                            : AppColors.lightTextPrimary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    Expanded(
+                      child: Wrap(
+                        spacing: 6,
+                        runSpacing: 4,
+                        children: ride.selectedSeats!.map((seat) => Container(
+                          padding: EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: isDark 
+                                ? AppColors.primaryYellow.withOpacity(0.2)
+                                : Colors.white,
+                            borderRadius: BorderRadius.circular(4),
+                            border: Border.all(
+                              color: AppColors.primaryYellow.withOpacity(0.5),
+                              width: 1,
+                            ),
+                          ),
+                          child: Text(
+                            seat,
+                            style: TextStyles.bodySmall.copyWith(
+                              fontWeight: FontWeight.bold,
+                              color: isDark 
+                                  ? AppColors.primaryYellow 
+                                  : const Color(0xFFF57C00),
+                              fontSize: 11,
+                            ),
+                          ),
+                        )).toList(),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            if (ride.selectedSeats != null && ride.selectedSeats!.isNotEmpty)
               SizedBox(height: AppSpacing.sm),
 
             // System Cancellation Warning - if scheduled ride has passed

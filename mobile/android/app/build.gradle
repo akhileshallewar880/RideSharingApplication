@@ -24,7 +24,7 @@ if (flutterVersionName == null) {
 
 android {
     namespace "com.allapalli.allapalli_ride"
-    compileSdk flutter.compileSdkVersion
+    compileSdk 34
     ndkVersion flutter.ndkVersion
 
     compileOptions {
@@ -45,7 +45,7 @@ android {
         applicationId "com.allapalli.allapalli_ride"
         // You can update the following values to match your application needs.
         // For more information, see: https://docs.flutter.dev/deployment/android#reviewing-the-gradle-build-configuration.
-        minSdkVersion 21  // Updated for Firebase compatibility
+        minSdkVersion 23  // Required for Firebase Auth
         targetSdkVersion flutter.targetSdkVersion
         versionCode flutterVersionCode.toInteger()
         versionName flutterVersionName
@@ -73,6 +73,13 @@ dependencies {
     
     // Firebase Analytics (optional but recommended)
     implementation 'com.google.firebase:firebase-analytics'
+    
+    // Firebase Auth (REQUIRED for phone authentication)
+    implementation 'com.google.firebase:firebase-auth'
+    
+    // Play Integrity API for app verification (prevents reCAPTCHA redirect)
+    implementation 'com.google.android.gms:play-services-auth:21.0.0'
+    implementation 'com.google.android.gms:play-services-auth-api-phone:18.0.2'
 }
 
 // Apply the Google services plugin at the end

@@ -12,7 +12,7 @@ class AdminEnvironmentConfig {
 
   // API Base URLs
   static const Map<AdminEnvironment, String> _apiBaseUrls = {
-    AdminEnvironment.development: 'http://57.159.31.172:8000', // Server API
+    AdminEnvironment.development: 'http://192.168.88.14:5056', // Local Server API
     AdminEnvironment.staging: 'https://staging-api.vanyatra.com',
     AdminEnvironment.production: 'https://api.vanyatra.com',
   };

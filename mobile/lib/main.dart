@@ -11,11 +11,13 @@ import 'core/services/saved_location_service.dart';
 import 'features/auth/presentation/screens/splash_screen.dart';
 import 'features/auth/presentation/screens/onboarding_screen.dart';
 import 'features/auth/presentation/screens/login_screen.dart';
+import 'features/auth/presentation/screens/login_with_onboarding_screen.dart';
 import 'features/auth/presentation/screens/otp_verification_screen.dart';
 import 'features/auth/presentation/screens/registration_screen.dart';
 import 'features/auth/presentation/screens/driver_registration_screen.dart';
 import 'features/auth/presentation/screens/verification_pending_screen.dart';
 import 'features/auth/presentation/screens/user_type_selection_screen.dart';
+import 'features/auth/presentation/screens/phone_number_entry_screen.dart';
 import 'features/passenger/presentation/screens/passenger_home_screen.dart';
 import 'features/passenger/presentation/screens/ride_history_screen.dart';
 import 'features/passenger/presentation/screens/passenger_tracking_screen.dart';
@@ -91,6 +93,7 @@ class VanYatraApp extends StatelessWidget {
         '/splash': (context) => const SplashScreen(),
         '/onboarding': (context) => const OnboardingScreen(),
         '/login': (context) => const LoginScreen(),
+        '/login-onboarding': (context) => const LoginWithOnboardingScreen(),
         '/registration': (context) => const RegistrationScreen(),
         '/driver-registration': (context) => const DriverRegistrationScreen(),
         '/driver/verification-pending': (context) => const VerificationPendingScreen(),
@@ -103,12 +106,38 @@ class VanYatraApp extends StatelessWidget {
       
       // Route generator for routes with arguments
       onGenerateRoute: (settings) {
-        // OTP verification with phone number
+        // Phone number entry for Google Sign-In users
+        if (settings.name == '/phone-entry') {
+          final args = settings.arguments as Map<String, dynamic>?;
+          if (args != null) {
+            return MaterialPageRoute(
+              builder: (_) => PhoneNumberEntryScreen(
+                email: args['email'] as String,
+                name: args['name'] as String,
+                photoUrl: args['photoUrl'] as String?,
+                googleIdToken: args['googleIdToken'] as String,
+              ),
+            );
+          }
+        }
+        
+        // OTP verification with phone number and Firebase verificationId
         if (settings.name == '/otp') {
-          final phoneNumber = settings.arguments as String;
-          return MaterialPageRoute(
-            builder: (_) => OtpVerificationScreen(phoneNumber: phoneNumber),
-          );
+          // Support both String (backward compatibility) and Map (new Firebase flow)
+          final args = settings.arguments;
+          if (args is Map<String, dynamic>) {
+            return MaterialPageRoute(
+              builder: (_) => OtpVerificationScreen(
+                phoneNumber: args['phoneNumber'] as String,
+                verificationId: args['verificationId'] as String?,
+              ),
+            );
+          } else if (args is String) {
+            // Backward compatibility for old flow
+            return MaterialPageRoute(
+              builder: (_) => OtpVerificationScreen(phoneNumber: args),
+            );
+          }
         }
         
         // Driver tracking screen with ride data

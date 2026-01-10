@@ -39,16 +39,24 @@ class PassengerRideService {
     BookRideRequest request,
   ) async {
     try {
+      print('🚀 [API] Sending bookRide request:');
+      print('   URL: /rides/book');
+      print('   Data: ${request.toJson()}');
+      
       final response = await _dio.post(
         '/rides/book',
         data: request.toJson(),
       );
+
+      print('✅ [API] bookRide response received:');
+      print('   Response data: ${response.data}');
 
       return ApiResponse.fromJson(
         response.data,
         (json) => BookingResponse.fromJson(json),
       );
     } on DioException catch (e) {
+      print('❌ [API] bookRide error: ${e.message}');
       return _handleError(e);
     }
   }
@@ -58,7 +66,9 @@ class PassengerRideService {
     String bookingId,
   ) async {
     try {
+      print('🔍 [API] getBookingDetails request: $bookingId');
       final response = await _dio.get('/rides/bookings/$bookingId');
+      print('✅ [API] getBookingDetails response: ${response.data}');
 
       return ApiResponse.fromJson(
         response.data,

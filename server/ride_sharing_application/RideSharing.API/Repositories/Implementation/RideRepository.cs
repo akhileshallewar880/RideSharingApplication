@@ -21,9 +21,13 @@ namespace RideSharing.API.Repositories.Implementation
             int passengerCount,
             string? vehicleType)
         {
-            // Calculate minimum departure time (current time + 5 minutes)
-            var now = DateTime.UtcNow;
-            var minDepartureDateTime = now.AddMinutes(5);
+            Console.WriteLine($"\n🔍 SEARCH REQUEST: '{pickupLocation}' → '{dropoffLocation}' on {travelDate:yyyy-MM-dd}");
+            
+            // Calculate minimum departure time in Indian timezone (UTC+5:30)
+            var istOffset = TimeSpan.FromHours(5.5);
+            var nowIst = DateTime.UtcNow.Add(istOffset);
+            var minDepartureDateTime = nowIst.AddMinutes(5);
+            Console.WriteLine($"⏰ Current IST: {nowIst:yyyy-MM-dd HH:mm:ss}, Min departure: {minDepartureDateTime:yyyy-MM-dd HH:mm:ss}");
             
             var query = _context.Rides
                 .Include(r => r.Driver)
@@ -54,55 +58,144 @@ namespace RideSharing.API.Repositories.Implementation
                 return rideDepartureDateTime >= minDepartureDateTime;
             }).ToList();
             
+            Console.WriteLine($"📊 Found {rides.Count} total rides, {ridesWithTimeCheck.Count} after time filter");
+            
+            // Helper function to check if locations match (flexible matching)
+            bool LocationsMatch(string location1, string location2)
+            {
+                if (string.IsNullOrEmpty(location1) || string.IsNullOrEmpty(location2))
+                    return false;
+                    
+                var loc1Lower = location1.ToLower().Trim();
+                var loc2Lower = location2.ToLower().Trim();
+                
+                // Exact match
+                if (loc1Lower == loc2Lower) return true;
+                
+                // Contains match (either direction)
+                if (loc1Lower.Contains(loc2Lower) || loc2Lower.Contains(loc1Lower)) return true;
+                
+                // Extract city names (text before first comma)
+                var city1 = loc1Lower.Split(',')[0].Trim();
+                var city2 = loc2Lower.Split(',')[0].Trim();
+                
+                // City name match
+                if (city1 == city2) return true;
+                if (city1.Contains(city2) || city2.Contains(city1)) return true;
+                
+                return false;
+            }
+            
             var matchingRides = ridesWithTimeCheck.Where(r => 
             {
-                // Check if main pickup and dropoff match
-                bool mainRouteMatches = r.PickupLocation.Contains(pickupLocation, StringComparison.OrdinalIgnoreCase) &&
-                                       r.DropoffLocation.Contains(dropoffLocation, StringComparison.OrdinalIgnoreCase);
+                Console.WriteLine($"\n🚗 Checking Ride {r.Id}: {r.PickupLocation} → {r.DropoffLocation}");
+                Console.WriteLine($"   IntermediateStops: {(string.IsNullOrEmpty(r.IntermediateStops) ? "NONE" : r.IntermediateStops)}");
+                Console.WriteLine($"   SegmentPrices: {(string.IsNullOrEmpty(r.SegmentPrices) ? "NONE" : r.SegmentPrices.Substring(0, Math.Min(100, r.SegmentPrices.Length)))}...");
                 
+                // Check if main pickup and dropoff match
+                bool mainRouteMatches = LocationsMatch(r.PickupLocation, pickupLocation) &&
+                                       LocationsMatch(r.DropoffLocation, dropoffLocation);
+                
+                Console.WriteLine($"   Main route match: {mainRouteMatches}");
                 if (mainRouteMatches) return true;
                 
-                // Check if any intermediate stops match the pickup and dropoff
+                // Try to get intermediate stops from IntermediateStops column first
+                List<string>? intermediateStops = null;
+                
                 if (!string.IsNullOrEmpty(r.IntermediateStops))
                 {
                     try
                     {
-                        var intermediateStops = System.Text.Json.JsonSerializer.Deserialize<List<string>>(r.IntermediateStops);
-                        if (intermediateStops != null && intermediateStops.Any())
-                        {
-                            // Get all unique locations in order (pickup -> intermediate stops -> dropoff)
-                            var allLocations = new List<string> { r.PickupLocation };
-                            allLocations.AddRange(intermediateStops);
-                            allLocations.Add(r.DropoffLocation);
-                            
-                            // Check if passenger's pickup and dropoff exist in sequence
-                            int pickupIndex = -1;
-                            int dropoffIndex = -1;
-                            
-                            for (int i = 0; i < allLocations.Count; i++)
-                            {
-                                if (pickupIndex == -1 && allLocations[i].Contains(pickupLocation, StringComparison.OrdinalIgnoreCase))
-                                {
-                                    pickupIndex = i;
-                                }
-                                if (dropoffIndex == -1 && allLocations[i].Contains(dropoffLocation, StringComparison.OrdinalIgnoreCase))
-                                {
-                                    dropoffIndex = i;
-                                }
-                            }
-                            
-                            // Pickup must come before dropoff in the route
-                            return pickupIndex != -1 && dropoffIndex != -1 && pickupIndex < dropoffIndex;
-                        }
+                        intermediateStops = System.Text.Json.JsonSerializer.Deserialize<List<string>>(r.IntermediateStops);
+                        Console.WriteLine($"   ✅ Loaded {intermediateStops?.Count ?? 0} intermediate stops from IntermediateStops column");
                     }
                     catch
                     {
-                        // If JSON parsing fails, ignore intermediate stops
+                        Console.WriteLine($"   ⚠️ Failed to parse IntermediateStops JSON");
                     }
                 }
                 
+                // FALLBACK: Extract intermediate stops from SegmentPrices if IntermediateStops is empty
+                if ((intermediateStops == null || !intermediateStops.Any()) && !string.IsNullOrEmpty(r.SegmentPrices))
+                {
+                    try
+                    {
+                        Console.WriteLine($"   🔄 IntermediateStops is empty, extracting from SegmentPrices...");
+                        var segmentPrices = System.Text.Json.JsonSerializer.Deserialize<List<System.Text.Json.JsonElement>>(r.SegmentPrices);
+                        if (segmentPrices != null && segmentPrices.Any())
+                        {
+                            intermediateStops = new List<string>();
+                            // Extract ToLocation from all segments except the last one
+                            // (last segment's ToLocation is the dropoff)
+                            for (int i = 0; i < segmentPrices.Count - 1; i++)
+                            {
+                                if (segmentPrices[i].TryGetProperty("ToLocation", out var toLocation))
+                                {
+                                    var loc = toLocation.GetString();
+                                    if (!string.IsNullOrEmpty(loc) && !intermediateStops.Contains(loc))
+                                    {
+                                        intermediateStops.Add(loc);
+                                    }
+                                }
+                            }
+                            Console.WriteLine($"   ✅ Extracted {intermediateStops.Count} intermediate stops from SegmentPrices: {string.Join(", ", intermediateStops)}");
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"   ⚠️ Failed to extract intermediate stops from SegmentPrices: {ex.Message}");
+                    }
+                }
+                
+                // Store extracted intermediate stops back to the ride object for API response
+                if (intermediateStops != null && intermediateStops.Any())
+                {
+                    // Update the ride's IntermediateStops property so the API returns it
+                    if (string.IsNullOrEmpty(r.IntermediateStops))
+                    {
+                        r.IntermediateStops = System.Text.Json.JsonSerializer.Serialize(intermediateStops);
+                        Console.WriteLine($"   💾 Stored extracted intermediate stops to ride object");
+                    }
+                    
+                    Console.WriteLine($"   Parsed {intermediateStops.Count} intermediate stops: {string.Join(", ", intermediateStops)}");
+                    
+                    // Get all unique locations in order (pickup -> intermediate stops -> dropoff)
+                    var allLocations = new List<string> { r.PickupLocation };
+                    allLocations.AddRange(intermediateStops);
+                    allLocations.Add(r.DropoffLocation);
+                    
+                    Console.WriteLine($"   Complete route: {string.Join(" → ", allLocations)}");
+                    
+                    // Check if passenger's pickup and dropoff exist in sequence
+                    int pickupIndex = -1;
+                    int dropoffIndex = -1;
+                    
+                    for (int i = 0; i < allLocations.Count; i++)
+                    {
+                        if (pickupIndex == -1 && LocationsMatch(allLocations[i], pickupLocation))
+                        {
+                            pickupIndex = i;
+                            Console.WriteLine($"   ✅ Pickup matched at index {i}: '{allLocations[i]}' matches '{pickupLocation}'");
+                        }
+                        if (dropoffIndex == -1 && LocationsMatch(allLocations[i], dropoffLocation))
+                        {
+                            dropoffIndex = i;
+                            Console.WriteLine($"   ✅ Dropoff matched at index {i}: '{allLocations[i]}' matches '{dropoffLocation}'");
+                        }
+                    }
+                    
+                    bool isMatch = pickupIndex != -1 && dropoffIndex != -1 && pickupIndex < dropoffIndex;
+                    Console.WriteLine($"   📍 Pickup index: {pickupIndex}, Dropoff index: {dropoffIndex}, Match: {isMatch}");
+                    
+                    // Pickup must come before dropoff in the route
+                    return isMatch;
+                }
+                
+                Console.WriteLine($"   ❌ No match for this ride");
                 return false;
             }).ToList();
+            
+            Console.WriteLine($"\n✅ SEARCH COMPLETE: Found {matchingRides.Count} matching rides\n");
 
             return matchingRides
                 .OrderBy(r => r.DepartureTime)

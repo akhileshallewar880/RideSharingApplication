@@ -482,7 +482,7 @@ public class FCMNotificationService
             Priority = priority,
             Notification = new AndroidNotification
             {
-                Icon = "ic_notification",
+                Icon = "ic_stat_vanyatra",
                 Color = "#FFD700", // Primary yellow color
                 Sound = "default",
                 ChannelId = "allapalli_ride_channel"

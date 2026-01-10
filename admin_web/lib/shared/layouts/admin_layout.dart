@@ -15,6 +15,7 @@ import '../../features/tracking/live_tracking_screen.dart';
 import '../../features/users/user_management_screen.dart';
 import '../../screens/locations_management_screen.dart';
 import '../../screens/banner_management_screen.dart';
+import '../../screens/otp_banner_management_screen.dart';
 import '../../screens/notification_management_screen.dart';
 
 class AdminLayout extends ConsumerStatefulWidget {
@@ -52,6 +53,8 @@ class AdminLayout extends ConsumerStatefulWidget {
         return LocationsManagementScreen();
       case '/banners':
         return BannerManagementScreen();
+      case '/otp-banners':
+        return OTPBannerManagementScreen();
       case '/notifications':
         return NotificationManagementScreen();
       case '/finance':
@@ -336,6 +339,13 @@ class _AdminLayoutState extends ConsumerState<AdminLayout> {
                 activeIcon: Icons.view_carousel,
                 title: 'Banners',
                 route: '/banners',
+                isCollapsedOverride: collapsed,
+              ),
+              _buildMenuItem(
+                icon: Icons.phone_android_outlined,
+                activeIcon: Icons.phone_android,
+                title: 'OTP Banners',
+                route: '/otp-banners',
                 isCollapsedOverride: collapsed,
               ),
               _buildMenuItem(

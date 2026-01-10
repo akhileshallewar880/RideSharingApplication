@@ -233,6 +233,12 @@ class PassengerInfo {
   final int passengerCount;
   final String pickupLocation;
   final String dropoffLocation;
+  final double? pickupLatitude;
+  final double? pickupLongitude;
+  final double? dropoffLatitude;
+  final double? dropoffLongitude;
+  final double totalFare;
+  final double totalAmount;
   final String otp;
   final String paymentStatus;
   final String boardingStatus;
@@ -244,6 +250,12 @@ class PassengerInfo {
     required this.passengerCount,
     required this.pickupLocation,
     required this.dropoffLocation,
+    this.pickupLatitude,
+    this.pickupLongitude,
+    this.dropoffLatitude,
+    this.dropoffLongitude,
+    required this.totalFare,
+    required this.totalAmount,
     required this.otp,
     required this.paymentStatus,
     required this.boardingStatus,
@@ -257,6 +269,12 @@ class PassengerInfo {
       passengerCount: json['passengerCount'] ?? 0,
       pickupLocation: json['pickupLocation'] ?? '',
       dropoffLocation: json['dropoffLocation'] ?? '',
+      pickupLatitude: json['pickupLatitude']?.toDouble(),
+      pickupLongitude: json['pickupLongitude']?.toDouble(),
+      dropoffLatitude: json['dropoffLatitude']?.toDouble(),
+      dropoffLongitude: json['dropoffLongitude']?.toDouble(),
+      totalFare: (json['totalFare'] ?? 0).toDouble(),
+      totalAmount: (json['totalAmount'] ?? 0).toDouble(),
       otp: json['otp'] ?? '',
       paymentStatus: json['paymentStatus'] ?? '',
       boardingStatus: json['boardingStatus'] ?? '',

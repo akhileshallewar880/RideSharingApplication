@@ -8,11 +8,13 @@ import '../core/config/environment_config.dart';
 class BannerFormDialog extends StatefulWidget {
   final banner_models.Banner? banner;
   final Function(banner_models.Banner) onSave;
+  final String? defaultTargetAudience;
 
   const BannerFormDialog({
     Key? key,
     this.banner,
     required this.onSave,
+    this.defaultTargetAudience,
   }) : super(key: key);
 
   @override
@@ -60,6 +62,9 @@ class _BannerFormDialogState extends State<BannerFormDialog> {
       _isActive = widget.banner!.isActive;
       _startDate = widget.banner!.startDate;
       _endDate = widget.banner!.endDate;
+    } else if (widget.defaultTargetAudience != null) {
+      // Use default target audience for new banners
+      _targetAudience = widget.defaultTargetAudience!;
     }
   }
 

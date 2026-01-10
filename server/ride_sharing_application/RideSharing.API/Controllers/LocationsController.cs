@@ -153,5 +153,59 @@ namespace RideSharing.API.Controllers
                 });
             }
         }
+        
+        /// <summary>
+        /// Get popular locations/cities for quick selection
+        /// </summary>
+        /// <param name="limit">Maximum number of popular locations to return (default: 20)</param>
+        /// <returns>List of popular locations</returns>
+        [HttpGet("popular")]
+        public ActionResult<List<LocationSuggestionDto>> GetPopularLocations([FromQuery] int limit = 20)
+        {
+            try
+            {
+                if (limit < 1 || limit > 50)
+                {
+                    limit = 20; // Reset to default if out of bounds
+                }
+
+                _logger.LogInformation("Retrieving {Limit} popular locations", limit);
+                
+                var locations = _locationService.GetPopularLocations(limit);
+
+                return Ok(locations);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error retrieving popular locations");
+                return StatusCode(500, new { message = "An error occurred while retrieving popular locations" });
+            }
+        }
+        
+        /// <summary>
+        /// Check if a location is within service area
+        /// </summary>
+        /// <param name="latitude">Latitude of the location</param>
+        /// <param name="longitude">Longitude of the location</param>
+        /// <returns>Boolean indicating if location is in service area</returns>
+        [HttpGet("check-service-area")]
+        public async Task<ActionResult<object>> CheckServiceArea(
+            [FromQuery, Required] decimal latitude,
+            [FromQuery, Required] decimal longitude)
+        {
+            try
+            {
+                _logger.LogInformation("Checking service area for coordinates: ({Lat}, {Lng})", latitude, longitude);
+                
+                var inServiceArea = await _locationService.IsInServiceAreaAsync(latitude, longitude);
+
+                return Ok(new { inServiceArea, latitude, longitude });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error checking service area");
+                return StatusCode(500, new { message = "An error occurred while checking service area" });
+            }
+        }
     }
 }
