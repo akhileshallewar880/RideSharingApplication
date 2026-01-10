@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:audioplayers/audioplayers.dart';
+// TODO: Re-enable after fixing Android SDK 35 corruption issue
+// import 'package:audioplayers/audioplayers.dart';
 import 'package:allapalli_ride/app/themes/app_colors.dart';
 import 'package:allapalli_ride/app/themes/app_spacing.dart';
 import 'package:allapalli_ride/app/themes/text_styles.dart';
@@ -27,7 +28,8 @@ class _BookingConfirmationScreenState extends State<BookingConfirmationScreen>
   late AnimationController _controller;
   late Animation<double> _scaleAnimation;
   late Animation<double> _fadeAnimation;
-  final AudioPlayer _audioPlayer = AudioPlayer();
+  // TODO: Re-enable after fixing Android SDK 35 corruption issue
+  // final AudioPlayer _audioPlayer = AudioPlayer();
   
   @override
   void initState() {
@@ -68,7 +70,8 @@ class _BookingConfirmationScreenState extends State<BookingConfirmationScreen>
   @override
   void dispose() {
     _controller.dispose();
-    _audioPlayer.dispose();
+    // TODO: Re-enable after fixing Android SDK 35 corruption issue
+    // _audioPlayer.dispose();
     super.dispose();
   }
   
@@ -77,8 +80,9 @@ class _BookingConfirmationScreenState extends State<BookingConfirmationScreen>
       // Vibrate
       await HapticFeedback.heavyImpact();
       
+      // TODO: Re-enable after fixing Android SDK 35 corruption issue
       // Play sound
-      await _audioPlayer.play(AssetSource('sounds/booking_success.mp3'));
+      // await _audioPlayer.play(AssetSource('sounds/booking_success.mp3'));
     } catch (e) {
       print('Error playing success sound: $e');
     }

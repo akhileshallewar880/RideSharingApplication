@@ -1,1 +1,0 @@
- build/web/index.html build/web/manifest.json:  /Users/akhileshallewar/project_dev/RideBuisnessCodePrivate/vanyatra_rural_ride_booking/admin_web/web/index.html /Users/akhileshallewar/project_dev/RideBuisnessCodePrivate/vanyatra_rural_ride_booking/admin_web/web/manifest.json

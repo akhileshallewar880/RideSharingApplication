@@ -1355,6 +1355,8 @@ file:///Users/akhileshallewar/project_dev/RideBuisnessCodePrivate/vanyatra_rural
 file:///Users/akhileshallewar/project_dev/RideBuisnessCodePrivate/vanyatra_rural_ride_booking/admin_web/lib/core/models/admin_models.dart
 file:///Users/akhileshallewar/project_dev/RideBuisnessCodePrivate/vanyatra_rural_ride_booking/admin_web/lib/core/models/admin_ride_models.dart
 file:///Users/akhileshallewar/project_dev/RideBuisnessCodePrivate/vanyatra_rural_ride_booking/admin_web/lib/core/models/location_suggestion.dart
+file:///Users/akhileshallewar/project_dev/RideBuisnessCodePrivate/vanyatra_rural_ride_booking/admin_web/lib/core/models/place_autocomplete_result.dart
+file:///Users/akhileshallewar/project_dev/RideBuisnessCodePrivate/vanyatra_rural_ride_booking/admin_web/lib/core/models/place_details.dart
 file:///Users/akhileshallewar/project_dev/RideBuisnessCodePrivate/vanyatra_rural_ride_booking/admin_web/lib/core/providers/admin_auth_provider.dart
 file:///Users/akhileshallewar/project_dev/RideBuisnessCodePrivate/vanyatra_rural_ride_booking/admin_web/lib/core/providers/admin_ride_provider.dart
 file:///Users/akhileshallewar/project_dev/RideBuisnessCodePrivate/vanyatra_rural_ride_booking/admin_web/lib/core/providers/analytics_provider.dart
@@ -1369,6 +1371,8 @@ file:///Users/akhileshallewar/project_dev/RideBuisnessCodePrivate/vanyatra_rural
 file:///Users/akhileshallewar/project_dev/RideBuisnessCodePrivate/vanyatra_rural_ride_booking/admin_web/lib/core/services/analytics_service.dart
 file:///Users/akhileshallewar/project_dev/RideBuisnessCodePrivate/vanyatra_rural_ride_booking/admin_web/lib/core/services/driver_registration_service.dart
 file:///Users/akhileshallewar/project_dev/RideBuisnessCodePrivate/vanyatra_rural_ride_booking/admin_web/lib/core/services/driver_service.dart
+file:///Users/akhileshallewar/project_dev/RideBuisnessCodePrivate/vanyatra_rural_ride_booking/admin_web/lib/core/services/google_maps_service.dart
+file:///Users/akhileshallewar/project_dev/RideBuisnessCodePrivate/vanyatra_rural_ride_booking/admin_web/lib/core/services/google_places_service.dart
 file:///Users/akhileshallewar/project_dev/RideBuisnessCodePrivate/vanyatra_rural_ride_booking/admin_web/lib/core/services/ride_service.dart
 file:///Users/akhileshallewar/project_dev/RideBuisnessCodePrivate/vanyatra_rural_ride_booking/admin_web/lib/core/services/web_storage_service.dart
 file:///Users/akhileshallewar/project_dev/RideBuisnessCodePrivate/vanyatra_rural_ride_booking/admin_web/lib/core/theme/admin_theme.dart
@@ -1397,6 +1401,7 @@ file:///Users/akhileshallewar/project_dev/RideBuisnessCodePrivate/vanyatra_rural
 file:///Users/akhileshallewar/project_dev/RideBuisnessCodePrivate/vanyatra_rural_ride_booking/admin_web/lib/screens/banner_management_screen.dart
 file:///Users/akhileshallewar/project_dev/RideBuisnessCodePrivate/vanyatra_rural_ride_booking/admin_web/lib/screens/locations_management_screen.dart
 file:///Users/akhileshallewar/project_dev/RideBuisnessCodePrivate/vanyatra_rural_ride_booking/admin_web/lib/screens/notification_management_screen.dart
+file:///Users/akhileshallewar/project_dev/RideBuisnessCodePrivate/vanyatra_rural_ride_booking/admin_web/lib/screens/otp_banner_management_screen.dart
 file:///Users/akhileshallewar/project_dev/RideBuisnessCodePrivate/vanyatra_rural_ride_booking/admin_web/lib/services/admin_banner_service.dart
 file:///Users/akhileshallewar/project_dev/RideBuisnessCodePrivate/vanyatra_rural_ride_booking/admin_web/lib/services/admin_notification_service.dart
 file:///Users/akhileshallewar/project_dev/RideBuisnessCodePrivate/vanyatra_rural_ride_booking/admin_web/lib/services/location_service.dart
