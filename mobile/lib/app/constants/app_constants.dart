@@ -6,7 +6,7 @@ class AppConstants {
   
   // API Endpoints - Now configured via EnvironmentConfig
   // Import '../core/config/environment_config.dart' to use these
-  static String get baseUrl => 'http://57.159.31.172:5056'; // Local development
+  static String get baseUrl => 'http://57.159.31.172:8000'; // Production server
   static const String apiVersion = '/api/v1';
   
   // Full API URL

@@ -93,7 +93,8 @@ dependencies:
   permission_handler: ^11.3.1
   screenshot: ^2.3.0
   uuid: ^4.3.3
-  audioplayers: ^6.0.0
+  # TODO: Re-enable audioplayers after fixing Android SDK 35 corruption issue
+  # audioplayers: ^6.0.0
   
   # Real-time - SignalR for ASP.NET Core backend
   signalr_core: ^1.1.1

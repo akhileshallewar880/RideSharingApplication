@@ -14,6 +14,14 @@
       },
       "oauth_client": [
         {
+          "client_id": "657234227532-cqfg6qn2kjl0rus1k7ltc9b0o926r437.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.allapalli.allapalli_ride",
+            "certificate_hash": "2bbea45e6a05921caceaf2c802add858794c40c6"
+          }
+        },
+        {
           "client_id": "657234227532-h2a1jc21bhhfp63l0hi51t0i4p6dter2.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {

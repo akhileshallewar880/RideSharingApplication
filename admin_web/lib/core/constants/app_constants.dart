@@ -1,9 +1,8 @@
 class AppConstants {
   // API Configuration
   // For production deployment, use AdminEnvironmentConfig from '../config/environment_config.dart'
-  static const String baseUrl = 'http://57.159.31.172:5056/api/v1';
-  // Note: Updated to point to production server through nginx on port 80
-  // Nginx proxies /api/ requests to backend on port 8000
+  static const String baseUrl = 'http://57.159.31.172:8000/api/v1';
+  // Note: Production server API endpoint on port 8000
   static const String authEndpoint = '/auth';
   static const String driversEndpoint = '/drivers';
   static const String ridesEndpoint = '/rides';

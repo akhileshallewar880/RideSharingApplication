@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:qr_flutter/qr_flutter.dart';
-import 'package:audioplayers/audioplayers.dart';
+// TODO: Re-enable after fixing Android SDK 35 corruption issue
+// import 'package:audioplayers/audioplayers.dart';
 import 'package:allapalli_ride/app/themes/app_colors.dart';
 import 'package:allapalli_ride/app/themes/app_spacing.dart';
 import 'package:allapalli_ride/app/themes/text_styles.dart';
@@ -36,11 +37,13 @@ class RideDetailsScreen extends StatefulWidget {
 }
 
 class _RideDetailsScreenState extends State<RideDetailsScreen> {
-  final AudioPlayer _audioPlayer = AudioPlayer();
+  // TODO: Re-enable after fixing Android SDK 35 corruption issue
+  // final AudioPlayer _audioPlayer = AudioPlayer();
   
   @override
   void dispose() {
-    _audioPlayer.dispose();
+    // TODO: Re-enable after fixing Android SDK 35 corruption issue
+    // _audioPlayer.dispose();
     super.dispose();
   }
   
@@ -51,7 +54,8 @@ class _RideDetailsScreenState extends State<RideDetailsScreen> {
   
   Future<void> _playCancellationSound() async {
     try {
-      await _audioPlayer.play(AssetSource('sounds/ride_cancellation.mp3'));
+      // TODO: Re-enable after fixing Android SDK 35 corruption issue
+      // await _audioPlayer.play(AssetSource('sounds/ride_cancellation.mp3'));
     } catch (e) {
       print('Error playing cancellation sound: $e');
     }

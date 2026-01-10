@@ -63,7 +63,11 @@ class AdminAuthService {
   Future<bool> _refreshToken() async {
     try {
       final refreshToken = await _storage.read(key: AppConstants.refreshTokenKey);
-      if (refreshToken == null) return false;
+      if (refreshToken == null) {
+        // No refresh token available, clear everything and return false
+        await _clearTokens();
+        return false;
+      }
 
       final response = await _dio.post('/auth/refresh-token', data: {
         'refreshToken': refreshToken,
@@ -77,8 +81,21 @@ class AdminAuthService {
       }
     } catch (e) {
       print('Error refreshing token: $e');
+      // Token refresh failed (invalid/expired), clear tokens to force re-login
+      await _clearTokens();
     }
     return false;
+  }
+
+  Future<void> _clearTokens() async {
+    try {
+      await _storage.delete(key: AppConstants.tokenKey);
+      await _storage.delete(key: AppConstants.refreshTokenKey);
+      await _storage.delete(key: AppConstants.userDataKey);
+      print('🔐 Tokens cleared - user needs to re-login');
+    } catch (e) {
+      print('Error clearing tokens: $e');
+    }
   }
 
   Future<AdminUser> login(String email, String password) async {
@@ -189,9 +206,7 @@ class AdminAuthService {
     } catch (e) {
       print('Error during logout: $e');
     } finally {
-      await _storage.delete(key: AppConstants.tokenKey);
-      await _storage.delete(key: AppConstants.refreshTokenKey);
-      await _storage.delete(key: AppConstants.userDataKey);
+      await _clearTokens();
     }
   }
 
