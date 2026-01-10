@@ -134,7 +134,7 @@ class _PaymentCollectionPanelState extends State<PaymentCollectionPanel> {
   Widget _buildPassengerCard(PassengerInfo passenger, bool isCollected) {
     // Calculate fare - assuming totalFare is available from booking
     // For now, using pricePerSeat * passengerCount as placeholder
-    final fare = passenger.totalFare ?? 0.0;
+    final fare = passenger.totalFare;
     
     return Container(
       margin: const EdgeInsets.only(bottom: 12),

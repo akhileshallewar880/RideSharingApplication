@@ -4,7 +4,7 @@ import '../models/admin_location_models.dart';
 import '../services/location_service.dart';
 import '../core/services/google_places_service.dart';
 import '../core/models/place_autocomplete_result.dart';
-import '../core/models/place_details.dart';
+
 
 class LocationsManagementScreen extends StatefulWidget {
   const LocationsManagementScreen({Key? key}) : super(key: key);

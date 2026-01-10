@@ -76,16 +76,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         }
       }
     } catch (e) {
-      print('❌ Error getting phone hint: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Could not access phone numbers: $e'),
-            duration: const Duration(seconds: 3),
-            backgroundColor: AppColors.error,
-          ),
-        );
-      }
+      // Silent fail - common on tablets/devices without SIM
+      // Phone hint API may not be available on all devices
+      print('ℹ️ Phone hint not available (no SIM/not supported): $e');
+      // User can still manually enter phone number - no need to show error
     }
   }
   
