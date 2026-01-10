@@ -46,12 +46,15 @@ class _SplashScreenState extends ConsumerState<SplashScreen> with SingleTickerPr
     
     if (!mounted) return;
     
-    // Wait a bit more to ensure auth state is initialized
+    // Initialize auth state from storage (loads saved token/user info)
+    await ref.read(authNotifierProvider.notifier).initializeAuth();
+    
+    // Wait a bit more to ensure auth state is fully initialized
     await Future.delayed(const Duration(milliseconds: 100));
     
     if (!mounted) return;
     
-    // Get auth state from provider (this will be initialized by AuthNotifier constructor)
+    // Get auth state from provider (now initialized with stored data)
     final authState = ref.read(authNotifierProvider);
     
     print('🔍 Splash Screen - Auth State Check:');

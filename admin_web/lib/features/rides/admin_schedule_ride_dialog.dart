@@ -449,11 +449,12 @@ class _AdminScheduleRideDialogState extends ConsumerState<AdminScheduleRideDialo
             : null,
         intermediateStopLocations: _intermediateStops.isNotEmpty
             ? _intermediateStops
-                .where((stop) => stop != null && stop!.latitude != null && stop!.longitude != null)
+                .where((stop) => stop != null && stop.latitude != null && stop.longitude != null)
+                .cast<LocationSuggestion>() // Cast after null filtering
                 .map((stop) => {
-                      'address': stop!.fullAddress,
-                      'latitude': stop!.latitude,
-                      'longitude': stop!.longitude,
+                      'address': stop.fullAddress,
+                      'latitude': stop.latitude,
+                      'longitude': stop.longitude,
                     })
                 .toList()
             : null,

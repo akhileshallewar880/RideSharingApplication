@@ -136,6 +136,44 @@ class AuthNotifier extends StateNotifier<AuthState> {
 
   /// Verify Firebase phone authentication and sync with backend
   /// This is called after Firebase OTP verification is successful
+  /// Clear any error messages (useful after successful operations)
+  Future<void> clearError() async {
+    state = state.copyWith(errorMessage: null);
+  }
+
+  /// Initialize auth state from storage on app startup
+  Future<void> initializeAuth() async {
+    try {
+      print('🔄 Initializing auth state from storage...');
+      final isAuth = await _authService.isAuthenticated();
+      final userType = await _authService.getUserType();
+      final userId = await _authService.getUserId();
+      
+      if (isAuth && userType != null && userId != null) {
+        print('✅ Found saved auth: UserType=$userType, UserId=$userId');
+        state = state.copyWith(
+          isAuthenticated: true,
+          userType: userType,
+          userId: userId,
+        );
+      } else {
+        print('ℹ️ No saved auth found');
+        state = state.copyWith(
+          isAuthenticated: false,
+          userType: null,
+          userId: null,
+        );
+      }
+    } catch (e) {
+      print('⚠️ Error initializing auth: $e');
+      state = state.copyWith(
+        isAuthenticated: false,
+        userType: null,
+        userId: null,
+      );
+    }
+  }
+
   Future<VerifyOtpResponse?> verifyFirebasePhoneAuth(String firebaseIdToken, String phoneNumber) async {
     state = state.copyWith(isLoading: true, errorMessage: null);
     try {

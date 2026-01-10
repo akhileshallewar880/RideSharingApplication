@@ -35,6 +35,7 @@ class _OtpVerificationScreenState extends ConsumerState<OtpVerificationScreen> w
   int _resendTimer = 30;
   int _resendAttempts = 0;
   int _baseResendDelay = 30; // Base delay in seconds
+  bool _hasSimSupport = false; // Track if device supports SIM/SMS
   
   @override
   void initState() {
@@ -48,24 +49,35 @@ class _OtpVerificationScreenState extends ConsumerState<OtpVerificationScreen> w
     });
   }
   
-  /// Setup SMS auto-fetch for Android
+  /// Setup SMS auto-fetch for Android (only on devices with SIM)
   Future<void> _setupAutoOtpFetch() async {
     try {
-      // Listen for SMS
-      listenForCode();
-      
-      // Get app signature for SMS verification
+      // Try to get app signature to check if SMS is supported
       final signature = await SmsAutoFill().getAppSignature;
-      print('📱 SMS Auto-fetch initialized - Signature: $signature');
+      
+      if (signature.isNotEmpty) {
+        // Device supports SMS, enable auto-fill
+        _hasSimSupport = true;
+        listenForCode();
+        print('📱 SMS Auto-fetch initialized - Signature: $signature');
+        if (mounted) setState(() {}); // Update UI if needed
+      } else {
+        print('ℹ️ SMS not supported (no SIM card) - Manual OTP entry only');
+        _hasSimSupport = false;
+      }
     } catch (e) {
-      print('⚠️ SMS Auto-fetch setup failed: $e');
+      // Silent fail for no-SIM devices (common on tablets/WiFi-only devices)
+      print('ℹ️ SMS Auto-fetch not available: $e');
+      _hasSimSupport = false;
+      // Don't show error to user - manual OTP entry will work fine
     }
   }
   
   @override
   void codeUpdated() {
     // This is called when SMS is received and code is extracted
-    if (code != null && code!.length >= 6) {
+    // Only process if device has SIM support
+    if (_hasSimSupport && code != null && code!.length >= 6) {
       print('✅ Auto-fetched OTP: $code');
       
       // Take first 6 digits as Firebase expects 6-digit OTP
@@ -83,7 +95,9 @@ class _OtpVerificationScreenState extends ConsumerState<OtpVerificationScreen> w
   
   @override
   void dispose() {
-    cancel(); // Cancel SMS listener
+    if (_hasSimSupport) {
+      cancel(); // Cancel SMS listener only if it was initialized
+    }
     _otpController.dispose();
     _otpFocusNode.dispose();
     super.dispose();
@@ -214,54 +228,17 @@ class _OtpVerificationScreenState extends ConsumerState<OtpVerificationScreen> w
       print('🔐 OTP Verification Result: $result');
       print('🔐 Result is null: ${result == null}');
       
-      // Get current auth state
+      // Get current auth state (needed for fallback values)
       final authState = ref.read(authNotifierProvider);
       
-      print('🔐 Auth State - isAuthenticated: ${authState.isAuthenticated}');
-      print('🔐 Auth State - userType: ${authState.userType}');
-      print('🔐 Auth State - errorMessage: ${authState.errorMessage}');
-      
-      // Check for errors
-      if (authState.errorMessage != null) {
-        final errorMsg = authState.errorMessage!;
-        final isInvalidOtp = errorMsg.toLowerCase().contains('invalid') || 
-                            errorMsg.toLowerCase().contains('wrong') || 
-                            errorMsg.toLowerCase().contains('expired');
-        
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Row(
-              children: [
-                Icon(
-                  isInvalidOtp ? Icons.error_outline : Icons.warning_amber_rounded,
-                  color: Colors.white,
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    isInvalidOtp 
-                        ? 'Invalid or expired OTP. Please try again.' 
-                        : errorMsg,
-                  ),
-                ),
-              ],
-            ),
-            backgroundColor: AppColors.error,
-            duration: const Duration(seconds: 4),
-            action: SnackBarAction(
-              label: 'Dismiss',
-              textColor: Colors.white,
-              onPressed: () {
-                ScaffoldMessenger.of(context).hideCurrentSnackBar();
-              },
-            ),
-          ),
-        );
-        return;
-      }
-      
+      // Check for success FIRST before checking error messages
       if (result != null) {
+        // Success! Clear any stale error messages in state
+        print('✅ OTP verification successful!');
         print('🔐 Result is NOT null - isNewUser: ${result.isNewUser}');
+        
+        // CRITICAL: Clear error message in state to prevent it from showing
+        await ref.read(authNotifierProvider.notifier).clearError();
         
         if (result.isNewUser) {
           // New user - navigate to registration with temp token stored
@@ -340,9 +317,46 @@ class _OtpVerificationScreenState extends ConsumerState<OtpVerificationScreen> w
           }
         }
       } else {
-        print('🔐 ERROR: Result is NULL but no error message!');
-        // If result is null and no error message, something went wrong
-        if (authState.errorMessage == null) {
+        // Only show error if result is null (authentication failed)
+        print('🔐 ERROR: Result is NULL - Authentication failed');
+        
+        if (authState.errorMessage != null) {
+          final errorMsg = authState.errorMessage!;
+          final isInvalidOtp = errorMsg.toLowerCase().contains('invalid') || 
+                              errorMsg.toLowerCase().contains('wrong') || 
+                              errorMsg.toLowerCase().contains('expired');
+          
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  Icon(
+                    isInvalidOtp ? Icons.error_outline : Icons.warning_amber_rounded,
+                    color: Colors.white,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      isInvalidOtp 
+                          ? 'Invalid or expired OTP. Please try again.' 
+                          : errorMsg,
+                    ),
+                  ),
+                ],
+              ),
+              backgroundColor: AppColors.error,
+              duration: const Duration(seconds: 4),
+              action: SnackBarAction(
+                label: 'Dismiss',
+                textColor: Colors.white,
+                onPressed: () {
+                  ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                },
+              ),
+            ),
+          );
+        } else {
+          // No error message but result is null
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text('Verification failed. Please try again.'),
@@ -553,7 +567,7 @@ class _OtpVerificationScreenState extends ConsumerState<OtpVerificationScreen> w
                 keyboardType: TextInputType.number,
                 animationType: AnimationType.fade,
                 autoFocus: true,
-                enablePinAutofill: true,
+                enablePinAutofill: _hasSimSupport, // Only enable on devices with SIM
                 useExternalAutoFillGroup: false,
                 autoDismissKeyboard: false,
                 pinTheme: PinTheme(
