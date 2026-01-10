@@ -123,8 +123,19 @@ class LocationService {
       );
       
       if (response.statusCode == 200 && response.data != null) {
-        final List<dynamic> data = response.data as List<dynamic>;
-        return data.map((json) => LocationSuggestion.fromJson(json)).toList();
+        final responseData = response.data;
+        // Handle wrapped API response format
+        if (responseData is Map<String, dynamic> && 
+            responseData['success'] == true && 
+            responseData['data'] != null &&
+            responseData['data']['locations'] != null) {
+          final List<dynamic> locations = responseData['data']['locations'] as List<dynamic>;
+          return locations.map((json) => LocationSuggestion.fromJson(json)).toList();
+        }
+        // Handle direct array response (backward compatibility)
+        else if (responseData is List) {
+          return responseData.map((json) => LocationSuggestion.fromJson(json)).toList();
+        }
       }
       
       return [];
@@ -133,7 +144,7 @@ class LocationService {
       return [];
     }
   }
-  
+
   /// Search locations using API
   /// Returns a list of location suggestions matching the query
   Future<List<LocationSuggestion>> searchLocations(String query) async {
@@ -147,8 +158,19 @@ class LocationService {
       );
       
       if (response.statusCode == 200 && response.data != null) {
-        final List<dynamic> data = response.data as List<dynamic>;
-        return data.map((json) => LocationSuggestion.fromJson(json)).toList();
+        final responseData = response.data;
+        // Handle wrapped API response format
+        if (responseData is Map<String, dynamic> && 
+            responseData['success'] == true && 
+            responseData['data'] != null &&
+            responseData['data']['locations'] != null) {
+          final List<dynamic> locations = responseData['data']['locations'] as List<dynamic>;
+          return locations.map((json) => LocationSuggestion.fromJson(json)).toList();
+        }
+        // Handle direct array response (backward compatibility)
+        else if (responseData is List) {
+          return responseData.map((json) => LocationSuggestion.fromJson(json)).toList();
+        }
       }
       
       return [];

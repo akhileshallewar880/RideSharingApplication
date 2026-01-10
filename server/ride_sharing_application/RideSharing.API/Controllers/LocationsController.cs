@@ -160,7 +160,7 @@ namespace RideSharing.API.Controllers
         /// <param name="limit">Maximum number of popular locations to return (default: 20)</param>
         /// <returns>List of popular locations</returns>
         [HttpGet("popular")]
-        public ActionResult<List<LocationSuggestionDto>> GetPopularLocations([FromQuery] int limit = 20)
+        public ActionResult<ApiResponseDto<LocationSearchResponseDto>> GetPopularLocations([FromQuery] int limit = 20)
         {
             try
             {
@@ -173,12 +173,27 @@ namespace RideSharing.API.Controllers
                 
                 var locations = _locationService.GetPopularLocations(limit);
 
-                return Ok(locations);
+                return Ok(new ApiResponseDto<LocationSearchResponseDto>
+                {
+                    Success = true,
+                    Message = $"Retrieved {locations.Count} popular location(s)",
+                    Data = new LocationSearchResponseDto
+                    {
+                        Locations = locations
+                    },
+                    Error = null
+                });
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error retrieving popular locations");
-                return StatusCode(500, new { message = "An error occurred while retrieving popular locations" });
+                return StatusCode(500, new ApiResponseDto<LocationSearchResponseDto>
+                {
+                    Success = false,
+                    Message = "An error occurred while retrieving popular locations",
+                    Data = null,
+                    Error = new ErrorDto { Code = "SERVER_ERROR", Message = "An error occurred while retrieving popular locations" }
+                });
             }
         }
         

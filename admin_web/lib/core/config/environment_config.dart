@@ -8,13 +8,13 @@ enum AdminEnvironment {
 
 class AdminEnvironmentConfig {
   // Current environment - change this based on build configuration
-  static const AdminEnvironment currentEnvironment = AdminEnvironment.development;
+  static const AdminEnvironment currentEnvironment = AdminEnvironment.production;
 
   // API Base URLs
   static const Map<AdminEnvironment, String> _apiBaseUrls = {
     AdminEnvironment.development: 'http://192.168.88.14:5056', // Local Server API
     AdminEnvironment.staging: 'https://staging-api.vanyatra.com',
-    AdminEnvironment.production: 'https://api.vanyatra.com',
+    AdminEnvironment.production: 'http://57.159.31.172:8000', // Production Server
   };
 
   // API Version
