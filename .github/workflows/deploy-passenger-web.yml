@@ -9,6 +9,10 @@ on:
       - '.github/workflows/deploy-passenger-web.yml'
   workflow_dispatch:
 
+concurrency:
+  group: passenger-web-deploy-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest

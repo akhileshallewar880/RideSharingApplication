@@ -9,6 +9,10 @@ on:
       - '.github/workflows/deploy-to-azure-vm.yml'
   workflow_dispatch:
 
+concurrency:
+  group: backend-deploy-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest

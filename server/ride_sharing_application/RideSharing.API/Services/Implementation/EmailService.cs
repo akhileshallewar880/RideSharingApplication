@@ -70,7 +70,8 @@ namespace RideSharing.API.Services.Implementation
             {
                 // Get SMTP settings from configuration
                 var smtpHost = _configuration["Email:SmtpHost"];
-                var smtpPort = int.Parse(_configuration["Email:SmtpPort"] ?? "587");
+                var smtpPortString = _configuration["Email:SmtpPort"];
+                var smtpPort = !string.IsNullOrEmpty(smtpPortString) ? int.Parse(smtpPortString) : 587;
                 var smtpUsername = _configuration["Email:Username"];
                 var smtpPassword = _configuration["Email:Password"];
                 var fromEmail = _configuration["Email:FromEmail"] ?? smtpUsername;
