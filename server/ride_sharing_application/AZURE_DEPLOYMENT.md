@@ -16,15 +16,23 @@ This guide covers deploying the Vanyatra Ride Sharing .NET API to Azure App Serv
 
 ## Configuration Steps
 
-### 1. Configure App Service Connection String
+### 1. Configure App Service Connection Strings
 
 In Azure Portal:
 1. Go to **App Service** → vayatra-app-service
 2. Navigate to **Configuration** → **Connection strings**
-3. Add a new connection string:
-   - **Name**: `DefaultConnection`
+3. Add two connection strings:
+
+   **Connection String 1:**
+   - **Name**: `RideSharingConnectionString`
    - **Value**: `Server=tcp:vayatra-server.database.windows.net,1433;Initial Catalog=vanyatra-server-db;Persist Security Info=False;User ID=vanyatraadminlogin;Password={your_password};MultipleActiveResultSets=False;Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;`
    - **Type**: SQLAzure
+
+   **Connection String 2:**
+   - **Name**: `RideSharingAuthConnectionString`
+   - **Value**: `Server=tcp:vayatra-server.database.windows.net,1433;Initial Catalog=vanyatra-server-db;Persist Security Info=False;User ID=vanyatraadminlogin;Password={your_password};MultipleActiveResultSets=False;Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;`
+   - **Type**: SQLAzure
+
 4. Click **Save**
 
 ### 2. Configure App Service Settings
@@ -34,10 +42,13 @@ Add the following Application Settings in Azure Portal:
 2. Add these settings:
    ```
    ASPNETCORE_ENVIRONMENT = Production
-   JWT_SECRET = {your-jwt-secret-key}
-   JWT_ISSUER = https://vayatra-app-service.azurewebsites.net
-   JWT_AUDIENCE = https://vayatra-app-service.azurewebsites.net
+   JwtSettings__secretKey = {your-secure-jwt-secret-key-min-32-chars}
+   JwtSettings__validIssuer = https://vayatra-app-service.azurewebsites.net
+   JwtSettings__validAudience = https://vayatra-app-service.azurewebsites.net
    ```
+3. Click **Save**
+
+**Important:** Use double underscores (`__`) for nested configuration in Azure App Settings.
 
 ### 3. Configure CORS (if needed)
 
@@ -94,10 +105,11 @@ dotnet ef database update --project RideSharing.API
 **Note**: Ensure your local connection string points to Azure SQL Database when running migrations.
 
 ## Environment Variables Reference
-
-| Variable | Description | Location |
-|----------|-------------|----------|
-| `DefaultConnection` | Azure SQL connection string | Connection Strings |
+RideSharingConnectionString` | Azure SQL connection string for main database | Connection Strings |
+| `RideSharingAuthConnectionString` | Azure SQL connection string for auth database | Connection Strings |
+| `JwtSettings__secretKey` | Secret key for JWT token generation (min 32 chars) | Application Settings |
+| `JwtSettings__validIssuer` | Token issuer URL | Application Settings |
+| `JwtSettings__validAudiencection` | Azure SQL connection string | Connection Strings |
 | `JWT_SECRET` | Secret key for JWT token generation | Application Settings |
 | `JWT_ISSUER` | Token issuer URL | Application Settings |
 | `JWT_AUDIENCE` | Token audience URL | Application Settings |
