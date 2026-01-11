@@ -25,7 +25,7 @@ try
     }
     else
     {
-        Console.WriteLine("⚠️ Warning: firebase-service-account.json not found. Firebase phone auth will not work.");
+        Console.WriteLine("⚠️ Warning: firebase-service-account.json not found. Firebase phone auth will not work properly.");
     }
 }
 catch (Exception ex)
