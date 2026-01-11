@@ -1,13 +1,15 @@
-name: Build and Deploy to Azure VM
+name: Build and Deploy to Azure VM (DISABLED - Using App Service)
 
+# This workflow is disabled. Using azure-deploy.yml for App Service deployment instead.
+# To re-enable, uncomment the 'on' section below
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - 'server/**'
-      - '.github/workflows/deploy-to-azure-vm.yml'
-  workflow_dispatch:
+  workflow_dispatch: # Manual trigger only
+  # push:
+  #   branches:
+  #     - main
+  #   paths:
+  #     - 'server/**'
+  #     - '.github/workflows/deploy-to-azure-vm.yml'
 
 concurrency:
   group: backend-deploy-${{ github.ref }}
