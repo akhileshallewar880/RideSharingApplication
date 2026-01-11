@@ -6,7 +6,13 @@ on:
       - main
     paths:
       - 'server/ride_sharing_application/**'
+      - '.github/workflows/azure-deploy.yml'
   workflow_dispatch:
+
+# Prevent multiple concurrent deployments
+concurrency:
+  group: api-deploy-${{ github.ref }}
+  cancel-in-progress: true
 
 env:
   AZURE_WEBAPP_NAME: vayatra-app-service
