@@ -5,8 +5,10 @@ on:
     branches:
       - main
     paths:
-      - 'server/ride_sharing_application/**'
-      - '.github/workflows/azure-deploy.yml'
+      - 'server/ride_sharing_application/RideSharing.API/**'
+      - 'server/ride_sharing_application/RideSharing.Infrastructure/**'
+      - 'server/ride_sharing_application/*.sln'
+      - 'server/ride_sharing_application/Dockerfile'
   workflow_dispatch:
 
 # Prevent multiple concurrent deployments
