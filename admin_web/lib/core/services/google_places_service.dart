@@ -2,14 +2,14 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../models/place_autocomplete_result.dart';
 import '../models/place_details.dart';
-import '../config/environment_config.dart';
+import '../constants/app_constants.dart';
 import 'admin_auth_service.dart';
 
 /// Service for Google Places API integration (via backend proxy)
 class GooglePlacesService {
   final AdminAuthService _authService = AdminAuthService();
   
-  static String get baseUrl => '${AdminEnvironmentConfig.apiBaseUrl}/googleplaces';
+  static String get baseUrl => '${AppConstants.baseUrl}/googleplaces';
 
   Future<Map<String, String>> _getHeaders() async {
     final token = await _authService.getToken();

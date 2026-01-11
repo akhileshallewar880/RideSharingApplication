@@ -3,10 +3,10 @@ import 'dart:html' as html;
 import 'package:http/http.dart' as http;
 import '../models/banner_models.dart';
 import '../core/services/admin_auth_service.dart';
-import '../core/config/environment_config.dart';
+import '../core/constants/app_constants.dart';
 
 class AdminBannerService {
-  static String get baseUrl => AdminEnvironmentConfig.bannersUrl;
+  static String get baseUrl => '${AppConstants.baseUrl}/admin/banners';
   final AdminAuthService _authService = AdminAuthService();
 
   Future<Map<String, String>> _getHeaders() async {

@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../models/banner_models.dart' as banner_models;
 import '../services/admin_banner_service.dart';
-import '../core/config/environment_config.dart';
+import '../core/constants/app_constants.dart';
 
 class BannerFormDialog extends StatefulWidget {
   final banner_models.Banner? banner;
@@ -366,7 +366,7 @@ class _BannerFormDialogState extends State<BannerFormDialog> {
                             borderRadius: BorderRadius.circular(8),
                             image: DecorationImage(
                               image: NetworkImage(
-                                AdminEnvironmentConfig.getImageUrl(_imageUrlController.text),
+                                AppConstants.getImageUrl(_imageUrlController.text),
                               ),
                               fit: BoxFit.cover,
                             ),

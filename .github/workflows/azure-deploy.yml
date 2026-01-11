@@ -1,0 +1,51 @@
+name: Deploy .NET API to Azure App Service
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'server/ride_sharing_application/**'
+  workflow_dispatch:
+
+env:
+  AZURE_WEBAPP_NAME: vayatra-app-service
+  AZURE_WEBAPP_PACKAGE_PATH: './server/ride_sharing_application/RideSharing.API'
+  DOTNET_VERSION: '8.0.x'
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Restore dependencies
+        run: dotnet restore
+        working-directory: ./server/ride_sharing_application
+
+      - name: Build
+        run: dotnet build --configuration Release --no-restore
+        working-directory: ./server/ride_sharing_application
+
+      - name: Publish
+        run: dotnet publish -c Release -o ${{env.DOTNET_ROOT}}/myapp
+        working-directory: ${{ env.AZURE_WEBAPP_PACKAGE_PATH }}
+
+      - name: Deploy to Azure Web App
+        uses: azure/webapps-deploy@v2
+        with:
+          app-name: ${{ env.AZURE_WEBAPP_NAME }}
+          publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
+          package: ${{env.DOTNET_ROOT}}/myapp
+
+      - name: Run Database Migrations (if needed)
+        run: |
+          echo "Database migrations should be run manually or via separate job"
+          echo "Connection string should be configured in Azure App Service Configuration"

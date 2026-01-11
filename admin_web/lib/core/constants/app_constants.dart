@@ -1,8 +1,8 @@
 class AppConstants {
   // API Configuration
   // For production deployment, use AdminEnvironmentConfig from '../config/environment_config.dart'
-  static const String baseUrl = 'http://57.159.31.172:8000/api/v1';
-  // Note: Production server API endpoint on port 8000
+  static const String baseUrl = 'http://localhost:5056/api/v1';
+  // Note: Development server API endpoint on localhost:5056
   static const String authEndpoint = '/auth';
   static const String driversEndpoint = '/drivers';
   static const String ridesEndpoint = '/rides';
@@ -76,4 +76,11 @@ class AppConstants {
     '#00bcd4',
     '#ff9800',
   ];
+  
+  // Image URL helper
+  static String getImageUrl(String imagePath) {
+    // Extract base URL without /api/v1
+    final baseServerUrl = baseUrl.replaceAll('/api/v1', '');
+    return '$baseServerUrl$imagePath';
+  }
 }
