@@ -1,9 +1,13 @@
 name: Azure Static Web Apps CI/CD
 
 on:
-  push:
-    branches:
-      - main
+  # Disabled - configure paths or add missing secret to re-enable
+  workflow_dispatch: # Manual trigger only
+  # push:
+  #   branches:
+  #     - main
+  #   paths:
+  #     - 'admin_web/**'  # Uncomment and specify correct path
   pull_request:
     types: [opened, synchronize, reopened, closed]
     branches:
