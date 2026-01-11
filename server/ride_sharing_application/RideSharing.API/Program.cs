@@ -227,31 +227,59 @@ _ = Task.Run(async () =>
             var authDb = scope.ServiceProvider.GetRequiredService<RideSharingAuthDbContext>();
             var appDb = scope.ServiceProvider.GetRequiredService<RideSharingDbContext>();
             
-            // Ensure database exists
+            // Create auth database tables if they don't exist
             await authDb.Database.EnsureCreatedAsync();
             logger.LogInformation("Auth database schema created/verified");
             
-            // Force creation of all tables from the app DbContext
-            // This works even if some tables already exist
+            // For application database, generate and execute CREATE TABLE scripts individually
+            // This handles the case where some tables already exist
             var appDbConnection = appDb.Database.GetDbConnection();
             await appDbConnection.OpenAsync();
             
-            // Generate and execute CREATE TABLE scripts for all entities
-            var createScript = appDb.Database.GenerateCreateScript();
-            logger.LogInformation("Executing application database schema creation script");
-            
-            using var command = appDbConnection.CreateCommand();
-            command.CommandText = createScript;
-            
             try
             {
-                await command.ExecuteNonQueryAsync();
-                logger.LogInformation("Application database schema created/verified successfully");
+                // Generate the full script
+                var createScript = appDb.Database.GenerateCreateScript();
+                logger.LogInformation("Generated application database creation script ({0} characters)", createScript.Length);
+                
+                // Split by GO statements and execute each batch separately
+                var batches = createScript.Split(new[] { "\r\nGO\r\n", "\nGO\n", "\r\nGO", "\nGO" }, StringSplitOptions.RemoveEmptyEntries);
+                logger.LogInformation("Executing {0} SQL batches", batches.Length);
+                
+                int successCount = 0;
+                int skipCount = 0;
+                
+                foreach (var batch in batches)
+                {
+                    if (string.IsNullOrWhiteSpace(batch)) continue;
+                    
+                    try
+                    {
+                        using var command = appDbConnection.CreateCommand();
+                        command.CommandText = batch;
+                        await command.ExecuteNonQueryAsync();
+                        successCount++;
+                    }
+                    catch (Exception batchEx)
+                    {
+                        // Skip if table/object already exists
+                        if (batchEx.Message.Contains("already an object") || 
+                            batchEx.Message.Contains("already exists"))
+                        {
+                            skipCount++;
+                        }
+                        else
+                        {
+                            logger.LogWarning("SQL batch execution warning: {Message}", batchEx.Message);
+                        }
+                    }
+                }
+                
+                logger.LogInformation("Application database schema creation completed: {0} created, {1} skipped", successCount, skipCount);
             }
             catch (Exception scriptEx)
             {
-                // Tables might already exist, which is fine
-                logger.LogWarning(scriptEx, "Some tables may already exist: {Message}", scriptEx.Message);
+                logger.LogError(scriptEx, "Error during application database schema creation: {Message}", scriptEx.Message);
             }
             finally
             {
@@ -262,7 +290,6 @@ _ = Task.Run(async () =>
         {
             var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
             logger.LogError(ex, "Database schema creation failed: {Message}", ex.Message);
-            throw;
         }
     }
 });
