@@ -1,5 +1,5 @@
 import 'package:dio/dio.dart';
-import '../config/environment_config.dart';
+import '../constants/app_constants.dart';
 
 class AdminDriverService {
   final Dio _dio;
@@ -9,7 +9,7 @@ class AdminDriverService {
     required Dio dio,
     String? baseUrl,
   })  : _dio = dio,
-        baseUrl = baseUrl ?? AdminEnvironmentConfig.driversUrl;
+        baseUrl = baseUrl ?? AppConstants.baseUrl;
 
   /// Register a new driver
   /// POST /api/v1/AdminDriver/register

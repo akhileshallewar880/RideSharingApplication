@@ -1,6 +1,6 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
-import '../config/environment_config.dart';
+import '../constants/app_constants.dart';
 import 'admin_auth_service.dart';
 import '../models/location_suggestion.dart';
 
@@ -41,7 +41,7 @@ class GoogleMapsService {
         'longitude': dropoffLocation.longitude,
       });
 
-      final uri = Uri.parse('${AdminEnvironmentConfig.apiBaseUrl}/admin/rides/calculate-route');
+      final uri = Uri.parse('${AppConstants.baseUrl}/admin/rides/calculate-route');
       
       final token = await _authService.getToken();
       if (token == null) {

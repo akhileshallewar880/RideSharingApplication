@@ -1,13 +1,13 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../models/location_suggestion.dart';
-import '../config/environment_config.dart';
+import '../constants/app_constants.dart';
 import 'admin_auth_service.dart';
 
 /// Service for location search and autocomplete (fetches from backend API)
 class AdminLocationService {
   final AdminAuthService _authService = AdminAuthService();
-  static String get baseUrl => '${AdminEnvironmentConfig.apiBaseUrl}/locations';
+  static String get baseUrl => '${AppConstants.baseUrl}/locations';
 
   Future<Map<String, String>> _getHeaders() async {
     final token = await _authService.getToken();

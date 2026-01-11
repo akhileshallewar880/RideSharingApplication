@@ -3,7 +3,7 @@ import 'package:intl/intl.dart';
 import '../models/banner_models.dart' as banner_models;
 import '../services/admin_banner_service.dart';
 import '../widgets/banner_form_dialog.dart';
-import '../core/config/environment_config.dart';
+import '../core/constants/app_constants.dart';
 
 class BannerManagementScreen extends StatefulWidget {
   const BannerManagementScreen({Key? key}) : super(key: key);
@@ -422,7 +422,7 @@ class _BannerCard extends StatelessWidget {
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(8),
                   image: DecorationImage(
-                    image: NetworkImage(AdminEnvironmentConfig.getImageUrl(banner.imageUrl!)),
+                    image: NetworkImage(AppConstants.getImageUrl(banner.imageUrl!)),
                     fit: BoxFit.cover,
                   ),
                 ),

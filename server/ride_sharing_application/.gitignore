@@ -18,7 +18,16 @@ appsettings.*.json
 firebase-adminsdk*.json
 google-services.json
 GoogleService-Info.plist
+*.env
+.env.*
+!.env.example
 
+# Azure specific
+*.PublishSettings
+*.pubxml
+*.publishproj
+*.azurePubxml
+/Properties/PublishProfiles/
 
 # Build results
 [Dd]ebug/
@@ -52,7 +61,10 @@ ScaffoldingReadMe.txt
 # Others
 ~$*
 *~
+*.DS_Store
 CodeCoverage/
+api.log
+*.log
 
 # MSBuild Binary and Structured Log
 *.binlog
@@ -66,6 +78,13 @@ CodeCoverage/
 TestResult.xml
 nunit-*.xml
 .fake
+
 # Firebase Service Account Key (sensitive)
 serviceAccountKey.json
 **/serviceAccountKey.json
+
+# Temporary SQL and script files
+*.sql
+setup-*.sh
+GenerateHash.*
+GeneratePasswordHash.cs

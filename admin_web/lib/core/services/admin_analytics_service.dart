@@ -26,7 +26,7 @@ class AdminAnalyticsService {
       }
 
       final response = await _dio.get(
-        '/admin/analytics/dashboard',
+        '/AdminAnalytics/dashboard',
         queryParameters: queryParams.isNotEmpty ? queryParams : null,
       );
 

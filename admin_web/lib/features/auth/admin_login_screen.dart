@@ -12,8 +12,8 @@ class AdminLoginScreen extends ConsumerStatefulWidget {
 
 class _AdminLoginScreenState extends ConsumerState<AdminLoginScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _emailController = TextEditingController(text: 'akhileshallewar880@gmail.com');
-  final _passwordController = TextEditingController(text: 'Akhilesh@22');
+  final _emailController = TextEditingController(text: 'admin@vanyatra.com');
+  final _passwordController = TextEditingController(text: 'Admin@123');
   bool _obscurePassword = true;
 
   @override
