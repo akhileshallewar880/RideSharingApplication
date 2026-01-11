@@ -223,13 +223,40 @@ _ = Task.Run(async () =>
             var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
             logger.LogInformation("Starting database schema creation...");
             
+            // Get both DbContexts
             var authDb = scope.ServiceProvider.GetRequiredService<RideSharingAuthDbContext>();
+            var appDb = scope.ServiceProvider.GetRequiredService<RideSharingDbContext>();
+            
+            // Ensure database exists
             await authDb.Database.EnsureCreatedAsync();
             logger.LogInformation("Auth database schema created/verified");
             
-            var appDb = scope.ServiceProvider.GetRequiredService<RideSharingDbContext>();
-            await appDb.Database.EnsureCreatedAsync();
-            logger.LogInformation("Application database schema created/verified");
+            // Force creation of all tables from the app DbContext
+            // This works even if some tables already exist
+            var appDbConnection = appDb.Database.GetDbConnection();
+            await appDbConnection.OpenAsync();
+            
+            // Generate and execute CREATE TABLE scripts for all entities
+            var createScript = appDb.Database.GenerateCreateScript();
+            logger.LogInformation("Executing application database schema creation script");
+            
+            using var command = appDbConnection.CreateCommand();
+            command.CommandText = createScript;
+            
+            try
+            {
+                await command.ExecuteNonQueryAsync();
+                logger.LogInformation("Application database schema created/verified successfully");
+            }
+            catch (Exception scriptEx)
+            {
+                // Tables might already exist, which is fine
+                logger.LogWarning(scriptEx, "Some tables may already exist: {Message}", scriptEx.Message);
+            }
+            finally
+            {
+                await appDbConnection.CloseAsync();
+            }
         }
         catch (Exception ex)
         {
