@@ -212,9 +212,7 @@ app.UseSwaggerUI(options =>
     options.RoutePrefix = "swagger"; // Access at /swagger
 });
 
-// Automatic migrations disabled - database schema is managed manually via SQL scripts
-// The database already has all necessary tables and the __EFMigrationsHistory is pre-populated
-// Run automatic database migrations on startup
+// Run automatic database schema creation on startup
 _ = Task.Run(async () =>
 {
     await Task.Delay(2000);
@@ -223,23 +221,21 @@ _ = Task.Run(async () =>
         try
         {
             var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
-            logger.LogInformation("Starting automatic database migrations...");
+            logger.LogInformation("Starting database schema creation...");
             
             var authDb = scope.ServiceProvider.GetRequiredService<RideSharingAuthDbContext>();
-            // Skip migrations - database is already up to date
-            // await authDb.Database.MigrateAsync();
-            logger.LogInformation("Auth database migration skipped (already up to date)");
+            await authDb.Database.EnsureCreatedAsync();
+            logger.LogInformation("Auth database schema created/verified");
             
             var appDb = scope.ServiceProvider.GetRequiredService<RideSharingDbContext>();
-            // Skip migrations - database is already up to date
-            // await appDb.Database.MigrateAsync();
-            logger.LogInformation("Application database migration skipped (already up to date)");
+            await appDb.Database.EnsureCreatedAsync();
+            logger.LogInformation("Application database schema created/verified");
         }
         catch (Exception ex)
         {
             var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
-            logger.LogError(ex, "Database migration failed");
-            // Continue anyway - database might already be up to date
+            logger.LogError(ex, "Database schema creation failed: {Message}", ex.Message);
+            throw;
         }
     }
 });
