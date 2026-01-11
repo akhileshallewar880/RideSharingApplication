@@ -80,8 +80,8 @@ nunit-*.xml
 .fake
 
 # Firebase Service Account Key (sensitive)
-serviceAccountKey.json
-**/serviceAccountKey.json
+# serviceAccountKey.json
+# **/serviceAccountKey.json
 
 # Temporary SQL and script files
 *.sql
