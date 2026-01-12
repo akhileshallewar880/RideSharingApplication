@@ -49,16 +49,15 @@ builder.Services.AddControllers()
         options.JsonSerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
     });
 
-// Add CORS - Allow all origins for development
+// Add CORS - Allow all origins for development and production
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowAll", policy =>
     {
-        policy.AllowAnyOrigin()  // Allow all origins for development
+        policy.SetIsOriginAllowed(origin => true) // Allow all origins dynamically
               .AllowAnyMethod()
-              .AllowAnyHeader();
-        // Note: AllowCredentials() cannot be used with AllowAnyOrigin()
-        // If you need credentials, specify exact origins instead
+              .AllowAnyHeader()
+              .AllowCredentials(); // Allow credentials (cookies, auth headers)
     });
 });
 
