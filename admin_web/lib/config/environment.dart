@@ -1,7 +1,7 @@
 class Environment {
   static const String apiBaseUrl = String.fromEnvironment(
     'API_BASE_URL',
-    defaultValue: 'http://57.159.31.172:8000',
+    defaultValue: 'vayatra-app-service-baczabgbcbczg2b4.centralindia-01.azurewebsites.net',
   );
   
   static const bool isProduction = bool.fromEnvironment(

@@ -12,9 +12,9 @@ class AdminEnvironmentConfig {
 
   // API Base URLs
   static const Map<AdminEnvironment, String> _apiBaseUrls = {
-    AdminEnvironment.development: 'http://192.168.88.14:5056', // Local Server API
-    AdminEnvironment.staging: 'https://staging-api.vanyatra.com',
-    AdminEnvironment.production: 'http://57.159.31.172:8000', // Production Server
+    AdminEnvironment.development: 'https://vayatra-app-service-baczabgbcbczg2b4.centralindia-01.azurewebsites.net', // Local Server API
+    AdminEnvironment.staging: 'https://vayatra-app-service-baczabgbcbczg2b4.centralindia-01.azurewebsites.net',
+    AdminEnvironment.production: 'https://vayatra-app-service-baczabgbcbczg2b4.centralindia-01.azurewebsites.net', // Production Server
   };
 
   // API Version
