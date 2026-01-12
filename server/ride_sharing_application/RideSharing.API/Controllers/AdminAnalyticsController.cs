@@ -5,7 +5,7 @@ using RideSharing.API.Data;
 
 namespace RideSharing.API.Controllers
 {
-    [Route("api/v1/[controller]")]
+    [Route("api/v1/admin/analytics")]
     [ApiController]
     [Authorize(Roles = "admin,super_admin")] // Requires admin or super_admin role
     public class AdminAnalyticsController : ControllerBase
