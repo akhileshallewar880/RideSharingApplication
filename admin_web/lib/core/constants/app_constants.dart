@@ -7,7 +7,7 @@ class AppConstants {
   static const String driversEndpoint = '/drivers';
   static const String ridesEndpoint = '/rides';
   static const String usersEndpoint = '/users';
-  static const String analyticsEndpoint = '/analytics';
+  static const String analyticsEndpoint = '/admin/analytics';
   static const String vehiclesEndpoint = '/vehicles';
   
   // Storage Keys
