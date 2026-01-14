@@ -254,12 +254,10 @@ namespace RideSharing.API.Migrations
                         .HasColumnType("bit");
 
                     b.Property<float?>("Latitude")
-                        .HasPrecision(10, 8)
-                        .HasColumnType("real(10)");
+                        .HasColumnType("real");
 
                     b.Property<float?>("Longitude")
-                        .HasPrecision(11, 8)
-                        .HasColumnType("real(11)");
+                        .HasColumnType("real");
 
                     b.Property<string>("Name")
                         .IsRequired()
@@ -1316,6 +1314,23 @@ namespace RideSharing.API.Migrations
                     b.HasIndex("UserType");
 
                     b.ToTable("Users");
+
+                    b.HasData(
+                        new
+                        {
+                            Id = new Guid("00000000-0000-0000-0000-000000000001"),
+                            CountryCode = "+91",
+                            CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Email = "superadmin@vanyatra.com",
+                            IsActive = true,
+                            IsBlocked = false,
+                            IsEmailVerified = true,
+                            IsPhoneVerified = true,
+                            PasswordHash = "$2a$11$8EqlfOKhbJJZz4LW8YhKie9qf3xGZL.YvJFKhO8FjGgYxV7pXZ6ey",
+                            PhoneNumber = "+919999999999",
+                            UpdatedAt = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            UserType = "admin"
+                        });
                 });
 
             modelBuilder.Entity("RideSharing.API.Models.Domain.UserProfile", b =>
@@ -1364,7 +1379,8 @@ namespace RideSharing.API.Migrations
                         .HasColumnType("nvarchar(500)");
 
                     b.Property<decimal>("Rating")
-                        .HasColumnType("decimal(18,2)");
+                        .HasPrecision(3, 2)
+                        .HasColumnType("decimal(3,2)");
 
                     b.Property<string>("State")
                         .HasMaxLength(100)
@@ -1385,6 +1401,18 @@ namespace RideSharing.API.Migrations
                         .IsUnique();
 
                     b.ToTable("UserProfiles");
+
+                    b.HasData(
+                        new
+                        {
+                            Id = new Guid("00000000-0000-0000-0000-000000000002"),
+                            CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Name = "Super Admin",
+                            Rating = 5.0m,
+                            TotalRides = 0,
+                            UpdatedAt = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            UserId = new Guid("00000000-0000-0000-0000-000000000001")
+                        });
                 });
 
             modelBuilder.Entity("RideSharing.API.Models.Domain.Vehicle", b =>

@@ -60,6 +60,7 @@ namespace RideSharing.API.Data
                     .WithOne(u => u.Profile)
                     .HasForeignKey<Models.Domain.UserProfile>(e => e.UserId)
                     .OnDelete(DeleteBehavior.Cascade);
+                entity.Property(e => e.Rating).HasPrecision(3, 2); // Rating: 0.00 to 5.00
             });
 
             // Driver Configuration
@@ -265,8 +266,7 @@ namespace RideSharing.API.Data
                 entity.HasIndex(e => e.State);
                 entity.HasIndex(e => e.District);
                 entity.HasIndex(e => e.IsActive);
-                entity.Property(e => e.Latitude).HasPrecision(10, 8);
-                entity.Property(e => e.Longitude).HasPrecision(11, 8);
+                // Note: Latitude/Longitude are float? type, no precision needed
                 entity.Property(e => e.CreatedAt).HasDefaultValueSql("GETUTCDATE()");
                 entity.Property(e => e.UpdatedAt).HasDefaultValueSql("GETUTCDATE()");
 
