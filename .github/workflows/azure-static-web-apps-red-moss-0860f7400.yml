@@ -42,6 +42,21 @@ jobs:
           cd admin_web
           flutter build web --release --web-renderer html
       
+      - name: Copy Static Web App Config
+        run: |
+          cp admin_web/staticwebapp.config.json admin_web/build/web/
+      
+      - name: Verify Build Output
+        run: |
+          echo "Checking build output directory..."
+          ls -la admin_web/build/web/
+          if [ -f "admin_web/build/web/index.html" ]; then
+            echo "✅ index.html found"
+          else
+            echo "❌ index.html NOT found"
+            exit 1
+          fi
+      
       - name: Install OIDC Client from Core Package
         run: npm install @actions/core@1.6.0 @actions/http-client
       
