@@ -148,7 +148,7 @@ class _OTPBannerManagementScreenState extends State<OTPBannerManagementScreen> {
         defaultTargetAudience: 'otp_screen',
         onSave: (banner) async {
           await _loadBanners();
-          _showSuccessMessage('OTP Banner created successfully');
+          _showSuccessMessage('OTP Banner created !!');
         },
       ),
     );
