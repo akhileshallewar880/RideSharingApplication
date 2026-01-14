@@ -1,13 +1,14 @@
-name: Deploy Admin Web to Azure VM
+name: Deploy Admin Web to Azure VM (DISABLED - Using Static Web Apps)
 
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - 'admin_web/**'
-      - '.github/workflows/deploy-admin-web.yml'
-  workflow_dispatch:
+  # Disabled - Admin web now deploys via azure-static-web-apps-red-moss-0860f7400.yml
+  workflow_dispatch: # Manual trigger only if needed
+  # push:
+  #   branches:
+  #     - main
+  #   paths:
+  #     - 'admin_web/**'
+  #     - '.github/workflows/deploy-admin-web.yml'
 
 concurrency:
   group: admin-web-deploy-${{ github.ref }}
