@@ -40,11 +40,34 @@ jobs:
       - name: Build Flutter Web
         run: |
           cd admin_web
-          flutter build web --release --web-renderer html
+          echo "=== Flutter version ==="
+          flutter --version
+          echo ""
+          echo "=== Cleaning previous builds ==="
+          flutter clean
+          echo ""
+          echo "=== Getting dependencies ==="
+          flutter pub get
+          echo ""
+          echo "=== Building web app ==="
+          flutter build web --release
+          echo ""
+          echo "=== Build completed ==="
+      
+      - name: List build directory structure
+        run: |
+          echo "=== Checking admin_web/build structure ==="
+          find admin_web/build -type f -name "*.html" || echo "No HTML files found"
+          echo ""
+          echo "=== Contents of admin_web/build/web ==="
+          ls -la admin_web/build/web/ || echo "Directory doesn't exist"
       
       - name: Copy Static Web App Config
         run: |
-          cp admin_web/staticwebapp.config.json admin_web/build/web/
+          if [ -f "admin_web/staticwebapp.config.json" ]; then
+            cp admin_web/staticwebapp.config.json admin_web/build/web/
+            echo "✅ Copied staticwebapp.config.json"
+          fi
       
       - name: Verify Build Output
         run: |
@@ -53,7 +76,9 @@ jobs:
           if [ -f "admin_web/build/web/index.html" ]; then
             echo "✅ index.html found"
           else
-            echo "❌ index.html NOT found"
+            echo "❌ index.html NOT found - checking if it's in a subdirectory"
+            find admin_web/build -name "index.html" -type f
+            echo "Build may have failed. Check Flutter build logs above."
             exit 1
           fi
       
