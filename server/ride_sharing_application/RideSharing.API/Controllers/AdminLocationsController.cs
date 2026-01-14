@@ -9,7 +9,7 @@ namespace RideSharing.API.Controllers
 {
     [Route("api/v1/admin/locations")]
     [ApiController]
-    [Authorize(Roles = "admin")]
+    [Authorize(Roles = "admin,super_admin")]
     public class AdminLocationsController : ControllerBase
     {
         private readonly RideSharingDbContext _context;
