@@ -58019,7 +58019,7 @@ var $async$$1=A.t(function(b,c){if(b===1)return A.u(c,r)
 while(true)switch(s){case 0:p=q.a
 s=2
 return A.p(p.lg(),$async$$1)
-case 2:p.D6("OTP Banner created successfully")
+case 2:p.D6("OTP Banner created !!")
 return A.v(null,r)}})
 return A.w($async$$1,r)},
 $S:100}
