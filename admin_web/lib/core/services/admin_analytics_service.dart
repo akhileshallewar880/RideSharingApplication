@@ -26,7 +26,7 @@ class AdminAnalyticsService {
       }
 
       final response = await _dio.get(
-        '/AdminAnalytics/dashboard',
+        '/admin/analytics/dashboard',
         queryParameters: queryParams.isNotEmpty ? queryParams : null,
       );
 
@@ -47,7 +47,7 @@ class AdminAnalyticsService {
   }) async {
     try {
       final response = await _dio.get(
-        '/AdminAnalytics/revenue',
+        '/admin/analytics/revenue',
         queryParameters: {'grouping': grouping},
       );
 
@@ -65,7 +65,7 @@ class AdminAnalyticsService {
   Future<Map<String, dynamic>> getDriverAnalytics() async {
     try {
       final response = await _dio.get(
-        '/AdminAnalytics/drivers',
+        '/admin/analytics/drivers',
       );
 
       if (response.statusCode == 200) {
@@ -82,7 +82,7 @@ class AdminAnalyticsService {
   Future<Map<String, dynamic>> getRideAnalytics() async {
     try {
       final response = await _dio.get(
-        '/AdminAnalytics/rides',
+        '/admin/analytics/rides',
       );
 
       if (response.statusCode == 200) {

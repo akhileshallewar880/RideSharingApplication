@@ -31,9 +31,20 @@ class AdminAuthService {
         if (token != null) {
           options.headers['Authorization'] = 'Bearer $token';
         }
+        print('🌐 API Request: ${options.method} ${options.baseUrl}${options.path}');
+        print('📦 Headers: ${options.headers}');
         return handler.next(options);
       },
+      onResponse: (response, handler) {
+        print('✅ API Response: ${response.statusCode} - ${response.requestOptions.path}');
+        return handler.next(response);
+      },
       onError: (error, handler) async {
+        print('❌ API Error: ${error.response?.statusCode} - ${error.requestOptions.path}');
+        print('❌ Error Type: ${error.type}');
+        print('❌ Error Message: ${error.message}');
+        print('❌ Response Data: ${error.response?.data}');
+        
         if (error.response?.statusCode == 401) {
           // Token expired, try to refresh
           final refreshed = await _refreshToken();

@@ -51,8 +51,8 @@ namespace RideSharing.API.Controllers
             try
             {
                 // Verify admin role
-                var userRole = User.FindFirst(ClaimTypes.Role)?.Value;
-                if (userRole?.ToLower() != "admin")
+                var userRole = User.FindFirst(ClaimTypes.Role)?.Value?.ToLower();
+                if (userRole != "admin" && userRole != "super_admin")
                 {
                     return Forbid();
                 }
@@ -311,8 +311,8 @@ namespace RideSharing.API.Controllers
             try
             {
                 // Verify admin role
-                var userRole = User.FindFirst(ClaimTypes.Role)?.Value;
-                if (userRole?.ToLower() != "admin")
+                var userRole = User.FindFirst(ClaimTypes.Role)?.Value?.ToLower();
+                if (userRole != "admin" && userRole != "super_admin")
                 {
                     return Forbid();
                 }
@@ -445,8 +445,8 @@ namespace RideSharing.API.Controllers
             try
             {
                 // Verify admin role
-                var userRole = User.FindFirst(ClaimTypes.Role)?.Value;
-                if (userRole?.ToLower() != "admin")
+                var userRole = User.FindFirst(ClaimTypes.Role)?.Value?.ToLower();
+                if (userRole != "admin" && userRole != "super_admin")
                 {
                     return Forbid();
                 }
@@ -502,8 +502,8 @@ namespace RideSharing.API.Controllers
             try
             {
                 // Verify admin role
-                var userRole = User.FindFirst(ClaimTypes.Role)?.Value;
-                if (userRole?.ToLower() != "admin")
+                var userRole = User.FindFirst(ClaimTypes.Role)?.Value?.ToLower();
+                if (userRole != "admin" && userRole != "super_admin")
                 {
                     return Forbid();
                 }
@@ -552,8 +552,8 @@ namespace RideSharing.API.Controllers
             try
             {
                 // Verify admin role
-                var userRole = User.FindFirst(ClaimTypes.Role)?.Value;
-                if (userRole?.ToLower() != "admin")
+                var userRole = User.FindFirst(ClaimTypes.Role)?.Value?.ToLower();
+                if (userRole != "admin" && userRole != "super_admin")
                 {
                     return Forbid();
                 }
@@ -651,8 +651,8 @@ namespace RideSharing.API.Controllers
             try
             {
                 // Verify admin role
-                var userRole = User.FindFirst(ClaimTypes.Role)?.Value;
-                if (userRole?.ToLower() != "admin")
+                var userRole = User.FindFirst(ClaimTypes.Role)?.Value?.ToLower();
+                if (userRole != "admin" && userRole != "super_admin")
                 {
                     return Forbid();
                 }
