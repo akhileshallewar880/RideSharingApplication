@@ -109,6 +109,7 @@ builder.Services.AddScoped<RideSharing.API.Repositories.Interface.IDriverReposit
 builder.Services.AddScoped<RideSharing.API.Repositories.Interface.INotificationRepository, RideSharing.API.Repositories.Implementation.NotificationRepository>();
 builder.Services.AddScoped<RideSharing.API.Repositories.Interface.ITokenRepository, RideSharing.API.Repositories.Implementation.TokenRepository>();
 builder.Services.AddScoped<RideSharing.API.Repositories.Interface.IVehicleModelRepository, RideSharing.API.Repositories.Implementation.VehicleModelRepository>();
+builder.Services.AddScoped<RideSharing.API.Repositories.Interface.IVehicleTypeRepository, RideSharing.API.Repositories.Implementation.VehicleTypeRepository>();
 builder.Services.AddScoped<RideSharing.API.Repositories.ICouponRepository, RideSharing.API.Repositories.CouponRepository>();
 
 // Register services

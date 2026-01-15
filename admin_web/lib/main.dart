@@ -13,6 +13,7 @@ import 'features/users/user_management_screen.dart';
 import 'screens/locations_management_screen.dart';
 import 'screens/banner_management_screen.dart';
 import 'screens/otp_banner_management_screen.dart';
+import 'screens/vehicle_types_management_screen.dart';
 import 'shared/layouts/admin_layout.dart';
 
 void main() {
@@ -95,6 +96,10 @@ class VanYatraAdminApp extends StatelessWidget {
         '/otp-banners': (context) => AdminLayout(
               currentRoute: '/otp-banners',
               child: OTPBannerManagementScreen(),
+            ),
+        '/vehicle-types': (context) => AdminLayout(
+              currentRoute: '/vehicle-types',
+              child: VehicleTypesManagementScreen(),
             ),
       },
     );

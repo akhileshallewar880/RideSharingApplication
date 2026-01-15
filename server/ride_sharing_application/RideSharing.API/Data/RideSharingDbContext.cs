@@ -19,6 +19,7 @@ namespace RideSharing.API.Data
         public DbSet<Models.Domain.Driver> Drivers { get; set; }
         public DbSet<Models.Domain.Vehicle> Vehicles { get; set; }
         public DbSet<Models.Domain.VehicleModel> VehicleModels { get; set; }
+        public DbSet<Models.Domain.VehicleType> VehicleTypes { get; set; }
         public DbSet<Models.Domain.City> Cities { get; set; }
         public DbSet<Models.Domain.Ride> Rides { get; set; }
         public DbSet<Models.Domain.Booking> Bookings { get; set; }
