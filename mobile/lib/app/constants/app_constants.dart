@@ -4,22 +4,20 @@ class AppConstants {
   static const String appName = 'VanYatra';
   static const String appVersion = '1.0.0';
   
-  // API Endpoints - Now configured via EnvironmentConfig
-  // Import '../core/config/environment_config.dart' to use these
-  static String get baseUrl => 'http://57.159.31.172:8000'; // Production server
+  // API Endpoints - Azure App Service Production
+  static String get baseUrl => 'https://vayatra-app-service-baczabgbcbczg2b4.centralindia-01.azurewebsites.net';
   static const String apiVersion = '/api/v1';
   
   // Full API URL
   static String get apiBaseUrl => '$baseUrl$apiVersion';
   
-  // SignalR WebSocket URL for real-time tracking (SignalR uses HTTP/HTTPS, not ws://)
+  // SignalR WebSocket URL for real-time tracking (SignalR uses HTTPS)
   static String get socketBaseUrl {
-    final uri = Uri.parse(baseUrl);
-    return 'http://${uri.host}:${uri.port}';  // SignalR endpoint at /tracking
+    return baseUrl;  // SignalR endpoint at /tracking
   }
   
-  // Note: For production deployment, use EnvironmentConfig instead of hardcoded URLs
-  // Example: EnvironmentConfig.apiBaseUrl
+  // Production API: Azure App Service
+  // Domain: vayatra-app-service-baczabgbcbczg2b4.centralindia-01.azurewebsites.net
   
   // Storage Keys
   static const String keyAccessToken = 'access_token';

@@ -1,7 +1,7 @@
 class Environment {
   static const String apiBaseUrl = String.fromEnvironment(
     'API_BASE_URL',
-    defaultValue: 'http://57.159.31.172:8000',
+    defaultValue: 'https://vayatra-app-service-baczabgbcbczg2b4.centralindia-01.azurewebsites.net',
   );
   
   static const bool isProduction = bool.fromEnvironment(
@@ -9,7 +9,7 @@ class Environment {
     defaultValue: true,
   );
   
-  // Use relative path for same-server deployment
+  // API version path
   static String get apiUrl => '/api/v1';
   
   // Firebase config for web

@@ -90,7 +90,7 @@ class _RideCheckoutScreenState extends ConsumerState<RideCheckoutScreen> {
     // Initialize coupon service
     _couponService = CouponService(
       dio: Dio(),
-      baseUrl: 'http://57.159.31.172:8000',
+      baseUrl: 'https://vayatra-app-service-baczabgbcbczg2b4.centralindia-01.azurewebsites.net',
     );
     
     // Pre-fill with user data if available

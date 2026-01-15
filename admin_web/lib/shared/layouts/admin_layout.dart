@@ -17,6 +17,7 @@ import '../../screens/locations_management_screen.dart';
 import '../../screens/banner_management_screen.dart';
 import '../../screens/otp_banner_management_screen.dart';
 import '../../screens/notification_management_screen.dart';
+import '../../screens/vehicle_types_management_screen.dart';
 
 class AdminLayout extends ConsumerStatefulWidget {
   final Widget child;
@@ -55,6 +56,8 @@ class AdminLayout extends ConsumerStatefulWidget {
         return BannerManagementScreen();
       case '/otp-banners':
         return OTPBannerManagementScreen();
+      case '/vehicle-types':
+        return VehicleTypesManagementScreen();
       case '/notifications':
         return NotificationManagementScreen();
       case '/finance':
@@ -353,6 +356,13 @@ class _AdminLayoutState extends ConsumerState<AdminLayout> {
                 activeIcon: Icons.notifications,
                 title: 'Notifications',
                 route: '/notifications',
+                isCollapsedOverride: collapsed,
+              ),
+              _buildMenuItem(
+                icon: Icons.directions_car_outlined,
+                activeIcon: Icons.directions_car,
+                title: 'Vehicle Types',
+                route: '/vehicle-types',
                 isCollapsedOverride: collapsed,
               ),
               _buildMenuItem(
