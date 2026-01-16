@@ -545,8 +545,8 @@ class _PassengerHomeScreenState extends ConsumerState<PassengerHomeScreen> with 
       
       print('✅ Location detected: ${position.latitude}, ${position.longitude}');
       
-      // Check if location is in service area
-      final isInServiceArea = locationService.isLocationInServiceArea(
+      // Check if location is in service area using async API
+      final isInServiceArea = await locationService.isLocationInServiceAreaAsync(
         position.latitude,
         position.longitude,
       );
@@ -573,21 +573,36 @@ class _PassengerHomeScreenState extends ConsumerState<PassengerHomeScreen> with 
           );
         }
       } else {
-        // User is in service area - auto-populate pickup location
-        final nearestLocation = locationService.findNearestLocation(
+        // User is in service area - find and auto-populate nearest location
+        // Get address and search for nearest location in our database
+        final address = await locationService.getAddressFromCoordinates(
           position.latitude,
           position.longitude,
         );
         
-        print('📍 Nearest location: ${nearestLocation?.name}');
+        print('📍 Reverse geocoded address: $address');
         
-        if (nearestLocation != null && mounted) {
-          setState(() {
-            _selectedPickup = nearestLocation;
-            _pickupController.text = nearestLocation.name;
-          });
+        if (address != null && address.isNotEmpty) {
+          // Extract city/locality from address (usually first part before comma)
+          final locationQuery = address.split(',').first.trim();
+          print('🔍 Searching for location: $locationQuery');
           
-          // Location set silently - no message shown
+          // Search for the location in our database
+          final locations = await locationService.searchLocations(locationQuery);
+          
+          if (locations.isNotEmpty && mounted) {
+            final nearestLocation = locations.first; // Take the first/best match
+            print('📍 Found nearest location: ${nearestLocation.name}');
+            
+            setState(() {
+              _selectedPickup = nearestLocation;
+              _pickupController.text = _formatLocationDisplay(nearestLocation);
+            });
+            
+            // Location set silently - no message shown
+          } else {
+            print('⚠️ No matching location found in database for: $locationQuery');
+          }
         }
       }
     } catch (e) {
@@ -606,6 +621,14 @@ class _PassengerHomeScreenState extends ConsumerState<PassengerHomeScreen> with 
         });
       }
     }
+  }
+  
+  /// Format location display as "Name (State)"
+  String _formatLocationDisplay(LocationSuggestion location) {
+    if (location.state != null && location.state!.isNotEmpty) {
+      return '${location.name} (${location.state})';
+    }
+    return location.name;
   }
   
   Future<void> _selectDate(BuildContext context) async {
@@ -2228,7 +2251,7 @@ class _PassengerHomeScreenState extends ConsumerState<PassengerHomeScreen> with 
                                           if (result != null && mounted) {
                                             setState(() {
                                               _selectedPickup = result;
-                                              _pickupController.text = result.name;
+                                              _pickupController.text = _formatLocationDisplay(result);
                                             });
                                           }
                                         },
@@ -2271,7 +2294,7 @@ class _PassengerHomeScreenState extends ConsumerState<PassengerHomeScreen> with 
                                           if (result != null && mounted) {
                                             setState(() {
                                               _selectedDropoff = result;
-                                              _dropoffController.text = result.name;
+                                              _dropoffController.text = _formatLocationDisplay(result);
                                             });
                                           }
                                         },

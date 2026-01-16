@@ -189,6 +189,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
           isAuthenticated: !response.data!.isNewUser,
           userType: userType,
           userId: userId,
+          errorMessage: null, // Explicitly clear any previous error
         );
         return response.data;
       } else {

@@ -36,6 +36,7 @@ class _OtpVerificationScreenState extends ConsumerState<OtpVerificationScreen> w
   int _resendAttempts = 0;
   int _baseResendDelay = 30; // Base delay in seconds
   bool _hasSimSupport = false; // Track if device supports SIM/SMS
+  bool _isVerifying = false; // Prevent duplicate verification attempts
   
   @override
   void initState() {
@@ -134,6 +135,12 @@ class _OtpVerificationScreenState extends ConsumerState<OtpVerificationScreen> w
   }
   
   Future<void> _handleVerify() async {
+    // Prevent duplicate verification attempts
+    if (_isVerifying) {
+      print('⚠️ Verification already in progress, ignoring duplicate call');
+      return;
+    }
+    
     // Firebase expects 6-digit OTP
     if (_otpController.text.length != 6) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -165,6 +172,9 @@ class _OtpVerificationScreenState extends ConsumerState<OtpVerificationScreen> w
       return;
     }
     
+    // Set verifying flag
+    _isVerifying = true;
+    
     // Show loading
     showDialog(
       context: context,
@@ -176,25 +186,31 @@ class _OtpVerificationScreenState extends ConsumerState<OtpVerificationScreen> w
     
     try {
       // First, verify OTP with Firebase
+      // Don't show any Firebase errors - only show final result
       final userCredential = await _firebaseAuth.verifyOtp(
         verificationId: widget.verificationId!,
         smsCode: _otpController.text,
         onError: (error) {
-          if (mounted) {
-            Navigator.pop(context); // Close loading
-            _otpController.clear();
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(error),
-                backgroundColor: AppColors.error,
-              ),
-            );
-          }
+          // Silently log error - don't show snackbar
+          print('🔴 Firebase OTP verification error (will retry with backend): $error');
         },
       );
       
       if (userCredential == null) {
-        // Error already handled in onError callback
+        // Firebase verification failed - this is a REAL error
+        if (mounted) {
+          Navigator.pop(context); // Close loading
+          _otpController.clear();
+          _isVerifying = false;
+          
+          // Show error - OTP is genuinely invalid
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Invalid OTP. Please check and try again.'),
+              backgroundColor: AppColors.error,
+            ),
+          );
+        }
         return;
       }
       
@@ -228,17 +244,18 @@ class _OtpVerificationScreenState extends ConsumerState<OtpVerificationScreen> w
       print('🔐 OTP Verification Result: $result');
       print('🔐 Result is null: ${result == null}');
       
-      // Get current auth state (needed for fallback values)
-      final authState = ref.read(authNotifierProvider);
-      
       // Check for success FIRST before checking error messages
       if (result != null) {
-        // Success! Clear any stale error messages in state
+        // Success! Clear any stale error messages in state IMMEDIATELY
         print('✅ OTP verification successful!');
         print('🔐 Result is NOT null - isNewUser: ${result.isNewUser}');
         
         // CRITICAL: Clear error message in state to prevent it from showing
-        await ref.read(authNotifierProvider.notifier).clearError();
+        // Do this synchronously before any navigation or UI updates
+        ref.read(authNotifierProvider.notifier).clearError();
+        
+        // Get current auth state AFTER clearing errors
+        final authState = ref.read(authNotifierProvider);
         
         if (result.isNewUser) {
           // New user - navigate to registration with temp token stored
@@ -320,6 +337,9 @@ class _OtpVerificationScreenState extends ConsumerState<OtpVerificationScreen> w
         // Only show error if result is null (authentication failed)
         print('🔐 ERROR: Result is NULL - Authentication failed');
         
+        // Get auth state to check for error messages
+        final authState = ref.read(authNotifierProvider);
+        
         if (authState.errorMessage != null) {
           final errorMsg = authState.errorMessage!;
           final isInvalidOtp = errorMsg.toLowerCase().contains('invalid') || 
@@ -369,6 +389,7 @@ class _OtpVerificationScreenState extends ConsumerState<OtpVerificationScreen> w
     } catch (e) {
       // Handle any unexpected errors
       print('🔴 Error during verification: $e');
+      _isVerifying = false;
       if (mounted) {
         Navigator.pop(context); // Close loading dialog
         ScaffoldMessenger.of(context).showSnackBar(
@@ -559,54 +580,64 @@ class _OtpVerificationScreenState extends ConsumerState<OtpVerificationScreen> w
               const SizedBox(height: AppSpacing.massive),
               
               // OTP Input (6 digits for Firebase)
-              PinCodeTextField(
-                appContext: context,
-                length: 6,
-                controller: _otpController,
-                focusNode: _otpFocusNode,
-                keyboardType: TextInputType.number,
-                animationType: AnimationType.fade,
-                autoFocus: true,
-                enablePinAutofill: _hasSimSupport, // Only enable on devices with SIM
-                useExternalAutoFillGroup: false,
-                autoDismissKeyboard: false,
-                pinTheme: PinTheme(
-                  shape: PinCodeFieldShape.box,
-                  borderRadius: AppSpacing.borderRadiusMD,
-                  fieldHeight: 56,
-                  fieldWidth: 56,
-                  activeFillColor: isDark 
-                      ? AppColors.darkSurface 
-                      : AppColors.lightSurface,
-                  inactiveFillColor: isDark 
-                      ? AppColors.darkSurface 
-                      : AppColors.lightSurface,
-                  selectedFillColor: isDark 
-                      ? AppColors.darkSurface 
-                      : AppColors.lightSurface,
-                  activeColor: AppColors.primaryYellow,
-                  inactiveColor: isDark 
-                      ? AppColors.darkBorder 
-                      : AppColors.lightBorder,
-                  selectedColor: AppColors.primaryYellow,
-                ),
-                cursorColor: AppColors.primaryYellow,
-                animationDuration: const Duration(milliseconds: 300),
-                enableActiveFill: true,
-                textInputAction: TextInputAction.done,
-                autovalidateMode: AutovalidateMode.disabled,
-                onCompleted: (code) {
-                  _handleVerify();
-                },
-                onChanged: (value) {
-                  // Check if OTP is complete
-                  if (value.length == 6) {
-                    Future.delayed(const Duration(milliseconds: 300), () {
-                      if (mounted && _otpController.text.length == 6) {
-                        _handleVerify();
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  // Calculate responsive field size
+                  // Leave space for padding between fields
+                  final availableWidth = constraints.maxWidth;
+                  final fieldWidth = ((availableWidth - 50) / 6).clamp(40.0, 56.0);
+                  final fieldHeight = fieldWidth;
+                  
+                  return PinCodeTextField(
+                    appContext: context,
+                    length: 6,
+                    controller: _otpController,
+                    focusNode: _otpFocusNode,
+                    keyboardType: TextInputType.number,
+                    animationType: AnimationType.fade,
+                    autoFocus: true,
+                    enablePinAutofill: _hasSimSupport, // Only enable on devices with SIM
+                    useExternalAutoFillGroup: false,
+                    autoDismissKeyboard: false,
+                    pinTheme: PinTheme(
+                      shape: PinCodeFieldShape.box,
+                      borderRadius: AppSpacing.borderRadiusMD,
+                      fieldHeight: fieldHeight,
+                      fieldWidth: fieldWidth,
+                      activeFillColor: isDark 
+                          ? AppColors.darkSurface 
+                          : AppColors.lightSurface,
+                      inactiveFillColor: isDark 
+                          ? AppColors.darkSurface 
+                          : AppColors.lightSurface,
+                      selectedFillColor: isDark 
+                          ? AppColors.darkSurface 
+                          : AppColors.lightSurface,
+                      activeColor: AppColors.primaryYellow,
+                      inactiveColor: isDark 
+                          ? AppColors.darkBorder 
+                          : AppColors.lightBorder,
+                      selectedColor: AppColors.primaryYellow,
+                    ),
+                    cursorColor: AppColors.primaryYellow,
+                    animationDuration: const Duration(milliseconds: 300),
+                    enableActiveFill: true,
+                    textInputAction: TextInputAction.done,
+                    autovalidateMode: AutovalidateMode.disabled,
+                    onCompleted: (code) {
+                      _handleVerify();
+                    },
+                    onChanged: (value) {
+                      // Check if OTP is complete
+                      if (value.length == 6) {
+                        Future.delayed(const Duration(milliseconds: 300), () {
+                          if (mounted && _otpController.text.length == 6) {
+                            _handleVerify();
+                          }
+                        });
                       }
-                    });
-                  }
+                    },
+                  );
                 },
               ).animate()
                   .fadeIn(delay: 400.ms)
