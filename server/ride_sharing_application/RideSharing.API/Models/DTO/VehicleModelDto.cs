@@ -8,6 +8,32 @@ namespace RideSharing.API.Models.DTO
         public bool? Active { get; set; }
     }
 
+    public class CreateVehicleModelDto
+    {
+        public string Name { get; set; }
+        public string Brand { get; set; }
+        public string Type { get; set; }
+        public int SeatingCapacity { get; set; }
+        public string? SeatingLayout { get; set; }
+        public string? ImageUrl { get; set; }
+        public List<string>? Features { get; set; }
+        public string? Description { get; set; }
+        public bool IsActive { get; set; } = true;
+    }
+
+    public class UpdateVehicleModelDto
+    {
+        public string Name { get; set; }
+        public string Brand { get; set; }
+        public string Type { get; set; }
+        public int SeatingCapacity { get; set; }
+        public string? SeatingLayout { get; set; }
+        public string? ImageUrl { get; set; }
+        public List<string>? Features { get; set; }
+        public string? Description { get; set; }
+        public bool IsActive { get; set; }
+    }
+
     // Response DTOs
     public class VehicleModelDto
     {
@@ -16,6 +42,7 @@ namespace RideSharing.API.Models.DTO
         public string Brand { get; set; }
         public string Type { get; set; }
         public int SeatingCapacity { get; set; }
+        public string? SeatingLayout { get; set; }
         public string? ImageUrl { get; set; }
         public List<string>? Features { get; set; }
         public string? Description { get; set; }

@@ -47,8 +47,29 @@ class AdminAuthNotifier extends StateNotifier<AdminAuthState> {
   }
 
   Future<void> _checkAuthStatus() async {
-    final isLoggedIn = await _authService.isLoggedIn();
-    state = state.copyWith(isAuthenticated: isLoggedIn);
+    try {
+      final isLoggedIn = await _authService.isLoggedIn();
+      if (isLoggedIn) {
+        // Restore user data from storage
+        final user = await _authService.getStoredUser();
+        if (user != null) {
+          state = state.copyWith(
+            isAuthenticated: true,
+            user: user,
+          );
+          print('✅ Session restored for user: ${user.email}');
+        } else {
+          // Token exists but no user data, force re-login
+          await _authService.logout();
+          state = state.copyWith(isAuthenticated: false);
+        }
+      } else {
+        state = state.copyWith(isAuthenticated: false);
+      }
+    } catch (e) {
+      print('❌ Error checking auth status: $e');
+      state = state.copyWith(isAuthenticated: false);
+    }
   }
 
   Future<void> login(String email, String password) async {

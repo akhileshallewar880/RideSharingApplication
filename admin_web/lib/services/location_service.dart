@@ -2,7 +2,6 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../models/admin_location_models.dart';
 import '../core/services/admin_auth_service.dart';
-import '../core/config/environment_config.dart';
 import '../core/constants/app_constants.dart';
 
 class LocationService {

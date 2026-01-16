@@ -7,5 +7,8 @@ namespace RideSharing.API.Repositories.Interface
         Task<List<VehicleModel>> GetAllVehicleModelsAsync(string? type = null, bool? active = null);
         Task<VehicleModel?> GetVehicleModelByIdAsync(Guid id);
         Task<List<VehicleModel>> SearchVehicleModelsAsync(string query);
+        Task<VehicleModel> CreateVehicleModelAsync(VehicleModel vehicleModel);
+        Task<VehicleModel?> UpdateVehicleModelAsync(Guid id, VehicleModel vehicleModel);
+        Task<bool> DeleteVehicleModelAsync(Guid id);
     }
 }

@@ -1,7 +1,8 @@
 class AppConstants {
   // API Configuration
   // For production deployment, use AdminEnvironmentConfig from '../config/environment_config.dart'
-  static const String baseUrl = 'https://vayatra-app-service-baczabgbcbczg2b4.centralindia-01.azurewebsites.net/api/v1';
+  //static const String baseUrl = 'https://vayatra-app-service-baczabgbcbczg2b4.centralindia-01.azurewebsites.net/api/v1';
+  static const String baseUrl = 'http://localhost:5056/api/v1';
   // Note: Development server API endpoint on localhost:5056
   static const String authEndpoint = '/auth';
   static const String driversEndpoint = '/drivers';
