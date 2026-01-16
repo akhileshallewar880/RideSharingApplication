@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'dart:convert';
 import '../constants/app_constants.dart';
 import '../models/admin_models.dart';
 import 'web_storage_service.dart';
@@ -178,7 +179,20 @@ class AdminAuthService {
           if (user.name.isEmpty) throw Exception('User name is empty');
           
           print('✅ Login successful for user: ${user.email}');
-          print('✅ All validations passed, returning user object...');
+          print('✅ All validations passed, storing user data...');
+          
+          // Store user data as JSON string for session persistence
+          try {
+            final userJsonStr = jsonEncode(userJson);
+            await _storage.write(
+              key: AppConstants.userDataKey,
+              value: userJsonStr,
+            );
+            print('✅ User data stored in localStorage');
+          } catch (storageError) {
+            print('⚠️ Error storing user data: $storageError');
+          }
+          
           return user;
         } catch (parseError) {
           print('❌ Error parsing user data: $parseError');
@@ -228,5 +242,21 @@ class AdminAuthService {
 
   Future<String?> getToken() async {
     return await _storage.read(key: AppConstants.tokenKey);
+  }
+
+  Future<AdminUser?> getStoredUser() async {
+    try {
+      final userDataStr = await _storage.read(key: AppConstants.userDataKey);
+      if (userDataStr != null && userDataStr.isNotEmpty) {
+        print('🔍 Retrieving stored user data from localStorage...');
+        final userJson = jsonDecode(userDataStr) as Map<String, dynamic>;
+        final user = AdminUser.fromJson(userJson);
+        print('✅ User data restored: ${user.email}');
+        return user;
+      }
+    } catch (e) {
+      print('❌ Error retrieving stored user: $e');
+    }
+    return null;
   }
 }

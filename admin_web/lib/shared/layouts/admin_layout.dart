@@ -17,7 +17,7 @@ import '../../screens/locations_management_screen.dart';
 import '../../screens/banner_management_screen.dart';
 import '../../screens/otp_banner_management_screen.dart';
 import '../../screens/notification_management_screen.dart';
-import '../../screens/vehicle_types_management_screen.dart';
+import '../../screens/vehicle_models_management_screen.dart';
 
 class AdminLayout extends ConsumerStatefulWidget {
   final Widget child;
@@ -57,7 +57,7 @@ class AdminLayout extends ConsumerStatefulWidget {
       case '/otp-banners':
         return OTPBannerManagementScreen();
       case '/vehicle-types':
-        return VehicleTypesManagementScreen();
+        return VehicleModelsManagementScreen();
       case '/notifications':
         return NotificationManagementScreen();
       case '/finance':

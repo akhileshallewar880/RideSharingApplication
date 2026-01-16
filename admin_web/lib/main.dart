@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'core/theme/admin_theme.dart';
+import 'core/providers/admin_auth_provider.dart';
 import 'features/auth/admin_login_screen.dart';
 import 'features/auth/forgot_password_screen.dart';
 import 'features/auth/reset_password_screen.dart';
@@ -13,7 +14,7 @@ import 'features/users/user_management_screen.dart';
 import 'screens/locations_management_screen.dart';
 import 'screens/banner_management_screen.dart';
 import 'screens/otp_banner_management_screen.dart';
-import 'screens/vehicle_types_management_screen.dart';
+import 'screens/vehicle_models_management_screen.dart';
 import 'shared/layouts/admin_layout.dart';
 
 void main() {
@@ -99,7 +100,7 @@ class VanYatraAdminApp extends StatelessWidget {
             ),
         '/vehicle-types': (context) => AdminLayout(
               currentRoute: '/vehicle-types',
-              child: VehicleTypesManagementScreen(),
+              child: VehicleModelsManagementScreen(),
             ),
       },
     );
@@ -121,11 +122,20 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
   }
 
   Future<void> _checkAuth() async {
-    await Future.delayed(Duration(seconds: 1));
+    // Wait a bit for the provider to initialize
+    await Future.delayed(Duration(milliseconds: 1500));
     
-    // Always redirect to login screen - user must manually click login
     if (mounted) {
-      Navigator.of(context).pushReplacementNamed('/login');
+      // Check if user is authenticated
+      final authState = ref.read(adminAuthProvider);
+      
+      if (authState.isAuthenticated && authState.user != null) {
+        print('✅ User authenticated, navigating to dashboard...');
+        Navigator.of(context).pushReplacementNamed('/dashboard');
+      } else {
+        print('ℹ️ User not authenticated, navigating to login...');
+        Navigator.of(context).pushReplacementNamed('/login');
+      }
     }
   }
 

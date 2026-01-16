@@ -40,6 +40,7 @@ namespace RideSharing.API.Controllers
                     Brand = vm.Brand,
                     Type = vm.Type,
                     SeatingCapacity = vm.SeatingCapacity,
+                    SeatingLayout = vm.SeatingLayout,
                     ImageUrl = vm.ImageUrl,
                     Features = string.IsNullOrEmpty(vm.Features) 
                         ? new List<string>() 
@@ -84,6 +85,7 @@ namespace RideSharing.API.Controllers
                     Brand = vehicleModel.Brand,
                     Type = vehicleModel.Type,
                     SeatingCapacity = vehicleModel.SeatingCapacity,
+                    SeatingLayout = vehicleModel.SeatingLayout,
                     ImageUrl = vehicleModel.ImageUrl,
                     Features = string.IsNullOrEmpty(vehicleModel.Features)
                         ? new List<string>()
@@ -123,6 +125,7 @@ namespace RideSharing.API.Controllers
                     Brand = vm.Brand,
                     Type = vm.Type,
                     SeatingCapacity = vm.SeatingCapacity,
+                    SeatingLayout = vm.SeatingLayout,
                     ImageUrl = vm.ImageUrl,
                     Features = string.IsNullOrEmpty(vm.Features)
                         ? new List<string>()
@@ -143,6 +146,147 @@ namespace RideSharing.API.Controllers
             {
                 _logger.LogError(ex, "Error searching vehicle models");
                 return StatusCode(500, ApiResponseDto<object>.ErrorResponse("An error occurred while searching vehicle models"));
+            }
+        }
+
+        /// <summary>
+        /// Create a new vehicle model (Admin only)
+        /// </summary>
+        [HttpPost]
+        [Authorize(Roles = "admin")]
+        public async Task<IActionResult> CreateVehicleModel([FromBody] CreateVehicleModelDto dto)
+        {
+            try
+            {
+                if (!ModelState.IsValid)
+                {
+                    return BadRequest(ApiResponseDto<object>.ErrorResponse("Invalid data"));
+                }
+
+                var vehicleModel = new Models.Domain.VehicleModel
+                {
+                    Name = dto.Name,
+                    Brand = dto.Brand,
+                    Type = dto.Type,
+                    SeatingCapacity = dto.SeatingCapacity,
+                    SeatingLayout = dto.SeatingLayout,
+                    ImageUrl = dto.ImageUrl,
+                    Features = dto.Features != null && dto.Features.Count > 0 
+                        ? JsonSerializer.Serialize(dto.Features) 
+                        : null,
+                    Description = dto.Description,
+                    IsActive = dto.IsActive
+                };
+
+                var createdModel = await _vehicleModelRepository.CreateVehicleModelAsync(vehicleModel);
+
+                var responseDto = new VehicleModelDto
+                {
+                    Id = createdModel.Id,
+                    Name = createdModel.Name,
+                    Brand = createdModel.Brand,
+                    Type = createdModel.Type,
+                    SeatingCapacity = createdModel.SeatingCapacity,
+                    SeatingLayout = createdModel.SeatingLayout,
+                    ImageUrl = createdModel.ImageUrl,
+                    Features = string.IsNullOrEmpty(createdModel.Features)
+                        ? new List<string>()
+                        : JsonSerializer.Deserialize<List<string>>(createdModel.Features) ?? new List<string>(),
+                    Description = createdModel.Description,
+                    IsActive = createdModel.IsActive
+                };
+
+                return CreatedAtAction(nameof(GetVehicleModelById), new { id = createdModel.Id }, 
+                    ApiResponseDto<VehicleModelDto>.SuccessResponse(responseDto));
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error creating vehicle model");
+                return StatusCode(500, ApiResponseDto<object>.ErrorResponse("An error occurred while creating vehicle model"));
+            }
+        }
+
+        /// <summary>
+        /// Update an existing vehicle model (Admin only)
+        /// </summary>
+        [HttpPut("{id}")]
+        [Authorize(Roles = "admin")]
+        public async Task<IActionResult> UpdateVehicleModel(Guid id, [FromBody] UpdateVehicleModelDto dto)
+        {
+            try
+            {
+                if (!ModelState.IsValid)
+                {
+                    return BadRequest(ApiResponseDto<object>.ErrorResponse("Invalid data"));
+                }
+
+                var vehicleModel = new Models.Domain.VehicleModel
+                {
+                    Name = dto.Name,
+                    Brand = dto.Brand,
+                    Type = dto.Type,
+                    SeatingCapacity = dto.SeatingCapacity,
+                    SeatingLayout = dto.SeatingLayout,
+                    ImageUrl = dto.ImageUrl,
+                    Features = dto.Features != null && dto.Features.Count > 0
+                        ? JsonSerializer.Serialize(dto.Features)
+                        : null,
+                    Description = dto.Description,
+                    IsActive = dto.IsActive
+                };
+
+                var updatedModel = await _vehicleModelRepository.UpdateVehicleModelAsync(id, vehicleModel);
+                if (updatedModel == null)
+                {
+                    return NotFound(ApiResponseDto<object>.ErrorResponse("Vehicle model not found"));
+                }
+
+                var responseDto = new VehicleModelDto
+                {
+                    Id = updatedModel.Id,
+                    Name = updatedModel.Name,
+                    Brand = updatedModel.Brand,
+                    Type = updatedModel.Type,
+                    SeatingCapacity = updatedModel.SeatingCapacity,
+                    SeatingLayout = updatedModel.SeatingLayout,
+                    ImageUrl = updatedModel.ImageUrl,
+                    Features = string.IsNullOrEmpty(updatedModel.Features)
+                        ? new List<string>()
+                        : JsonSerializer.Deserialize<List<string>>(updatedModel.Features) ?? new List<string>(),
+                    Description = updatedModel.Description,
+                    IsActive = updatedModel.IsActive
+                };
+
+                return Ok(ApiResponseDto<VehicleModelDto>.SuccessResponse(responseDto));
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error updating vehicle model");
+                return StatusCode(500, ApiResponseDto<object>.ErrorResponse("An error occurred while updating vehicle model"));
+            }
+        }
+
+        /// <summary>
+        /// Delete a vehicle model (Admin only)
+        /// </summary>
+        [HttpDelete("{id}")]
+        [Authorize(Roles = "admin")]
+        public async Task<IActionResult> DeleteVehicleModel(Guid id)
+        {
+            try
+            {
+                var deleted = await _vehicleModelRepository.DeleteVehicleModelAsync(id);
+                if (!deleted)
+                {
+                    return NotFound(ApiResponseDto<object>.ErrorResponse("Vehicle model not found"));
+                }
+
+                return Ok(ApiResponseDto<object>.SuccessResponse(null, "Vehicle model deleted successfully"));
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error deleting vehicle model");
+                return StatusCode(500, ApiResponseDto<object>.ErrorResponse("An error occurred while deleting vehicle model"));
             }
         }
     }
