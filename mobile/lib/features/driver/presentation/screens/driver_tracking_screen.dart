@@ -891,10 +891,11 @@ class _DriverTrackingScreenState extends ConsumerState<DriverTrackingScreen> {
     
     print('\n🔶 Closest Stop: ${closestStopIndex + 1} - ${stops[closestStopIndex].name}');
     print('   Distance: ${minDistance.toStringAsFixed(3)}km');
-    print('   Threshold: 1.0km');
+    print('   Threshold: 4.0km');
     
-    // If within 1km of a stop, consider it reached (accounts for GPS accuracy)
-    if (minDistance < 1.0 && closestStopIndex > _currentStopIndex) {
+    // If within 4km of a stop, consider it reached (accounts for GPS accuracy and city radius)
+    final isDestination = closestStopIndex == stops.length - 1;
+    if (minDistance < 4.0 && (closestStopIndex > _currentStopIndex || (isDestination && closestStopIndex >= _currentStopIndex))) {
       print('\n✨ STOP REACHED! Moving from Stop ${_currentStopIndex + 1} to Stop ${closestStopIndex + 1}');
       setState(() {
         // Mark previous stops as passed and record arrival time
@@ -911,7 +912,7 @@ class _DriverTrackingScreenState extends ConsumerState<DriverTrackingScreen> {
           stops[closestStopIndex].actualArrivalTime = DateTime.now();
         }
       });
-    } else if (minDistance < 1.0 && closestStopIndex == _currentStopIndex) {
+    } else if (minDistance < 4.0 && closestStopIndex == _currentStopIndex) {
       // Update current stop arrival time
       setState(() {
         if (stops[closestStopIndex].actualArrivalTime == null) {

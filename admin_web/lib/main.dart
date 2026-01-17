@@ -148,7 +148,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Image.asset(
-              'assets/images/vanyatra_icon_logo.png',
+              'assets/images/vanyatra_new_logo_home.png',
               width: 110,
               height: 110,
             ),

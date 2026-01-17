@@ -27,16 +27,40 @@ class _DriverTripDetailsScreenState extends ConsumerState<DriverTripDetailsScree
   late DateTime departureDateTime;
   Duration? timeUntilDeparture;
   RideDetailsWithPassengers? _rideDetails;
+  DriverRide? _latestRideData;
   
   @override
   void initState() {
     super.initState();
+    _latestRideData = widget.ride;
     _parseDateTime();
     _startCountdown();
     // Load ride details after the first frame
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadRideDetails();
+      _refreshRideData();
     });
+  }
+  
+  Future<void> _refreshRideData() async {
+    // Reload active rides to get latest booking counts
+    await ref.read(driverRideNotifierProvider.notifier).loadActiveRides();
+    
+    if (!mounted) return;
+    
+    // Find the updated ride in the active rides list
+    final state = ref.read(driverRideNotifierProvider);
+    final updatedRide = state.activeRides.firstWhere(
+      (r) => r.rideId == widget.ride.rideId,
+      orElse: () => widget.ride,
+    );
+    
+    if (mounted) {
+      setState(() {
+        _latestRideData = updatedRide;
+      });
+      print('🔄 Updated ride data - Booked seats: ${updatedRide.bookedSeats}');
+    }
   }
   
   Future<void> _loadRideDetails() async {
@@ -113,7 +137,12 @@ class _DriverTripDetailsScreenState extends ConsumerState<DriverTripDetailsScree
   
   void _showPassengerListDialog() async {
     print('👆 Tapped on booked seats card');
-    print('   Booked seats: ${widget.ride.bookedSeats}');
+    
+    // Refresh data first to ensure we have latest bookings
+    await _refreshRideData();
+    
+    final currentRide = _latestRideData ?? widget.ride;
+    print('   Booked seats: ${currentRide.bookedSeats}');
     print('   Ride details loaded: ${_rideDetails != null}');
     
     if (_rideDetails == null) {
@@ -186,8 +215,9 @@ class _DriverTripDetailsScreenState extends ConsumerState<DriverTripDetailsScree
   }
   
   bool _canEditRide() {
+    final currentRide = _latestRideData ?? widget.ride;
     // Cannot edit if passengers have booked
-    if (widget.ride.bookedSeats > 0) {
+    if (currentRide.bookedSeats > 0) {
       return false;
     }
     
@@ -533,8 +563,9 @@ class _DriverTripDetailsScreenState extends ConsumerState<DriverTripDetailsScree
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final statusColor = _getStatusColor();
-    final bookedPercentage = widget.ride.totalSeats > 0
-        ? (widget.ride.bookedSeats / widget.ride.totalSeats * 100).round()
+    final currentRide = _latestRideData ?? widget.ride;
+    final bookedPercentage = currentRide.totalSeats > 0
+        ? (currentRide.bookedSeats / currentRide.totalSeats * 100).round()
         : 0;
 
     return Scaffold(
@@ -544,6 +575,23 @@ class _DriverTripDetailsScreenState extends ConsumerState<DriverTripDetailsScree
         backgroundColor: isDark ? AppColors.darkSurface : Colors.white,
         elevation: 0,
         actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: () async {
+              await _refreshRideData();
+              await _loadRideDetails();
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Trip details refreshed'),
+                    duration: Duration(seconds: 1),
+                    backgroundColor: AppColors.success,
+                  ),
+                );
+              }
+            },
+            tooltip: 'Refresh',
+          ),
           IconButton(
             icon: const Icon(Icons.share),
             onPressed: () {
@@ -558,9 +606,15 @@ class _DriverTripDetailsScreenState extends ConsumerState<DriverTripDetailsScree
           ),
         ],
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(AppSpacing.lg),
-        child: Column(
+      body: RefreshIndicator(
+        onRefresh: () async {
+          await _refreshRideData();
+          await _loadRideDetails();
+        },
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(AppSpacing.lg),
+          physics: const AlwaysScrollableScrollPhysics(),
+          child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Status Card with Countdown
@@ -645,13 +699,13 @@ class _DriverTripDetailsScreenState extends ConsumerState<DriverTripDetailsScree
                     icon: Icons.trip_origin,
                     iconColor: AppColors.success,
                     label: 'Pickup Location',
-                    value: widget.ride.pickupLocation,
+                    value: currentRide.pickupLocation,
                     isDark: isDark,
                   ),
                   
-                  if (widget.ride.intermediateStops != null && widget.ride.intermediateStops!.isNotEmpty) ...[
+                  if (currentRide.intermediateStops != null && currentRide.intermediateStops!.isNotEmpty) ...[
                     _buildRouteDivider(),
-                    ...widget.ride.intermediateStops!.map((stop) => 
+                    ...currentRide.intermediateStops!.map((stop) => 
                       _buildRoutePoint(
                         icon: Icons.circle,
                         iconColor: AppColors.warning,
@@ -669,7 +723,7 @@ class _DriverTripDetailsScreenState extends ConsumerState<DriverTripDetailsScree
                     icon: Icons.location_on,
                     iconColor: AppColors.error,
                     label: 'Dropoff Location',
-                    value: widget.ride.dropoffLocation,
+                    value: currentRide.dropoffLocation,
                     isDark: isDark,
                   ),
                 ],
@@ -685,15 +739,15 @@ class _DriverTripDetailsScreenState extends ConsumerState<DriverTripDetailsScree
               children: [
                 Expanded(
                   child: InkWell(
-                    onTap: widget.ride.bookedSeats > 0
+                    onTap: currentRide.bookedSeats > 0
                         ? () => _showPassengerListDialog()
                         : null,
                     borderRadius: BorderRadius.circular(AppSpacing.radiusMD),
                     child: _buildStatCard(
                       icon: Icons.people,
                       label: 'Booked Seats',
-                      value: '${widget.ride.bookedSeats}/${widget.ride.totalSeats}',
-                      subtitle: widget.ride.bookedSeats > 0 ? 'Tap to view' : '$bookedPercentage% filled',
+                      value: '${currentRide.bookedSeats}/${currentRide.totalSeats}',
+                      subtitle: currentRide.bookedSeats > 0 ? 'Tap to view' : '$bookedPercentage% filled',
                       color: AppColors.primaryYellow,
                       isDark: isDark,
                     ),
@@ -704,7 +758,7 @@ class _DriverTripDetailsScreenState extends ConsumerState<DriverTripDetailsScree
                   child: _buildStatCard(
                     icon: Icons.event_seat,
                     label: 'Available',
-                    value: '${widget.ride.availableSeats}',
+                    value: '${currentRide.availableSeats}',
                     subtitle: 'seats left',
                     color: AppColors.info,
                     isDark: isDark,
@@ -921,6 +975,7 @@ class _DriverTripDetailsScreenState extends ConsumerState<DriverTripDetailsScree
           ],
         ),
       ),
+    ),
     );
   }
   

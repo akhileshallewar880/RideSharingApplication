@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+            <certificates src="user" />
+        </trust-anchors>
+    </base-config>
+    
+    <!-- Trust Azure domains -->
+    <domain-config cleartextTrafficPermitted="false">
+        <domain includeSubdomains="true">azurewebsites.net</domain>
+        <domain includeSubdomains="true">centralindia-01.azurewebsites.net</domain>
+        <domain includeSubdomains="true">googleapis.com</domain>
+        <domain includeSubdomains="true">firebase.com</domain>
+    </domain-config>
+</network-security-config>

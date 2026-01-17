@@ -36,6 +36,17 @@ class _DriverDashboardScreenState extends ConsumerState<DriverDashboardScreen> {
     });
   }
   
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Refresh data when returning to this screen
+    if (ModalRoute.of(context)?.isCurrent == true) {
+      Future.microtask(() {
+        ref.read(driverRideNotifierProvider.notifier).loadActiveRides();
+      });
+    }
+  }
+  
   Future<void> _toggleOnlineStatus(bool newStatus) async {
     final success = await ref.read(driverDashboardNotifierProvider.notifier)
         .updateOnlineStatus(newStatus);
@@ -1263,15 +1274,20 @@ class _UpcomingRideCardState extends ConsumerState<_UpcomingRideCard> {
           }
         } else {
           // For scheduled rides, navigate to trip details screen
-          await Navigator.push(
+          final result = await Navigator.push(
             context,
             MaterialPageRoute(
               builder: (context) => DriverTripDetailsScreen(ride: widget.ride),
             ),
           );
+          
+          // Always reload active rides after returning to get fresh booking data
+          if (mounted) {
+            await ref.read(driverRideNotifierProvider.notifier).loadActiveRides();
+          }
         }
         
-        // Reload active rides after returning to refresh countdown
+        // Additional reload for safety
         if (mounted) {
           ref.read(driverRideNotifierProvider.notifier).loadActiveRides();
         }

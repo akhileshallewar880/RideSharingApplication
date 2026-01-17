@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'dart:convert';
+import '../../../core/providers/live_tracking_provider.dart';
 
 /// Stop types for the timeline
 enum StopType { start, intermediate, end }
@@ -29,8 +31,14 @@ class TrainStop {
   });
 }
 
+// Live tracking provider
+final liveTrackingProvider = StateNotifierProvider<LiveTrackingNotifier, LiveTrackingState>((ref) {
+  final signalRService = ref.watch(signalRServiceProvider);
+  return LiveTrackingNotifier(signalRService);
+});
+
 /// Widget to display a train-style tracking timeline for a ride
-class RideTrackingTimeline extends StatelessWidget {
+class RideTrackingTimeline extends ConsumerStatefulWidget {
   final dynamic ride;
   final bool isDark;
 
@@ -41,7 +49,37 @@ class RideTrackingTimeline extends StatelessWidget {
   }) : super(key: key);
 
   @override
+  ConsumerState<RideTrackingTimeline> createState() => _RideTrackingTimelineState();
+}
+
+class _RideTrackingTimelineState extends ConsumerState<RideTrackingTimeline> {
+  @override
+  void initState() {
+    super.initState();
+    // Start tracking this ride
+    final rideId = widget.ride['rideId']?.toString();
+    if (rideId != null && rideId.isNotEmpty) {
+      Future.microtask(() {
+        ref.read(liveTrackingProvider.notifier).trackRide(rideId);
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    // Stop tracking when dialog closes
+    final rideId = widget.ride['rideId']?.toString();
+    if (rideId != null && rideId.isNotEmpty) {
+      ref.read(liveTrackingProvider.notifier).stopTrackingRide(rideId);
+    }
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final trackingState = ref.watch(liveTrackingProvider);
+    final rideId = widget.ride['rideId']?.toString();
+    final driverLocation = rideId != null ? trackingState.rideLocations[rideId] : null;
     final stops = _buildStopsList();
 
     if (stops.isEmpty) {
@@ -74,20 +112,144 @@ class RideTrackingTimeline extends StatelessWidget {
           // Header
           Padding(
             padding: const EdgeInsets.all(16),
-            child: Row(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Icon(Icons.route, size: 20, color: Colors.orange.shade700),
-                const SizedBox(width: 8),
-                Text(
-                  'Route Timeline',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: isDark ? Colors.white : Colors.grey.shade800,
-                  ),
+                Row(
+                  children: [
+                    Icon(Icons.route, size: 20, color: Colors.orange.shade700),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Route Timeline',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: widget.isDark ? Colors.white : Colors.grey.shade800,
+                      ),
+                    ),
+                    const Spacer(),
+                    _buildStatusChip(),
+                  ],
                 ),
-                const Spacer(),
-                _buildStatusChip(),
+                // Driver location indicator
+                if (driverLocation != null) ..[
+                  const SizedBox(height: 12),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.green.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.green.shade300),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(6),
+                          decoration: BoxDecoration(
+                            color: Colors.green,
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            Icons.location_on,
+                            color: Colors.white,
+                            size: 16,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Driver Location',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 13,
+                                  color: Colors.green.shade800,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                'Lat: ${driverLocation.latitude.toStringAsFixed(6)}, Lng: ${driverLocation.longitude.toStringAsFixed(6)}',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: Colors.grey.shade600,
+                                ),
+                              ),
+                              Text(
+                                'Last update: ${_formatTimestamp(driverLocation.lastUpdate)}',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  color: Colors.grey.shade500,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.green,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: const [
+                              Icon(
+                                Icons.circle,
+                                size: 8,
+                                color: Colors.white,
+                              ),
+                              SizedBox(width: 4),
+                              Text(
+                                'LIVE',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 10,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ] else if (trackingState.isConnected) ..[
+                  const SizedBox(height: 12),
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.orange.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.orange.shade300),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        SizedBox(
+                          width: 12,
+                          height: 12,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor: AlwaysStoppedAnimation<Color>(Colors.orange),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Waiting for driver location...',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: Colors.orange.shade700,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
@@ -464,6 +626,21 @@ class RideTrackingTimeline extends StatelessWidget {
     final hour = time.hour.toString().padLeft(2, '0');
     final minute = time.minute.toString().padLeft(2, '0');
     return '$hour:$minute';
+  }
+  
+  String _formatTimestamp(DateTime timestamp) {
+    final now = DateTime.now();
+    final difference = now.difference(timestamp);
+    
+    if (difference.inSeconds < 10) {
+      return 'Just now';
+    } else if (difference.inSeconds < 60) {
+      return '${difference.inSeconds}s ago';
+    } else if (difference.inMinutes < 60) {
+      return '${difference.inMinutes}m ago';
+    } else {
+      return '${difference.inHours}h ago';
+    }
   }
 
   List<TrainStop> _buildStopsList() {

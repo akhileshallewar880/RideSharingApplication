@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -85,8 +86,8 @@ class VanYatraApp extends StatelessWidget {
       darkTheme: AppTheme.darkTheme,
       themeMode: ThemeMode.system,
       
-      // Initial route
-      home: const SplashScreen(),
+      // Initial route - skip splash and login for web, go directly to passenger home
+      home: kIsWeb ? const PassengerHomeScreen() : const SplashScreen(),
       
       // Routes (simplified routing - can be replaced with GoRouter later)
       routes: {

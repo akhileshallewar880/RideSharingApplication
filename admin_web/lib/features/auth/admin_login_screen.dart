@@ -80,7 +80,7 @@ class _AdminLoginScreenState extends ConsumerState<AdminLoginScreen> {
                     children: [
                       // Logo/Title
                       Image.asset(
-                        'assets/images/vanyatra_icon_logo.png',
+                        'assets/images/vanyatra_new_logo_home.png',
                         height: 80,
                       ),
                       SizedBox(height: 16),

@@ -1,8 +1,10 @@
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 
 /// Service for Firebase phone authentication
 class FirebasePhoneService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
+  ConfirmationResult? _webConfirmationResult; // For web-based verification
 
   /// Send OTP to phone number
   /// 
@@ -19,35 +21,59 @@ class FirebasePhoneService {
     int timeoutDuration = 60,
   }) async {
     try {
-      print('📱 Firebase: Sending OTP to $phoneNumber');
+      print('📱 Firebase: Sending OTP to $phoneNumber (Platform: ${kIsWeb ? "Web" : "Mobile"})');
       
-      await _auth.verifyPhoneNumber(
-        phoneNumber: phoneNumber,
-        timeout: Duration(seconds: timeoutDuration),
-        verificationCompleted: (PhoneAuthCredential credential) async {
-          // Auto-verification on Android (instant verification or auto-retrieval)
-          print('✅ Firebase: Auto-verification completed');
-          if (onAutoVerificationCompleted != null) {
-            onAutoVerificationCompleted(credential);
+      if (kIsWeb) {
+        // Web-specific flow using reCAPTCHA
+        print('🌐 Using web-based phone authentication with reCAPTCHA');
+        try {
+          _webConfirmationResult = await _auth.signInWithPhoneNumber(
+            phoneNumber,
+          );
+          print('✅ Firebase: reCAPTCHA verified, OTP sent');
+          // Use a dummy verificationId for web
+          onCodeSent('web-verification', null);
+        } catch (e) {
+          print('🔴 Firebase Web: Error: $e');
+          if (e is FirebaseAuthException) {
+            onVerificationFailed(e);
+          } else {
+            onVerificationFailed(FirebaseAuthException(
+              code: 'web-error',
+              message: 'Failed to send OTP on web: $e',
+            ));
           }
-        },
-        verificationFailed: (FirebaseAuthException error) {
-          print('🔴 Firebase: Verification failed: ${error.message}');
-          print('🔴 Error Code: ${error.code}');
-          onVerificationFailed(error);
-        },
-        codeSent: (String verificationId, int? resendToken) {
-          print('✅ Firebase: OTP sent successfully');
-          print('   Verification ID: ${verificationId.substring(0, 20)}...');
-          onCodeSent(verificationId, resendToken);
-        },
-        codeAutoRetrievalTimeout: (String verificationId) {
-          print('⏱️ Firebase: Auto-retrieval timeout');
-          if (onCodeAutoRetrievalTimeout != null) {
-            onCodeAutoRetrievalTimeout(verificationId);
-          }
-        },
-      );
+        }
+      } else {
+        // Mobile-specific flow
+        await _auth.verifyPhoneNumber(
+          phoneNumber: phoneNumber,
+          timeout: Duration(seconds: timeoutDuration),
+          verificationCompleted: (PhoneAuthCredential credential) async {
+            // Auto-verification on Android (instant verification or auto-retrieval)
+            print('✅ Firebase: Auto-verification completed');
+            if (onAutoVerificationCompleted != null) {
+              onAutoVerificationCompleted(credential);
+            }
+          },
+          verificationFailed: (FirebaseAuthException error) {
+            print('🔴 Firebase: Verification failed: ${error.message}');
+            print('🔴 Error Code: ${error.code}');
+            onVerificationFailed(error);
+          },
+          codeSent: (String verificationId, int? resendToken) {
+            print('✅ Firebase: OTP sent successfully');
+            print('   Verification ID: ${verificationId.substring(0, 20)}...');
+            onCodeSent(verificationId, resendToken);
+          },
+          codeAutoRetrievalTimeout: (String verificationId) {
+            print('⏱️ Firebase: Auto-retrieval timeout');
+            if (onCodeAutoRetrievalTimeout != null) {
+              onCodeAutoRetrievalTimeout(verificationId);
+            }
+          },
+        );
+      }
     } catch (e) {
       print('🔴 Firebase: Error sending OTP: $e');
       rethrow;
@@ -63,16 +89,28 @@ class FirebasePhoneService {
     required String otp,
   }) async {
     try {
-      print('🔐 Firebase: Verifying OTP...');
+      print('🔐 Firebase: Verifying OTP... (Platform: ${kIsWeb ? "Web" : "Mobile"})');
       
-      // Create credential
-      PhoneAuthCredential credential = PhoneAuthProvider.credential(
-        verificationId: verificationId,
-        smsCode: otp,
-      );
-
-      // Sign in with credential
-      UserCredential userCredential = await _auth.signInWithCredential(credential);
+      UserCredential userCredential;
+      
+      if (kIsWeb) {
+        // Web-specific verification using confirmation result
+        if (_webConfirmationResult == null) {
+          throw FirebaseAuthException(
+            code: 'no-confirmation',
+            message: 'No confirmation result available. Please request OTP again.',
+          );
+        }
+        print('🌐 Verifying OTP using web confirmation result');
+        userCredential = await _webConfirmationResult!.confirm(otp);
+      } else {
+        // Mobile-specific verification
+        PhoneAuthCredential credential = PhoneAuthProvider.credential(
+          verificationId: verificationId,
+          smsCode: otp,
+        );
+        userCredential = await _auth.signInWithCredential(credential);
+      }
       
       print('✅ Firebase: OTP verification successful');
       print('   User ID: ${userCredential.user?.uid}');
