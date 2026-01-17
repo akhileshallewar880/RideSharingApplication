@@ -29,6 +29,7 @@ class PassengerLiveTrackingScreen extends ConsumerStatefulWidget {
 
 class _PassengerLiveTrackingScreenState extends ConsumerState<PassengerLiveTrackingScreen> {
   int _currentStopIndex = 0;
+  bool _hasShownDestinationReached = false;
   
   @override
   void initState() {
@@ -115,93 +116,106 @@ class _PassengerLiveTrackingScreenState extends ConsumerState<PassengerLiveTrack
                 ),
                 child: SafeArea(
                   child: Padding(
-                    padding: EdgeInsets.all(AppSpacing.xl),
+                    padding: EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.xl, AppSpacing.lg, AppSpacing.md),
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.end,
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
                           widget.rideDetails.pickupLocation,
-                          style: TextStyles.headingMedium.copyWith(
+                          style: TextStyles.headingSmall.copyWith(
                             color: Colors.white,
                             fontWeight: FontWeight.bold,
+                            fontSize: 20,
                           ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
-                        SizedBox(height: 4),
+                        SizedBox(height: 2),
                         Text(
                           'to ${widget.rideDetails.dropoffLocation}',
                           style: TextStyles.bodyMedium.copyWith(
                             color: Colors.white.withOpacity(0.9),
+                            fontSize: 14,
                           ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
-                        SizedBox(height: AppSpacing.lg),
+                        SizedBox(height: AppSpacing.md),
                         Text(
                           statusText,
-                          style: TextStyles.bodyMedium.copyWith(
-                            color: Colors.white.withOpacity(0.9),
+                          style: TextStyles.bodySmall.copyWith(
+                            color: Colors.white.withOpacity(0.85),
                             fontWeight: FontWeight.w500,
+                            fontSize: 13,
                           ),
                         ),
                         if (hasDriverStarted) ...[
-                          SizedBox(height: 4),
+                          SizedBox(height: 2),
                           Text(
                             nextStop?.name ?? widget.rideDetails.pickupLocation,
-                            style: TextStyles.headingLarge.copyWith(
+                            style: TextStyles.headingMedium.copyWith(
                               color: Colors.white,
                               fontWeight: FontWeight.bold,
+                              fontSize: 22,
                             ),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
                         ] else ...[
-                          SizedBox(height: 4),
+                          SizedBox(height: 2),
                           Text(
                             'Waiting for driver to begin',
-                            style: TextStyles.headingMedium.copyWith(
+                            style: TextStyles.headingSmall.copyWith(
                               color: Colors.white,
                               fontWeight: FontWeight.bold,
+                              fontSize: 18,
                             ),
-                            maxLines: 1,
+                            maxLines: 2,
                             overflow: TextOverflow.ellipsis,
                           ),
                         ],
-                        SizedBox(height: AppSpacing.md),
-                        Row(
+                        SizedBox(height: AppSpacing.sm),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 4,
+                          crossAxisAlignment: WrapCrossAlignment.center,
                           children: [
-                            Icon(
-                              hasDriverStarted ? Icons.schedule : Icons.access_time,
-                              color: Colors.white,
-                              size: 18,
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  hasDriverStarted ? Icons.schedule : Icons.access_time,
+                                  color: Colors.white,
+                                  size: 16,
+                                ),
+                                SizedBox(width: 4),
+                                Text(
+                                  hasDriverStarted 
+                                      ? 'Arriving at ${_formatTime(arrivalTime)}'
+                                      : 'Scheduled: ${_formatTime(arrivalTime)}',
+                                  style: TextStyles.bodyMedium.copyWith(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w500,
+                                    fontSize: 13,
+                                  ),
+                                ),
+                              ],
                             ),
-                            SizedBox(width: 6),
-                            Text(
-                              hasDriverStarted 
-                                  ? 'Arriving at ${_formatTime(arrivalTime)}'
-                                  : 'Scheduled: ${_formatTime(arrivalTime)}',
-                              style: TextStyles.bodyLarge.copyWith(
-                                color: Colors.white,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                            SizedBox(width: AppSpacing.md),
                             Container(
-                              width: 4,
-                              height: 4,
+                              width: 3,
+                              height: 3,
                               decoration: BoxDecoration(
                                 color: Colors.white.withOpacity(0.7),
                                 shape: BoxShape.circle,
                               ),
                             ),
-                            SizedBox(width: AppSpacing.md),
                             Text(
                               hasDriverStarted ? 'On time' : 'Not started',
-                              style: TextStyles.bodyLarge.copyWith(
+                              style: TextStyles.bodyMedium.copyWith(
                                 color: Colors.white,
                                 fontWeight: FontWeight.w500,
+                                fontSize: 13,
                               ),
                             ),
                           ],
@@ -256,11 +270,18 @@ class _PassengerLiveTrackingScreenState extends ConsumerState<PassengerLiveTrack
     final hasDriverStarted = driverLocation != null;
     
     return Container(
-      margin: EdgeInsets.all(AppSpacing.lg),
-      padding: EdgeInsets.all(AppSpacing.xl),
+      margin: EdgeInsets.all(AppSpacing.md),
+      padding: EdgeInsets.all(AppSpacing.lg),
       decoration: BoxDecoration(
         color: isDark ? AppColors.darkSurface : Colors.white,
-        borderRadius: BorderRadius.circular(AppSpacing.radiusXL),
+        borderRadius: BorderRadius.circular(AppSpacing.radiusLG),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 8,
+            offset: Offset(0, 2),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -349,85 +370,82 @@ class _PassengerLiveTrackingScreenState extends ConsumerState<PassengerLiveTrack
     bool isDark,
   ) {
     return Padding(
-      padding: EdgeInsets.only(bottom: isLast ? 0 : AppSpacing.xl),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Timeline indicator
-          Column(
-            children: [
-              // Stop circle/icon
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: isCurrent 
-                      ? AppColors.primaryGreen 
-                      : isPast 
-                          ? AppColors.success 
-                          : (isDark ? Colors.white12 : Colors.grey[200]),
-                  shape: BoxShape.circle,
-                  border: Border.all(
+      padding: EdgeInsets.only(bottom: isLast ? 0 : AppSpacing.lg),
+      child: IntrinsicHeight(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Timeline indicator
+            Column(
+              children: [
+                // Stop circle/icon
+                Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: isCurrent 
+                        ? AppColors.primaryGreen 
+                        : isPast 
+                            ? AppColors.success 
+                            : (isDark ? Colors.white12 : Colors.grey[200]),
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: isCurrent || isPast
+                          ? Colors.white
+                          : (isDark ? Colors.white24 : Colors.grey[300]!),
+                      width: 2,
+                    ),
+                  ),
+                  child: Icon(
+                    isFirst 
+                        ? Icons.trip_origin 
+                        : isLast 
+                            ? Icons.location_on 
+                            : Icons.circle,
+                    size: isFirst || isLast ? 18 : 10,
                     color: isCurrent || isPast
                         ? Colors.white
-                        : (isDark ? Colors.white24 : Colors.grey[300]!),
-                    width: 2,
+                        : (isDark ? Colors.white38 : Colors.grey[400]),
                   ),
                 ),
-                child: Icon(
-                  isFirst 
-                      ? Icons.trip_origin 
-                      : isLast 
-                          ? Icons.location_on 
-                          : Icons.circle,
-                  size: isFirst || isLast ? 20 : 12,
-                  color: isCurrent || isPast
-                      ? Colors.white
-                      : (isDark ? Colors.white38 : Colors.grey[400]),
-                ),
-              ),
-              
-              // Connecting line
-              if (!isLast)
-                Container(
-                  width: 2,
-                  height: 50,
-                  margin: EdgeInsets.symmetric(vertical: 4),
-                  color: isPast ? AppColors.success : (isDark ? Colors.white12 : Colors.grey[300]),
-                ),
-            ],
-          ),
+                
+                // Connecting line
+                if (!isLast)
+                  Expanded(
+                    child: Container(
+                      width: 2,
+                      margin: EdgeInsets.symmetric(vertical: 4),
+                      color: isPast ? AppColors.success : (isDark ? Colors.white12 : Colors.grey[300]),
+                    ),
+                  ),
+              ],
+            ),
           
-          SizedBox(width: AppSpacing.lg),
+          SizedBox(width: AppSpacing.md),
           
           // Stop details
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
               children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        stop.name,
-                        style: TextStyles.bodyLarge.copyWith(
-                          color: isDark ? Colors.white : AppColors.lightTextPrimary,
-                          fontWeight: isCurrent ? FontWeight.bold : FontWeight.w600,
-                          fontSize: isCurrent ? 16 : 15,
-                        ),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  ],
+                Text(
+                  stop.name,
+                  style: TextStyles.bodyMedium.copyWith(
+                    color: isDark ? Colors.white : AppColors.lightTextPrimary,
+                    fontWeight: isCurrent ? FontWeight.bold : FontWeight.w600,
+                    fontSize: isCurrent ? 15 : 14,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                 ),
-                SizedBox(height: AppSpacing.xs),
+                SizedBox(height: 4),
                 if (isCurrent)
                   Container(
-                    margin: EdgeInsets.only(top: AppSpacing.xs),
+                    margin: EdgeInsets.only(top: 2),
                     padding: EdgeInsets.symmetric(
-                      horizontal: AppSpacing.sm,
-                      vertical: 4,
+                      horizontal: 8,
+                      vertical: 3,
                     ),
                     decoration: BoxDecoration(
                       color: AppColors.primaryGreen.withOpacity(0.1),
@@ -437,20 +455,20 @@ class _PassengerLiveTrackingScreenState extends ConsumerState<PassengerLiveTrack
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Container(
-                          width: 6,
-                          height: 6,
+                          width: 5,
+                          height: 5,
                           decoration: BoxDecoration(
                             color: AppColors.primaryGreen,
                             shape: BoxShape.circle,
                           ),
                         ),
-                        SizedBox(width: 6),
+                        SizedBox(width: 4),
                         Text(
                           isFirst ? 'Picking up' : 'Current location',
                           style: TextStyles.bodySmall.copyWith(
                             color: AppColors.primaryGreen,
                             fontWeight: FontWeight.w600,
-                            fontSize: 12,
+                            fontSize: 11,
                           ),
                         ),
                       ],
@@ -493,6 +511,7 @@ class _PassengerLiveTrackingScreenState extends ConsumerState<PassengerLiveTrack
             ),
           ),
         ],
+        ),
       ),
     );
   }
@@ -785,14 +804,170 @@ class _PassengerLiveTrackingScreenState extends ConsumerState<PassengerLiveTrack
       }
     }
     
-    // If within 1km of a stop ahead, consider it reached
-    if (minDistance < 1.0 && closestStopIndex >= _currentStopIndex) {
-      if (_currentStopIndex != closestStopIndex) {
-        setState(() {
-          _currentStopIndex = closestStopIndex;
-        });
-      }
+    // Update current stop if:
+    // 1. Within 4km of any stop (including destination)
+    // 2. The closest stop is at or ahead of current position
+    // 3. OR if it's the last stop (destination) and within 4km
+    final isDestination = closestStopIndex == stops.length - 1;
+    final shouldUpdate = minDistance < 4.0 && 
+                        (closestStopIndex >= _currentStopIndex || isDestination);
+    
+    if (shouldUpdate && _currentStopIndex != closestStopIndex) {
+      setState(() {
+        _currentStopIndex = closestStopIndex;
+      });
     }
+    
+    // Check if driver reached passenger's drop location
+    _checkDestinationReached(stops, minDistance, closestStopIndex);
+  }
+  
+  void _checkDestinationReached(List<TrainStop> stops, double minDistance, int closestStopIndex) {
+    if (_hasShownDestinationReached) return;
+    
+    // Find passenger's drop location index
+    final passengerDropoff = widget.rideDetails.dropoffLocation;
+    final dropoffIndex = stops.indexWhere((stop) => stop.name == passengerDropoff);
+    
+    if (dropoffIndex == -1) return;
+    
+    // Check if driver is within 4km of passenger's drop location
+    if (closestStopIndex == dropoffIndex && minDistance < 4.0) {
+      _hasShownDestinationReached = true;
+      
+      // Show manage trip bottom sheet automatically
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          _showDestinationReachedSheet();
+        }
+      });
+    }
+  }
+  
+  void _showDestinationReachedSheet() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => _buildDestinationReachedSheet(),
+    );
+  }
+  
+  Widget _buildDestinationReachedSheet() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    
+    return Container(
+      padding: EdgeInsets.all(AppSpacing.xl),
+      decoration: BoxDecoration(
+        color: isDark ? AppColors.darkSurface : Colors.white,
+        borderRadius: BorderRadius.only(
+          topLeft: Radius.circular(AppSpacing.radiusXL),
+          topRight: Radius.circular(AppSpacing.radiusXL),
+        ),
+      ),
+      child: SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Handle bar
+            Container(
+              width: 40,
+              height: 4,
+              margin: EdgeInsets.only(bottom: AppSpacing.lg),
+              decoration: BoxDecoration(
+                color: isDark ? Colors.white24 : Colors.grey[300],
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            
+            // Success icon
+            Container(
+              width: 80,
+              height: 80,
+              decoration: BoxDecoration(
+                color: AppColors.success.withOpacity(0.1),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                Icons.check_circle,
+                size: 48,
+                color: AppColors.success,
+              ),
+            ),
+            
+            SizedBox(height: AppSpacing.lg),
+            
+            // Title
+            Text(
+              'You\'ve Arrived!',
+              style: TextStyles.headingMedium.copyWith(
+                color: isDark ? Colors.white : AppColors.lightTextPrimary,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            
+            SizedBox(height: AppSpacing.sm),
+            
+            // Description
+            Text(
+              'You have reached your destination: ${widget.rideDetails.dropoffLocation}',
+              textAlign: TextAlign.center,
+              style: TextStyles.bodyMedium.copyWith(
+                color: isDark ? Colors.white70 : Colors.grey[600],
+              ),
+            ),
+            
+            SizedBox(height: AppSpacing.xl),
+            
+            // Manage Trip button
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                  _viewBookingDetails();
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primaryGreen,
+                  foregroundColor: Colors.white,
+                  padding: EdgeInsets.symmetric(vertical: AppSpacing.md),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(AppSpacing.radiusMD),
+                  ),
+                ),
+                child: Text(
+                  'Manage Trip',
+                  style: TextStyles.bodyLarge.copyWith(
+                    fontWeight: FontWeight.w600,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+            ),
+            
+            SizedBox(height: AppSpacing.md),
+            
+            // Close button
+            SizedBox(
+              width: double.infinity,
+              child: TextButton(
+                onPressed: () => Navigator.pop(context),
+                style: TextButton.styleFrom(
+                  padding: EdgeInsets.symmetric(vertical: AppSpacing.md),
+                ),
+                child: Text(
+                  'Continue Tracking',
+                  style: TextStyles.bodyLarge.copyWith(
+                    color: AppColors.primaryGreen,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
   
   double _calculateDistance(double lat1, double lon1, double lat2, double lon2) {

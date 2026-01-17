@@ -85,6 +85,12 @@ class _AdminLayoutState extends ConsumerState<AdminLayout> {
       ToastHelper.init(context);
       // Set the initial screen route
       ref.read(currentScreenProvider.notifier).state = widget.currentRoute;
+      
+      // Set sidebar collapsed by default on tablets
+      final isTablet = ResponsiveHelper.isTablet(context);
+      if (isTablet) {
+        ref.read(sidebarCollapsedProvider.notifier).state = true;
+      }
     });
   }
 
@@ -150,18 +156,30 @@ class _AdminLayoutState extends ConsumerState<AdminLayout> {
                     ),
                   ],
                 ),
+                // Backdrop overlay for tablet when sidebar is expanded
+                if (isTablet && !isSidebarCollapsed)
+                  Positioned.fill(
+                    child: GestureDetector(
+                      onTap: () {
+                        ref.read(sidebarCollapsedProvider.notifier).state = true;
+                      },
+                      child: Container(
+                        color: Colors.black.withOpacity(0.3),
+                      ),
+                    ),
+                  ),
                 Positioned(
                   left: 0,
                   top: 0,
                   bottom: 0,
                   child: MouseRegion(
-                    onEnter: (_) {
+                    onEnter: isDesktop ? (_) {
                       _sidebarExitDebounce?.cancel();
                       if (ref.read(sidebarCollapsedProvider)) {
                         ref.read(sidebarCollapsedProvider.notifier).state = false;
                       }
-                    },
-                    onExit: (_) {
+                    } : null,
+                    onExit: isDesktop ? (_) {
                       _sidebarExitDebounce?.cancel();
                       _sidebarExitDebounce = Timer(const Duration(milliseconds: 300), () {
                         if (!mounted) return;
@@ -169,7 +187,7 @@ class _AdminLayoutState extends ConsumerState<AdminLayout> {
                           ref.read(sidebarCollapsedProvider.notifier).state = true;
                         }
                       });
-                    },
+                    } : null,
                     child: RepaintBoundary(
                       child: AnimatedContainer(
                         duration: const Duration(milliseconds: 250),
@@ -240,7 +258,7 @@ class _AdminLayoutState extends ConsumerState<AdminLayout> {
             children: [
               // Logo - always visible, same size
               Image.asset(
-                'assets/images/vanyatra_icon_logo.png',
+                'assets/images/vanyatra_new_logo_home.png',
                 width: 44,
                 height: 44,
               ),
@@ -467,6 +485,7 @@ class _AdminLayoutState extends ConsumerState<AdminLayout> {
   
   // Build top app bar
   Widget _buildTopBar(BuildContext context, bool isMobile, AdminAuthState authState) {
+    final isTablet = ResponsiveHelper.isTablet(context);
     return Container(
       height: 64,
       decoration: BoxDecoration(
@@ -482,12 +501,19 @@ class _AdminLayoutState extends ConsumerState<AdminLayout> {
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Row(
         children: [
-          // Menu button (mobile)
-          if (isMobile)
+          // Menu button (mobile and tablet)
+          if (isMobile || isTablet)
             IconButton(
               icon: const Icon(Icons.menu),
+              tooltip: 'Open Menu',
               onPressed: () {
-                _scaffoldKey.currentState?.openDrawer();
+                if (isMobile) {
+                  _scaffoldKey.currentState?.openDrawer();
+                } else {
+                  // Toggle sidebar for tablet
+                  final isCollapsed = ref.read(sidebarCollapsedProvider);
+                  ref.read(sidebarCollapsedProvider.notifier).state = !isCollapsed;
+                }
               },
             ),
           
@@ -691,7 +717,7 @@ class _AdminLayoutState extends ConsumerState<AdminLayout> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Image.asset(
-                    'assets/images/vanyatra_icon_logo.png',
+                    'assets/images/vanyatra_new_logo_home.png',
                     width: 52,
                     height: 52,
                   ),
@@ -740,10 +766,17 @@ class _AdminLayoutState extends ConsumerState<AdminLayout> {
                     isCollapsedOverride: false,
                   ),
                   _buildMenuItem(
+                    icon: Icons.event_available_outlined,
+                    activeIcon: Icons.event_available,
+                    title: 'Ride Management',
+                    route: '/rides/management',
+                    isCollapsedOverride: false,
+                  ),
+                  _buildMenuItem(
                     icon: Icons.map_outlined,
                     activeIcon: Icons.map,
                     title: 'Live Tracking',
-                    route: '/tracking/live',
+                    route: '/tracking',
                     isCollapsedOverride: false,
                   ),
                   _buildMenuItem(
@@ -754,10 +787,38 @@ class _AdminLayoutState extends ConsumerState<AdminLayout> {
                     isCollapsedOverride: false,
                   ),
                   _buildMenuItem(
+                    icon: Icons.location_on_outlined,
+                    activeIcon: Icons.location_on,
+                    title: 'Locations',
+                    route: '/locations',
+                    isCollapsedOverride: false,
+                  ),
+                  _buildMenuItem(
+                    icon: Icons.view_carousel_outlined,
+                    activeIcon: Icons.view_carousel,
+                    title: 'Banners',
+                    route: '/banners',
+                    isCollapsedOverride: false,
+                  ),
+                  _buildMenuItem(
+                    icon: Icons.phone_android_outlined,
+                    activeIcon: Icons.phone_android,
+                    title: 'OTP Banners',
+                    route: '/otp-banners',
+                    isCollapsedOverride: false,
+                  ),
+                  _buildMenuItem(
                     icon: Icons.notifications_outlined,
                     activeIcon: Icons.notifications,
                     title: 'Notifications',
                     route: '/notifications',
+                    isCollapsedOverride: false,
+                  ),
+                  _buildMenuItem(
+                    icon: Icons.directions_car_outlined,
+                    activeIcon: Icons.directions_car,
+                    title: 'Vehicle Types',
+                    route: '/vehicle-types',
                     isCollapsedOverride: false,
                   ),
                   _buildMenuItem(
@@ -774,7 +835,7 @@ class _AdminLayoutState extends ConsumerState<AdminLayout> {
                     route: '/finance',
                     isCollapsedOverride: false,
                   ),
-                  const Divider(color: Colors.white24),
+                  const Divider(color: Colors.white24, height: 24),
                   _buildMenuItem(
                     icon: Icons.settings_outlined,
                     activeIcon: Icons.settings,

@@ -556,82 +556,84 @@ class _RideResultsScreenState extends ConsumerState<RideResultsScreen> {
                   
                   // Time and Price row
                   Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
                       // Departure time - Duration - Arrival time with locations
                       Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                        child: Wrap(
+                          spacing: 4,
+                          runSpacing: 4,
+                          crossAxisAlignment: WrapCrossAlignment.center,
                           children: [
-                            Row(
-                              children: [
-                                Text(
-                                  _formatTimeTo12Hour(ride.departureTime),
-                                  style: TextStyle(
-                                    fontSize: 22,
-                                    fontWeight: FontWeight.w600,
-                                    color: isDark 
-                                        ? AppColors.darkTextPrimary 
-                                        : const Color(0xFF212121),
-                                  ),
+                            Text(
+                              _formatTimeTo12Hour(ride.departureTime),
+                              style: TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.w600,
+                                color: isDark 
+                                    ? AppColors.darkTextPrimary 
+                                    : const Color(0xFF212121),
+                              ),
+                            ),
+                            Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 4),
+                              child: Text(
+                                '—',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  color: isDark 
+                                      ? AppColors.darkTextSecondary 
+                                      : const Color(0xFF9E9E9E),
                                 ),
-                                Padding(
-                                  padding: const EdgeInsets.symmetric(horizontal: 8),
-                                  child: Text(
-                                    '—',
-                                    style: TextStyle(
-                                      fontSize: 20,
-                                      color: isDark 
-                                          ? AppColors.darkTextSecondary 
-                                          : const Color(0xFF9E9E9E),
-                                    ),
-                                  ),
+                              ),
+                            ),
+                            Text(
+                              _getJourneyDuration(ride),
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w500,
+                                color: isDark 
+                                    ? AppColors.darkTextSecondary 
+                                    : const Color(0xFF757575),
+                              ),
+                            ),
+                            Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 4),
+                              child: Text(
+                                '—',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  color: isDark 
+                                      ? AppColors.darkTextSecondary 
+                                      : const Color(0xFF9E9E9E),
                                 ),
-                                Text(
-                                  _getJourneyDuration(ride),
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w500,
-                                    color: isDark 
-                                        ? AppColors.darkTextSecondary 
-                                        : const Color(0xFF757575),
-                                  ),
-                                ),
-                                Padding(
-                                  padding: const EdgeInsets.symmetric(horizontal: 8),
-                                  child: Text(
-                                    '—',
-                                    style: TextStyle(
-                                      fontSize: 20,
-                                      color: isDark 
-                                          ? AppColors.darkTextSecondary 
-                                          : const Color(0xFF9E9E9E),
-                                    ),
-                                  ),
-                                ),
-                                Text(
-                                  _getArrivalTime(ride),
-                                  style: TextStyle(
-                                    fontSize: 22,
-                                    fontWeight: FontWeight.w600,
-                                    color: isDark 
-                                        ? AppColors.darkTextPrimary 
-                                        : const Color(0xFF212121),
-                                  ),
-                                ),
-                              ],
+                              ),
+                            ),
+                            Text(
+                              _getArrivalTime(ride),
+                              style: TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.w600,
+                                color: isDark 
+                                    ? AppColors.darkTextPrimary 
+                                    : const Color(0xFF212121),
+                              ),
                             ),
                           ],
                         ),
                       ),
                       
+                      const SizedBox(width: 12),
+                      
                       // Price
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.end,
+                        mainAxisSize: MainAxisSize.min,
                         children: [
                           Text(
                             '₹${ride.pricePerSeat.toStringAsFixed(0)}',
                             style: TextStyle(
-                              fontSize: 22,
+                              fontSize: 20,
                               fontWeight: FontWeight.w700,
                               color: isDark 
                                   ? AppColors.darkTextPrimary 
@@ -641,7 +643,7 @@ class _RideResultsScreenState extends ConsumerState<RideResultsScreen> {
                           Text(
                             'Onwards',
                             style: TextStyle(
-                              fontSize: 12,
+                              fontSize: 11,
                               color: isDark 
                                   ? AppColors.darkTextSecondary 
                                   : const Color(0xFF757575),

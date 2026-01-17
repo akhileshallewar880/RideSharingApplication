@@ -139,6 +139,31 @@ class LiveTrackingNotifier extends StateNotifier<LiveTrackingState> {
     }
   }
   
+  /// Track specific ride
+  Future<void> trackRide(String rideId) async {
+    try {
+      await _signalRService.joinRideRoom(rideId);
+      print('✅ Now tracking ride: $rideId');
+    } catch (e) {
+      print('❌ Error tracking ride: $e');
+    }
+  }
+  
+  /// Stop tracking specific ride
+  Future<void> stopTrackingRide(String rideId) async {
+    try {
+      await _signalRService.leaveRideRoom(rideId);
+      print('🛑 Stopped tracking ride: $rideId');
+    } catch (e) {
+      print('❌ Error stopping tracking: $e');
+    }
+  }
+  
+  /// Get location for specific ride
+  RideLocation? getRideLocation(String rideId) {
+    return state.rideLocations[rideId];
+  }
+  
   /// Add ride to tracking (with initial data)
   void addRideToTracking({
     required String rideId,

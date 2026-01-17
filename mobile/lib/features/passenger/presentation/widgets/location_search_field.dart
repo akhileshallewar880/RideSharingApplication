@@ -274,11 +274,17 @@ class LocationSearchFieldState extends State<LocationSearchField> {
       child: TextField(
         controller: _controller,
         focusNode: _focusNode,
-        style: TextStyles.bodyMedium,
+        style: TextStyles.bodyMedium.copyWith(
+          fontWeight: FontWeight.w500,
+          color: isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary,
+        ),
         decoration: InputDecoration(
           hintText: widget.hint ?? 'Enter location',
           hintStyle: TextStyles.bodyMedium.copyWith(
-            color: isDark ? AppColors.darkTextTertiary : AppColors.lightTextTertiary,
+            color: isDark 
+                ? AppColors.darkTextTertiary.withOpacity(0.5) 
+                : AppColors.lightTextTertiary.withOpacity(0.6),
+            fontWeight: FontWeight.w400,
           ),
           prefixIcon: Icon(
             widget.prefixIcon ?? Icons.location_on_outlined,

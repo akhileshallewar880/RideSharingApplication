@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-// TODO: Re-enable after fixing Android SDK 35 corruption issue
-// import 'package:audioplayers/audioplayers.dart';
+import 'package:audioplayers/audioplayers.dart';
 import 'package:dio/dio.dart';
 import 'package:allapalli_ride/app/themes/app_colors.dart';
 import 'package:allapalli_ride/app/themes/app_spacing.dart';
@@ -55,9 +54,8 @@ class _RideCheckoutScreenState extends ConsumerState<RideCheckoutScreen> {
   bool _isRouteExpanded = false; // Collapsed by default
   late int _passengerCount;
   
-  // TODO: Re-enable after fixing Android SDK 35 corruption issue
   // Audio player for confirmation sound
-  // final AudioPlayer _audioPlayer = AudioPlayer();
+  final AudioPlayer _audioPlayer = AudioPlayer();
   
   // Coupon service
   late final CouponService _couponService;
@@ -190,8 +188,7 @@ class _RideCheckoutScreenState extends ConsumerState<RideCheckoutScreen> {
     _phoneController.dispose();
     _emailController.dispose();
     _couponController.dispose();
-    // TODO: Re-enable after fixing Android SDK 35 corruption issue
-    // _audioPlayer.dispose();
+    _audioPlayer.dispose();
     super.dispose();
   }
   

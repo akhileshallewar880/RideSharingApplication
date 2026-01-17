@@ -4,8 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:carousel_slider/carousel_slider.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-// TODO: Re-enable after fixing Android SDK 35 corruption issue
-// import 'package:audioplayers/audioplayers.dart';
+import 'package:audioplayers/audioplayers.dart';
 import 'package:allapalli_ride/app/themes/app_colors.dart';
 import 'package:allapalli_ride/app/themes/app_spacing.dart';
 import 'package:allapalli_ride/app/themes/text_styles.dart';
@@ -52,8 +51,7 @@ class _PassengerHomeScreenState extends ConsumerState<PassengerHomeScreen> with 
   int _selectedNavIndex = 0; // Bottom navigation index
   Timer? _pollingTimer; // Timer for periodic ride status refresh (fallback only)
   StreamSubscription<OtpVerificationEvent>? _otpVerificationSubscription; // SignalR OTP verification listener
-  // TODO: Re-enable after fixing Android SDK 35 corruption issue
-  // final AudioPlayer _audioPlayer = AudioPlayer(); // Audio player for OTP verification sound
+  final AudioPlayer _audioPlayer = AudioPlayer(); // Audio player for OTP verification sound
   final Map<String, bool> _previousVerificationStatus = {}; // Track verification status changes
   int _currentCarouselPage = 0; // Current page in rides carousel
   final PageController _ridesCarouselController = PageController(); // Controller for rides carousel
@@ -227,8 +225,7 @@ class _PassengerHomeScreenState extends ConsumerState<PassengerHomeScreen> with 
     _entranceAnimationController.dispose();
     _pickupController.dispose();
     _dropoffController.dispose();
-    // TODO: Re-enable after fixing Android SDK 35 corruption issue
-    // _audioPlayer.dispose(); // Dispose audio player to prevent memory leaks
+    _audioPlayer.dispose(); // Dispose audio player to prevent memory leaks
     _ridesCarouselController.dispose(); // Dispose carousel controller
     super.dispose();
   }
@@ -264,9 +261,8 @@ class _PassengerHomeScreenState extends ConsumerState<PassengerHomeScreen> with 
       if (!mounted) return;
       
       try {
-        // TODO: Re-enable after fixing Android SDK 35 corruption issue
         // Play verification sound
-        // await _audioPlayer.play(AssetSource('sounds/otp_verified.mp3'));
+        await _audioPlayer.play(AssetSource('sounds/otp_verified.mp3'));
         HapticFeedback.heavyImpact();
         
         // Show a subtle snackbar notification
@@ -368,8 +364,7 @@ class _PassengerHomeScreenState extends ConsumerState<PassengerHomeScreen> with 
               print('🎉 OTP Verified for booking $bookingId - Playing sound!');
               
               try {
-                // TODO: Re-enable after fixing Android SDK 35 corruption issue
-                // await _audioPlayer.play(AssetSource('sounds/otp_verified.mp3'));
+                await _audioPlayer.play(AssetSource('sounds/otp_verified.mp3'));
                 HapticFeedback.heavyImpact();
                 
                 // Show a subtle snackbar notification
