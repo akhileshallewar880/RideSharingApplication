@@ -103,6 +103,42 @@ namespace RideSharing.API.Hubs
         }
 
         /// <summary>
+        /// Join the admin monitoring room to receive updates for all active rides
+        /// </summary>
+        public async Task JoinAllRidesRoom()
+        {
+            var userId = Context.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            var userType = Context.User?.FindFirst("user_type")?.Value;
+            
+            // Only admins can join the all rides monitoring room
+            if (userType != "admin")
+            {
+                _logger.LogWarning("Non-admin user {UserId} attempted to join all rides room", userId);
+                await Clients.Caller.SendAsync("Error", new { message = "Only admins can monitor all rides" });
+                return;
+            }
+
+            const string groupName = "admin_all_rides";
+            await Groups.AddToGroupAsync(Context.ConnectionId, groupName);
+            
+            _logger.LogInformation("Admin {UserId} joined all rides monitoring room", userId);
+            await Clients.Caller.SendAsync("JoinedAllRides", new { timestamp = DateTime.UtcNow });
+        }
+
+        /// <summary>
+        /// Leave the admin monitoring room
+        /// </summary>
+        public async Task LeaveAllRidesRoom()
+        {
+            var userId = Context.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            
+            const string groupName = "admin_all_rides";
+            await Groups.RemoveFromGroupAsync(Context.ConnectionId, groupName);
+            
+            _logger.LogInformation("Admin {UserId} left all rides monitoring room", userId);
+        }
+
+        /// <summary>
         /// Driver sends location update
         /// </summary>
         public async Task SendLocationUpdate(LocationUpdateRequest request)
@@ -141,9 +177,8 @@ namespace RideSharing.API.Hubs
                 // Calculate ETA and remaining distance (if passengers are waiting)
                 var metrics = await _locationTrackingService.CalculateRideMetricsAsync(rideId);
 
-                // Broadcast to all passengers in the ride
-                var groupName = GetRideGroupName(request.RideId);
-                await Clients.Group(groupName).SendAsync("LocationUpdate", new
+                // Prepare location update message
+                var locationMessage = new
                 {
                     rideId = request.RideId,
                     location = new
@@ -156,7 +191,14 @@ namespace RideSharing.API.Hubs
                     },
                     estimatedArrival = metrics?.EstimatedArrivalMinutes,
                     remainingDistance = metrics?.RemainingDistanceKm
-                });
+                };
+
+                // Broadcast to all passengers in the ride
+                var groupName = GetRideGroupName(request.RideId);
+                await Clients.Group(groupName).SendAsync("LocationUpdate", locationMessage);
+                
+                // Also broadcast to admin monitoring room
+                await Clients.Group("admin_all_rides").SendAsync("LocationUpdate", locationMessage);
 
                 _logger.LogDebug("Driver {UserId} sent location update for ride {RideId}", userId, request.RideId);
             }
