@@ -59,8 +59,10 @@ class _RideTrackingTimelineState extends ConsumerState<RideTrackingTimeline> {
     // Start tracking this ride
     final rideId = widget.ride['rideId']?.toString();
     if (rideId != null && rideId.isNotEmpty) {
-      Future.microtask(() {
-        ref.read(liveTrackingProvider.notifier).trackRide(rideId);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          ref.read(liveTrackingProvider.notifier).trackRide(rideId);
+        }
       });
     }
   }
@@ -69,8 +71,12 @@ class _RideTrackingTimelineState extends ConsumerState<RideTrackingTimeline> {
   void dispose() {
     // Stop tracking when dialog closes
     final rideId = widget.ride['rideId']?.toString();
-    if (rideId != null && rideId.isNotEmpty) {
-      ref.read(liveTrackingProvider.notifier).stopTrackingRide(rideId);
+    if (rideId != null && rideId.isNotEmpty && mounted) {
+      try {
+        ref.read(liveTrackingProvider.notifier).stopTrackingRide(rideId);
+      } catch (e) {
+        // Ignore errors during disposal
+      }
     }
     super.dispose();
   }
@@ -132,7 +138,7 @@ class _RideTrackingTimelineState extends ConsumerState<RideTrackingTimeline> {
                   ],
                 ),
                 // Driver location indicator
-                if (driverLocation != null) ..[
+                if (driverLocation != null) ...[
                   const SizedBox(height: 12),
                   Container(
                     padding: const EdgeInsets.all(12),
@@ -218,7 +224,7 @@ class _RideTrackingTimelineState extends ConsumerState<RideTrackingTimeline> {
                       ],
                     ),
                   ),
-                ] else if (trackingState.isConnected) ..[
+                ] else if (trackingState.isConnected) ...[
                   const SizedBox(height: 12),
                   Container(
                     padding: const EdgeInsets.all(8),
@@ -270,7 +276,7 @@ class _RideTrackingTimelineState extends ConsumerState<RideTrackingTimeline> {
                   isCurrent,
                   stop.isPassed,
                   isLast,
-                  isDark,
+                  widget.isDark,
                 );
               },
             ),
@@ -281,7 +287,7 @@ class _RideTrackingTimelineState extends ConsumerState<RideTrackingTimeline> {
   }
 
   Widget _buildStatusChip() {
-    final status = ride['status'] ?? 'unknown';
+    final status = widget.ride['status'] ?? 'unknown';
     Color statusColor;
     IconData statusIcon;
 
@@ -335,7 +341,7 @@ class _RideTrackingTimelineState extends ConsumerState<RideTrackingTimeline> {
 
   bool _isCurrentStop(TrainStop stop, List<TrainStop> stops, int index) {
     // If ride is completed, no current stop
-    final status = ride['status']?.toString().toLowerCase() ?? '';
+    final status = widget.ride['status']?.toString().toLowerCase() ?? '';
     if (status == 'completed') return false;
 
     // Find first non-passed stop
@@ -648,10 +654,10 @@ class _RideTrackingTimelineState extends ConsumerState<RideTrackingTimeline> {
       final List<TrainStop> stops = [];
       
       // Get passengers data
-      final passengers = ride['passengers'] as List<dynamic>? ?? [];
+      final passengers = widget.ride['passengers'] as List<dynamic>? ?? [];
       
       // Parse segment prices if available for distances
-      final segmentPricesRaw = ride['segmentPrices'];
+      final segmentPricesRaw = widget.ride['segmentPrices'];
       List<dynamic> segmentPrices = [];
       
       if (segmentPricesRaw != null) {
@@ -727,8 +733,8 @@ class _RideTrackingTimelineState extends ConsumerState<RideTrackingTimeline> {
 
       // If still empty, use pickup and dropoff from ride
       if (locationMap.isEmpty) {
-        final pickup = ride['pickupLocation']?.toString() ?? '';
-        final dropoff = ride['dropoffLocation']?.toString() ?? '';
+        final pickup = widget.ride['pickupLocation']?.toString() ?? '';
+        final dropoff = widget.ride['dropoffLocation']?.toString() ?? '';
         
         if (pickup.isNotEmpty) {
           locationMap[_normalizeLocation(pickup)] = {
@@ -752,11 +758,11 @@ class _RideTrackingTimelineState extends ConsumerState<RideTrackingTimeline> {
       }
 
       // Get pickup and dropoff locations from ride
-      final pickupLocation = _normalizeLocation(ride['pickupLocation'] ?? '');
-      final dropoffLocation = _normalizeLocation(ride['dropoffLocation'] ?? '');
+      final pickupLocation = _normalizeLocation(widget.ride['pickupLocation'] ?? '');
+      final dropoffLocation = _normalizeLocation(widget.ride['dropoffLocation'] ?? '');
       
       // Get intermediate stops from ride data
-      final intermediateStopsRaw = ride['intermediateStops'];
+      final intermediateStopsRaw = widget.ride['intermediateStops'];
       List<String> intermediateStops = [];
       if (intermediateStopsRaw != null) {
         if (intermediateStopsRaw is List) {
@@ -817,15 +823,15 @@ class _RideTrackingTimelineState extends ConsumerState<RideTrackingTimeline> {
       // Create TrainStop objects
       double cumulativeDistance = 0.0;
       int cumulativeMinutes = 0;
-      final scheduledTime = ride['scheduledTime'] != null
-          ? DateTime.parse(ride['scheduledTime'].toString())
+      final scheduledTime = widget.ride['scheduledTime'] != null
+          ? DateTime.parse(widget.ride['scheduledTime'].toString())
           : DateTime.now();
       
       // Parse departure time (HH:mm format) and set it on scheduled date
       DateTime startTime = scheduledTime;
-      if (ride['departureTime'] != null) {
+      if (widget.ride['departureTime'] != null) {
         try {
-          final timeParts = ride['departureTime'].toString().split(':');
+          final timeParts = widget.ride['departureTime'].toString().split(':');
           if (timeParts.length >= 2) {
             final hour = int.parse(timeParts[0]);
             final minute = int.parse(timeParts[1]);
@@ -843,8 +849,8 @@ class _RideTrackingTimelineState extends ConsumerState<RideTrackingTimeline> {
       }
       
       // Get total distance and duration for calculating segment times
-      final totalDistance = _parseDouble(ride['distance']);
-      final totalDuration = ride['duration'] as int? ?? 0;
+      final totalDistance = _parseDouble(widget.ride['distance']);
+      final totalDuration = widget.ride['duration'] as int? ?? 0;
 
       for (int i = 0; i < orderedLocations.length; i++) {
         final location = orderedLocations[i];
@@ -917,7 +923,7 @@ class _RideTrackingTimelineState extends ConsumerState<RideTrackingTimeline> {
         final estimatedTime = startTime.add(Duration(minutes: cumulativeMinutes));
 
         // Check if stop has been passed (for in-progress rides)
-        final status = ride['status']?.toString().toLowerCase() ?? '';
+        final status = widget.ride['status']?.toString().toLowerCase() ?? '';
         final isPassed = status == 'completed' || 
                         (status == 'in_progress' && i < orderedLocations.length - 1);
 

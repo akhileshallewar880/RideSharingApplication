@@ -60,36 +60,53 @@ class SignalRService {
   void _registerEventHandlers() {
     if (_hubConnection == null) return;
     
-    // Location update handler
-    _hubConnection!.on('ReceiveLocationUpdate', (arguments) {
-      if (arguments != null && arguments.length >= 3) {
-        final rideId = arguments[0] as String;
-        final latitude = (arguments[1] as num).toDouble();
-        final longitude = (arguments[2] as num).toDouble();
+    // Location update handler - matches backend "LocationUpdate" event
+    _hubConnection!.on('LocationUpdate', (arguments) {
+      if (arguments != null && arguments.isNotEmpty) {
+        final data = arguments[0] as Map<String, dynamic>;
+        final rideId = data['rideId'] as String;
+        final location = data['location'] as Map<String, dynamic>;
+        final latitude = (location['latitude'] as num).toDouble();
+        final longitude = (location['longitude'] as num).toDouble();
         
         debugPrint('SignalR: Location update - Ride: $rideId, Lat: $latitude, Lng: $longitude');
         onLocationUpdate?.call(rideId, latitude, longitude);
       }
     });
     
-    // Ride status update handler
-    _hubConnection!.on('ReceiveRideStatusUpdate', (arguments) {
-      if (arguments != null && arguments.length >= 2) {
-        final rideId = arguments[0] as String;
-        final status = arguments[1] as String;
+    // Ride status update handler - matches backend "TripStatus" event
+    _hubConnection!.on('TripStatus', (arguments) {
+      if (arguments != null && arguments.isNotEmpty) {
+        final data = arguments[0] as Map<String, dynamic>;
+        final rideId = data['rideId'] as String;
+        final status = data['status'] as String;
         
         debugPrint('SignalR: Ride status update - Ride: $rideId, Status: $status');
         onRideStatusUpdate?.call(rideId, status);
       }
     });
     
-    // Notification handler
-    _hubConnection!.on('ReceiveNotification', (arguments) {
+    // Passenger update handler - matches backend "PassengerUpdate" event
+    _hubConnection!.on('PassengerUpdate', (arguments) {
       if (arguments != null && arguments.isNotEmpty) {
-        final notification = arguments[0] as Map<String, dynamic>;
-        
-        debugPrint('SignalR: Notification received - ${notification['title']}');
-        onNotificationReceived?.call(notification);
+        final data = arguments[0] as Map<String, dynamic>;
+        debugPrint('SignalR: Passenger update - ${data['updateType']}');
+      }
+    });
+    
+    // Joined ride confirmation handler
+    _hubConnection!.on('JoinedRide', (arguments) {
+      if (arguments != null && arguments.isNotEmpty) {
+        final data = arguments[0] as Map<String, dynamic>;
+        debugPrint('SignalR: Joined ride ${data['rideId']}');
+      }
+    });
+    
+    // Error handler
+    _hubConnection!.on('Error', (arguments) {
+      if (arguments != null && arguments.isNotEmpty) {
+        final data = arguments[0] as Map<String, dynamic>;
+        debugPrint('SignalR: Error - ${data['message']}');
       }
     });
   }
@@ -102,7 +119,7 @@ class SignalRService {
     }
     
     try {
-      await _hubConnection!.invoke('JoinRideRoom', args: [rideId]);
+      await _hubConnection!.invoke('JoinRide', args: [rideId]);
       debugPrint('SignalR: Joined ride room: $rideId');
     } catch (e) {
       debugPrint('SignalR: Error joining ride room: $e');
@@ -114,7 +131,7 @@ class SignalRService {
     if (_hubConnection == null || !_isConnected) return;
     
     try {
-      await _hubConnection!.invoke('LeaveRideRoom', args: [rideId]);
+      await _hubConnection!.invoke('LeaveRide', args: [rideId]);
       debugPrint('SignalR: Left ride room: $rideId');
     } catch (e) {
       debugPrint('SignalR: Error leaving ride room: $e');
