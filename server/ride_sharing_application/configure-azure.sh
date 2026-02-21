@@ -3,8 +3,8 @@
 # Azure App Service Configuration Script
 # This script configures all required settings for the Vanyatra App Service
 
-APP_NAME="vayatra-app-service"
-RESOURCE_GROUP="vayatra-app-service_group"
+APP_NAME="VanYatraApp"
+RESOURCE_GROUP="VanYatra_Resource_Group"
 
 # Colors for output
 RED='\033[0;31m'
@@ -29,7 +29,7 @@ if [ -z "$JWT_SECRET" ]; then
 fi
 
 # Construct connection strings
-CONN_STRING="Server=tcp:vayatra-server.database.windows.net,1433;Initial Catalog=vanyatra-server-db;User ID=vanyatraadminlogin;Password=${DB_PASSWORD};Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;"
+CONN_STRING="Server=tcp:vanyatradbserver.database.windows.net,1433;Initial Catalog=free-sql-db-7942255;Persist Security Info=False;User ID=vanyatra_server;Password=${DB_PASSWORD};MultipleActiveResultSets=False;Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;"
 
 echo -e "\n${GREEN}Step 1: Setting Connection Strings...${NC}"
 az webapp config connection-string set \
@@ -54,8 +54,8 @@ az webapp config appsettings set \
   --settings \
     ASPNETCORE_ENVIRONMENT="Production" \
     JwtSettings__secretKey="$JWT_SECRET" \
-    JwtSettings__validIssuer="https://vayatra-app-service.azurewebsites.net" \
-    JwtSettings__validAudience="https://vayatra-app-service.azurewebsites.net"
+    JwtSettings__validIssuer="http://vanyatraapp-e4g4ggamaeaeeafm.centralindia-01.azurewebsites.net" \
+    JwtSettings__validAudience="http://vanyatraapp-e4g4ggamaeaeeafm.centralindia-01.azurewebsites.net"
 
 if [ $? -eq 0 ]; then
     echo -e "${GREEN}✓ Application settings configured successfully${NC}"
@@ -76,7 +76,7 @@ fi
 
 echo -e "\n${GREEN}=== Configuration Complete ===${NC}"
 echo -e "\n${YELLOW}Your app should be available at:${NC}"
-echo -e "${GREEN}https://vayatra-app-service.azurewebsites.net${NC}\n"
+echo -e "${GREEN}http://vanyatraapp-e4g4ggamaeaeeafm.centralindia-01.azurewebsites.net${NC}\n"
 
 echo -e "${YELLOW}Important: Save your JWT secret key securely:${NC}"
 echo -e "${GREEN}$JWT_SECRET${NC}\n"
