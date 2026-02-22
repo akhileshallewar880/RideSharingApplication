@@ -6,7 +6,7 @@ class AppConstants {
   static const String appVersion = '1.0.0';
   
   // API Endpoints - Azure App Service Production
-  static String get baseUrl => 'https://vayatra-app-service-baczabgbcbczg2b4.centralindia-01.azurewebsites.net';
+  static String get baseUrl => 'https://vanyatraapp-e4g4ggamaeaeeafm.centralindia-01.azurewebsites.net';
   static const String apiVersion = '/api/v1';
   
   // Full API URL

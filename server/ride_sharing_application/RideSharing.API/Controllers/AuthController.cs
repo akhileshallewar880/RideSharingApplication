@@ -178,7 +178,14 @@ namespace RideSharing.API.Controllers
             try
             {
                 _logger.LogInformation("🔐 Verifying Firebase token for phone: {Phone}", request.PhoneNumber);
-                
+
+                if (FirebaseAuth.DefaultInstance == null)
+                {
+                    _logger.LogError("❌ Firebase Admin SDK not initialized — firebase-service-account.json missing or empty on server");
+                    return StatusCode(503, ApiResponseDto<object>.ErrorResponse(
+                        "Firebase authentication service is temporarily unavailable. Please contact support."));
+                }
+
                 // Verify Firebase ID token
                 FirebaseToken decodedToken;
                 try
