@@ -1,0 +1,4 @@
+#include "Release.xcconfig"
+DART_DEFINES=FLAVOR=passenger
+PRODUCT_BUNDLE_IDENTIFIER=com.allapalli.allapalli-ride
+PRODUCT_NAME=VanYatra

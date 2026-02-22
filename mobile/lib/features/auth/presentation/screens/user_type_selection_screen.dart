@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:allapalli_ride/app/config/flavor_config.dart';
 import 'package:allapalli_ride/app/themes/app_colors.dart';
 import 'package:allapalli_ride/app/themes/app_spacing.dart';
 import 'package:allapalli_ride/app/themes/text_styles.dart';
@@ -16,7 +17,16 @@ class UserTypeSelectionScreen extends StatefulWidget {
 
 class _UserTypeSelectionScreenState extends State<UserTypeSelectionScreen> {
   String? _selectedType;
-  
+
+  @override
+  void initState() {
+    super.initState();
+    // Pre-select the only valid type for this app flavor.
+    _selectedType = FlavorConfig.isDriver
+        ? AppConstants.userTypeDriver
+        : AppConstants.userTypePassenger;
+  }
+
   void _handleContinue() {
     if (_selectedType == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -27,13 +37,9 @@ class _UserTypeSelectionScreenState extends State<UserTypeSelectionScreen> {
       );
       return;
     }
-    
-    // Navigate based on user type
-    if (_selectedType == AppConstants.userTypePassenger) {
-      Navigator.of(context).pushReplacementNamed('/passenger/home');
-    } else {
-      Navigator.of(context).pushReplacementNamed('/driver/dashboard');
-    }
+
+    // Navigate to the flavor's home route.
+    Navigator.of(context).pushReplacementNamed(FlavorConfig.homeRoute);
   }
   
   @override
@@ -60,7 +66,7 @@ class _UserTypeSelectionScreenState extends State<UserTypeSelectionScreen> {
               const SizedBox(height: AppSpacing.sm),
               
               Text(
-                'Select how you want to use Allapalli Ride',
+                'Continue as ${FlavorConfig.isDriver ? 'a driver' : 'a passenger'}',
                 style: TextStyles.bodyLarge.copyWith(
                   color: isDark 
                       ? AppColors.darkTextSecondary 
@@ -76,37 +82,36 @@ class _UserTypeSelectionScreenState extends State<UserTypeSelectionScreen> {
               Expanded(
                 child: Column(
                   children: [
-                    // Passenger option
-                    _UserTypeCard(
-                      icon: Icons.person_outline,
-                      title: 'Passenger',
-                      description: 'Book rides and travel comfortably',
-                      isSelected: _selectedType == AppConstants.userTypePassenger,
-                      onTap: () {
-                        setState(() {
-                          _selectedType = AppConstants.userTypePassenger;
-                        });
-                      },
-                    ).animate()
-                        .fadeIn(delay: 300.ms)
-                        .slideY(begin: 0.2, end: 0, delay: 300.ms),
-                    
-                    const SizedBox(height: AppSpacing.lg),
-                    
-                    // Driver option
-                    _UserTypeCard(
-                      icon: Icons.drive_eta_outlined,
-                      title: 'Driver',
-                      description: 'Earn money by providing rides',
-                      isSelected: _selectedType == AppConstants.userTypeDriver,
-                      onTap: () {
-                        setState(() {
-                          _selectedType = AppConstants.userTypeDriver;
-                        });
-                      },
-                    ).animate()
-                        .fadeIn(delay: 400.ms)
-                        .slideY(begin: 0.2, end: 0, delay: 400.ms),
+                    // Show only the card matching this app's flavor.
+                    if (FlavorConfig.isPassenger)
+                      _UserTypeCard(
+                        icon: Icons.person_outline,
+                        title: 'Passenger',
+                        description: 'Book rides and travel comfortably',
+                        isSelected: _selectedType == AppConstants.userTypePassenger,
+                        onTap: () {
+                          setState(() {
+                            _selectedType = AppConstants.userTypePassenger;
+                          });
+                        },
+                      ).animate()
+                          .fadeIn(delay: 300.ms)
+                          .slideY(begin: 0.2, end: 0, delay: 300.ms),
+
+                    if (FlavorConfig.isDriver)
+                      _UserTypeCard(
+                        icon: Icons.drive_eta_outlined,
+                        title: 'Driver',
+                        description: 'Earn money by providing rides',
+                        isSelected: _selectedType == AppConstants.userTypeDriver,
+                        onTap: () {
+                          setState(() {
+                            _selectedType = AppConstants.userTypeDriver;
+                          });
+                        },
+                      ).animate()
+                          .fadeIn(delay: 300.ms)
+                          .slideY(begin: 0.2, end: 0, delay: 300.ms),
                   ],
                 ),
               ),
@@ -121,19 +126,6 @@ class _UserTypeSelectionScreenState extends State<UserTypeSelectionScreen> {
                   .slideY(begin: 0.2, end: 0, delay: 500.ms),
               
               const SizedBox(height: AppSpacing.md),
-              
-              // Info text
-              Center(
-                child: Text(
-                  'You can switch between roles anytime',
-                  style: TextStyles.caption.copyWith(
-                    color: isDark 
-                        ? AppColors.darkTextTertiary 
-                        : AppColors.lightTextTertiary,
-                  ),
-                ),
-              ).animate()
-                  .fadeIn(delay: 600.ms),
             ],
           ),
         ),

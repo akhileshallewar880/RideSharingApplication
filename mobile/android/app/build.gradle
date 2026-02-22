@@ -30,16 +30,17 @@ if (keystorePropertiesFile.exists()) {
 
 android {
     namespace "com.allapalli.allapalli_ride"
-    compileSdk 34
+    compileSdk 36
     ndkVersion flutter.ndkVersion
 
     compileOptions {
-        sourceCompatibility JavaVersion.VERSION_1_8
-        targetCompatibility JavaVersion.VERSION_1_8
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+        coreLibraryDesugaringEnabled true
     }
 
     kotlinOptions {
-        jvmTarget = '1.8'
+        jvmTarget = '17'
     }
 
     sourceSets {
@@ -51,8 +52,8 @@ android {
         applicationId "com.allapalli.allapalli_ride"
         // You can update the following values to match your application needs.
         // For more information, see: https://docs.flutter.dev/deployment/android#reviewing-the-gradle-build-configuration.
-        minSdkVersion 23  // Required for Firebase Auth
-        targetSdkVersion 34  // Explicitly set for Android 13+ compatibility
+        minSdkVersion flutter.minSdkVersion  // Required for Firebase Auth
+        targetSdkVersion 36
         versionCode flutterVersionCode.toInteger()
         versionName flutterVersionName
         multiDexEnabled true
@@ -64,6 +65,23 @@ android {
             keyPassword keystoreProperties['keyPassword']
             storeFile keystoreProperties['storeFile'] ? file(keystoreProperties['storeFile']) : null
             storePassword keystoreProperties['storePassword']
+        }
+    }
+
+    flavorDimensions "app"
+
+    productFlavors {
+        passenger {
+            dimension "app"
+            applicationIdSuffix ""           // com.allapalli.allapalli_ride
+            versionNameSuffix "-passenger"
+            resValue "string", "app_name", "VanYatra"
+        }
+        driver {
+            dimension "app"
+            applicationIdSuffix ".driver"    // com.allapalli.allapalli_ride.driver
+            versionNameSuffix "-driver"
+            resValue "string", "app_name", "VanYatra Driver"
         }
     }
 
@@ -86,6 +104,9 @@ flutter {
 }
 
 dependencies {
+    // Core library desugaring (required by flutter_local_notifications on AGP 8.x)
+    coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.0.4'
+
     // Import the Firebase BoM
     implementation platform('com.google.firebase:firebase-bom:33.7.0')
     

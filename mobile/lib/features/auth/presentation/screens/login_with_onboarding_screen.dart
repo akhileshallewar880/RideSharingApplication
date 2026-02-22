@@ -23,7 +23,7 @@ class LoginWithOnboardingScreen extends ConsumerStatefulWidget {
 class _LoginWithOnboardingScreenState extends ConsumerState<LoginWithOnboardingScreen> {
   final _formKey = GlobalKey<FormState>();
   final _phoneController = TextEditingController();
-  final CarouselController _carouselController = CarouselController();
+  final CarouselSliderController _carouselController = CarouselSliderController();
   final FocusNode _phoneFocusNode = FocusNode();
   late final FirebasePhoneService _firebaseAuth;
   
