@@ -27,10 +27,9 @@ public class FCMNotificationService
             // Place your serviceAccountKey.json in the API project root
             var serviceAccountPath = configuration["Firebase:ServiceAccountKeyPath"] ?? "firebase-service-account.json";
             
-            if (!File.Exists(serviceAccountPath))
+            if (!File.Exists(serviceAccountPath) || new FileInfo(serviceAccountPath).Length == 0)
             {
-                _logger.LogWarning($"Firebase service account key not found at: {serviceAccountPath}. Notifications will not be sent.");
-                _logger.LogWarning("To enable notifications, add serviceAccountKey.json to the API project root.");
+                _logger.LogWarning("Firebase service account key not found or empty at: {Path}. Push notifications will not be sent.", serviceAccountPath);
                 _isInitialized = false;
                 return;
             }
