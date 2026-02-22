@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:dio/dio.dart';
+import 'package:allapalli_ride/app/constants/app_constants.dart';
 import 'package:allapalli_ride/app/themes/app_colors.dart';
 import 'package:allapalli_ride/app/themes/app_spacing.dart';
 import 'package:allapalli_ride/app/themes/text_styles.dart';
@@ -88,7 +89,7 @@ class _RideCheckoutScreenState extends ConsumerState<RideCheckoutScreen> {
     // Initialize coupon service
     _couponService = CouponService(
       dio: Dio(),
-      baseUrl: 'https://vayatra-app-service-baczabgbcbczg2b4.centralindia-01.azurewebsites.net',
+      baseUrl: AppConstants.baseUrl,
     );
     
     // Pre-fill with user data if available
