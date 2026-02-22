@@ -42,7 +42,7 @@ class AppTheme {
     ),
     
     // Card Theme with subtle gradient effect
-    cardTheme: CardTheme(
+    cardTheme: CardThemeData(
       color: AppColors.lightCardBg,
       elevation: AppSpacing.elevationSM,
       shadowColor: AppColors.lightShadow,
@@ -187,7 +187,7 @@ class AppTheme {
     ),
     
     // Card Theme
-    cardTheme: CardTheme(
+    cardTheme: CardThemeData(
       color: AppColors.darkCardBg,
       elevation: AppSpacing.elevationSM,
       shadowColor: AppColors.darkShadow,
