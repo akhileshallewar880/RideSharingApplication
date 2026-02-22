@@ -75,20 +75,26 @@ jobs:
           publish-profile: ${{ secrets.AZURE_PUBLISH_PROFILE }}
           package: ${{ env.PUBLISH_DIR }}
 
-      # Use the webapp-url output from the deploy action — this is the actual
-      # regional URL (e.g. https://name-hash.centralindia-01.azurewebsites.net)
-      # which avoids DNS resolution failures when constructing the URL manually.
+      # Retry loop — Azure App Service cold starts can take 60-90 s.
+      # Polls every 15 s for up to 2 minutes before failing.
       - name: Smoke test
         run: |
-          echo "Waiting 25 s for app to cold-start..."
-          sleep 25
           URL="${{ steps.deploy.outputs.webapp-url }}/swagger/v1/swagger.json"
-          echo "Testing: $URL"
-          STATUS=$(curl --silent --max-time 20 --output /dev/null --write-out "%{http_code}" "$URL")
-          echo "GET $URL → HTTP $STATUS"
-          if [ "$STATUS" = "200" ]; then
-            echo "✅ Deployment verified"
-          else
-            echo "❌ Unexpected status $STATUS — check Azure App Service logs"
-            exit 1
-          fi
+          echo "Polling: $URL"
+          MAX_ATTEMPTS=8
+          SLEEP_SEC=15
+          for i in $(seq 1 $MAX_ATTEMPTS); do
+            STATUS=$(curl --silent --max-time 10 --output /dev/null \
+                          --write-out "%{http_code}" "$URL" || echo "000")
+            echo "Attempt $i/$MAX_ATTEMPTS → HTTP $STATUS"
+            if [ "$STATUS" = "200" ]; then
+              echo "✅ Deployment verified"
+              exit 0
+            fi
+            if [ "$i" -lt "$MAX_ATTEMPTS" ]; then
+              echo "  Not ready yet, waiting ${SLEEP_SEC}s..."
+              sleep $SLEEP_SEC
+            fi
+          done
+          echo "❌ App did not return 200 after $((MAX_ATTEMPTS * SLEEP_SEC))s — check Azure App Service logs"
+          exit 1
