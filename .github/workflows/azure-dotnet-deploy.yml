@@ -68,21 +68,23 @@ jobs:
           path: ${{ env.PUBLISH_DIR }}
 
       - name: Deploy to Azure Web App
+        id: deploy
         uses: azure/webapps-deploy@v3
         with:
           app-name: ${{ secrets.AZURE_WEBAPP_NAME }}
           publish-profile: ${{ secrets.AZURE_PUBLISH_PROFILE }}
           package: ${{ env.PUBLISH_DIR }}
 
-      # Wait for the app to cold-start, then verify Swagger is reachable.
-      # A 200 on swagger.json confirms: app started, JWT config read OK,
-      # and all controllers registered properly.
+      # Use the webapp-url output from the deploy action — this is the actual
+      # regional URL (e.g. https://name-hash.centralindia-01.azurewebsites.net)
+      # which avoids DNS resolution failures when constructing the URL manually.
       - name: Smoke test
         run: |
           echo "Waiting 25 s for app to cold-start..."
           sleep 25
-          URL="https://${{ secrets.AZURE_WEBAPP_NAME }}.azurewebsites.net/swagger/v1/swagger.json"
-          STATUS=$(curl --silent --max-time 15 --output /dev/null --write-out "%{http_code}" "$URL")
+          URL="${{ steps.deploy.outputs.webapp-url }}/swagger/v1/swagger.json"
+          echo "Testing: $URL"
+          STATUS=$(curl --silent --max-time 20 --output /dev/null --write-out "%{http_code}" "$URL")
           echo "GET $URL → HTTP $STATUS"
           if [ "$STATUS" = "200" ]; then
             echo "✅ Deployment verified"
