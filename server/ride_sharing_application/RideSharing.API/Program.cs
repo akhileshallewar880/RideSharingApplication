@@ -12,10 +12,16 @@ using Google.Apis.Auth.OAuth2;
 var builder = WebApplication.CreateBuilder(args);
 
 // Initialize Firebase Admin SDK
+// Reads Firebase:ServiceAccountKeyPath from config (Azure App Settings or appsettings.json).
+// Falls back to firebase-service-account.json in the app directory.
 try
 {
-    var firebaseConfigPath = Path.Combine(AppContext.BaseDirectory, "firebase-service-account.json");
-    if (File.Exists(firebaseConfigPath))
+    var configuredPath = builder.Configuration["Firebase:ServiceAccountKeyPath"] ?? "firebase-service-account.json";
+    var firebaseConfigPath = Path.IsPathRooted(configuredPath)
+        ? configuredPath
+        : Path.Combine(AppContext.BaseDirectory, configuredPath);
+
+    if (File.Exists(firebaseConfigPath) && new FileInfo(firebaseConfigPath).Length > 0)
     {
         FirebaseApp.Create(new AppOptions()
         {
@@ -25,7 +31,7 @@ try
     }
     else
     {
-        Console.WriteLine("⚠️ Warning: firebase-service-account.json not found. Firebase phone auth will not work properly.");
+        Console.WriteLine("⚠️ Warning: firebase-service-account.json not found or empty. Push notifications will not work.");
     }
 }
 catch (Exception ex)

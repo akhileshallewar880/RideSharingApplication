@@ -25,7 +25,7 @@ public class FCMNotificationService
         {
             // Initialize Firebase Admin SDK
             // Place your serviceAccountKey.json in the API project root
-            var serviceAccountPath = configuration["Firebase:ServiceAccountKeyPath"] ?? "serviceAccountKey.json";
+            var serviceAccountPath = configuration["Firebase:ServiceAccountKeyPath"] ?? "firebase-service-account.json";
             
             if (!File.Exists(serviceAccountPath))
             {
