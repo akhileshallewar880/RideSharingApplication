@@ -1,0 +1,4 @@
+#include "Debug.xcconfig"
+DART_DEFINES=FLAVOR=driver
+PRODUCT_BUNDLE_IDENTIFIER=com.allapalli.allapalli-ride.driver
+PRODUCT_NAME=VanYatra Driver

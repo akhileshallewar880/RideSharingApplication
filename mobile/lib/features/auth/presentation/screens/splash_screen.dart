@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:allapalli_ride/app/config/flavor_config.dart';
 import 'package:allapalli_ride/app/themes/app_spacing.dart';
 import 'package:allapalli_ride/core/providers/auth_provider.dart';
 import 'package:allapalli_ride/core/providers/user_profile_provider.dart';
@@ -64,9 +65,31 @@ class _SplashScreenState extends ConsumerState<SplashScreen> with SingleTickerPr
     
     if (authState.isAuthenticated && authState.userType != null) {
       print('🟢 Auto-login detected - checking user type: ${authState.userType}');
-      
+
+      // Flavor guard: if the stored user type doesn't match this app's flavor,
+      // clear the session and send the user to login.
+      final storedType = authState.userType;
+      final expectedType = FlavorConfig.isDriver ? 'driver' : 'passenger';
+      if (storedType != expectedType) {
+        print('⚠️ User type "$storedType" does not match ${FlavorConfig.appName} — clearing session');
+        await ref.read(authNotifierProvider.notifier).logout();
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              FlavorConfig.isDriver
+                  ? 'This app is for drivers. Please use the VanYatra passenger app.'
+                  : 'This app is for passengers. Please use the VanYatra Driver app.',
+            ),
+            duration: const Duration(seconds: 4),
+          ),
+        );
+        Navigator.of(context).pushReplacementNamed('/login-onboarding');
+        return;
+      }
+
       if (!mounted) return;
-      
+
       // User is logged in, navigate to appropriate home screen
       if (authState.userType == 'passenger') {
         Navigator.of(context).pushReplacementNamed('/passenger/home');

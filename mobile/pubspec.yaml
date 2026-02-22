@@ -98,6 +98,13 @@ dependencies:
   # Real-time - SignalR for ASP.NET Core backend
   signalr_core: ^1.1.1
 
+dependency_overrides:
+  # win32 5.5.0 uses UnmodifiableUint8ListView which was removed in Dart 3.11.
+  win32: ^5.9.0
+  # carousel_slider 4.x exports CarouselController which conflicts with
+  # Flutter Material's CarouselController added in Flutter 3.29+.
+  carousel_slider: ^5.0.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
