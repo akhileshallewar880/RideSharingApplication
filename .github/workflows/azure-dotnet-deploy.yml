@@ -37,14 +37,7 @@ jobs:
         run: |
           echo "$FIREBASE_B64" | base64 -d \
             > server/ride_sharing_application/RideSharing.API/firebase-service-account.json
-          python3 -c "
-import json
-data = json.load(open('server/ride_sharing_application/RideSharing.API/firebase-service-account.json'))
-pk = data.get('private_key','')
-assert '-----BEGIN PRIVATE KEY-----' in pk, 'private_key is missing or malformed'
-print('✅ firebase-service-account.json is valid. Project:', data.get('project_id'))
-print('   Key lines:', len(pk.split(chr(10))))
-"
+          python3 -c "import json; d=json.load(open('server/ride_sharing_application/RideSharing.API/firebase-service-account.json')); pk=d.get('private_key',''); assert '-----BEGIN PRIVATE KEY-----' in pk,'private_key malformed'; print('Valid. Project:',d.get('project_id'),'lines:',pk.count(chr(10)))"
 
       - name: Restore & Publish
         run: |
