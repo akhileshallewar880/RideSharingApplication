@@ -14,6 +14,7 @@ import 'package:allapalli_ride/core/providers/driver_ride_provider.dart';
 import 'package:allapalli_ride/core/providers/auth_provider.dart';
 import 'package:allapalli_ride/core/providers/user_profile_provider.dart';
 import 'package:allapalli_ride/core/models/driver_models.dart';
+import 'package:allapalli_ride/shared/utils/permission_manager.dart';
 
 /// Driver dashboard screen
 class DriverDashboardScreen extends ConsumerStatefulWidget {
@@ -33,6 +34,10 @@ class _DriverDashboardScreenState extends ConsumerState<DriverDashboardScreen> {
     Future.microtask(() {
       ref.read(driverDashboardNotifierProvider.notifier).loadDashboard();
       ref.read(driverRideNotifierProvider.notifier).loadActiveRides();
+    });
+    // Request location + notification permissions proactively
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      PermissionManager.requestAllPermissions(context);
     });
   }
   

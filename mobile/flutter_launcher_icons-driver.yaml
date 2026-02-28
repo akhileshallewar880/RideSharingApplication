@@ -1,0 +1,11 @@
+# Flutter Launcher Icons Configuration for Driver
+# Run: flutter pub run flutter_launcher_icons:main -f flutter_launcher_icons-driver.yaml
+
+flutter_launcher_icons:
+  image_path: "assets/images/vanyatra_driver_icon.png"
+  android: "launcher_icon_driver"
+  ios: "AppIcon-driver"
+  adaptive_icon_background: "#1B5E20"
+  adaptive_icon_foreground: "assets/images/vanyatra_driver_icon.png"
+  remove_alpha_ios: true
+  min_sdk_android: 21

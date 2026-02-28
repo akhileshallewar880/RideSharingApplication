@@ -25,7 +25,10 @@ public class FCMNotificationService
         {
             // Initialize Firebase Admin SDK
             // Place your serviceAccountKey.json in the API project root
-            var serviceAccountPath = configuration["Firebase:ServiceAccountKeyPath"] ?? "firebase-service-account.json";
+            var serviceAccountPath = configuration["Firebase:CredentialPath"] 
+                ?? configuration["Firebase:ServiceAccountKeyPath"] 
+                ?? "firebase-service-account.json";
+            _logger.LogInformation($"🔑 Firebase service account path resolved to: {serviceAccountPath}");
             
             if (!File.Exists(serviceAccountPath) || new FileInfo(serviceAccountPath).Length == 0)
             {
@@ -500,5 +503,47 @@ public class FCMNotificationService
                 ContentAvailable = true
             }
         };
+    }
+
+    /// <summary>
+    /// Send a test push notification to a specific device (for debugging)
+    /// </summary>
+    public async Task SendTestNotificationAsync(string fcmToken)
+    {
+        if (!_isInitialized || _messaging == null)
+        {
+            _logger.LogWarning("⚠️ Firebase not initialized. Cannot send test notification.");
+            throw new InvalidOperationException("Firebase Admin SDK is not initialized. Check server logs for initialization errors.");
+        }
+
+        try
+        {
+            _logger.LogInformation($"🧪 Sending test notification to token: {fcmToken.Substring(0, Math.Min(20, fcmToken.Length))}...");
+
+            var message = new Message
+            {
+                Token = fcmToken,
+                Notification = new FcmNotification
+                {
+                    Title = "🔔 VanYatra Test Notification",
+                    Body = "If you see this, push notifications are working correctly!"
+                },
+                Data = new Dictionary<string, string>
+                {
+                    { "type", "test" },
+                    { "timestamp", DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString() }
+                },
+                Android = BuildAndroidConfig(priority: Priority.High),
+                Apns = BuildApnsConfig()
+            };
+
+            var response = await _messaging.SendAsync(message);
+            _logger.LogInformation($"✅ Test notification sent successfully! MessageId: {response}");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, $"❌ Failed to send test notification to token: {fcmToken.Substring(0, Math.Min(20, fcmToken.Length))}...");
+            throw;
+        }
     }
 }

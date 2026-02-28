@@ -9,7 +9,9 @@ import 'package:allapalli_ride/app/themes/text_styles.dart';
 import 'package:allapalli_ride/shared/widgets/buttons.dart';
 import 'package:allapalli_ride/core/providers/auth_provider.dart';
 import 'package:allapalli_ride/core/providers/user_profile_provider.dart';
+import 'package:allapalli_ride/app/config/flavor_config.dart';
 import 'package:allapalli_ride/core/services/firebase_auth_service.dart';
+import 'package:allapalli_ride/shared/widgets/error_dialog.dart';
 
 /// OTP verification screen with Firebase Auth and Auto OTP fetch
 class OtpVerificationScreen extends ConsumerStatefulWidget {
@@ -140,182 +142,172 @@ class _OtpVerificationScreenState extends ConsumerState<OtpVerificationScreen> w
       print('⚠️ Verification already in progress, ignoring duplicate call');
       return;
     }
-    
+
     // Firebase expects 6-digit OTP
     if (_otpController.text.length != 6) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please enter the 6-digit OTP'),
-          backgroundColor: AppColors.error,
-        ),
+      showErrorPopup(
+        context,
+        title: 'Invalid OTP',
+        message: 'Please enter the complete 6-digit OTP code.',
       );
       return;
     }
-    
+
     if (_otpController.text.isEmpty || !RegExp(r'^\d{6}$').hasMatch(_otpController.text)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please enter a valid 6-digit OTP'),
-          backgroundColor: AppColors.error,
-        ),
+      showErrorPopup(
+        context,
+        title: 'Invalid OTP',
+        message: 'Please enter a valid 6-digit OTP code containing only numbers.',
       );
       return;
     }
-    
+
     if (widget.verificationId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Verification session expired. Please try again.'),
-          backgroundColor: AppColors.error,
-        ),
+      showErrorPopup(
+        context,
+        title: 'Session Expired',
+        message: 'Your verification session has expired. Please go back and request a new OTP.',
       );
       return;
     }
-    
-    // Set verifying flag
+
     _isVerifying = true;
-    
+    // Track whether the loading dialog has already been dismissed to avoid
+    // double-popping the OTP screen in the catch block.
+    bool dialogClosed = false;
+
     // Show loading
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (context) => const Center(
-        child: CircularProgressIndicator(),
-      ),
+      builder: (context) => const Center(child: CircularProgressIndicator()),
     );
-    
+
     try {
-      // First, verify OTP with Firebase
-      // Don't show any Firebase errors - only show final result
       final userCredential = await _firebaseAuth.verifyOtp(
         verificationId: widget.verificationId!,
         smsCode: _otpController.text,
         onError: (error) {
-          // Silently log error - don't show snackbar
-          print('🔴 Firebase OTP verification error (will retry with backend): $error');
+          print('🔴 Firebase OTP verification error: $error');
         },
       );
-      
+
       if (userCredential == null) {
-        // Firebase verification failed - this is a REAL error
         if (mounted) {
-          Navigator.pop(context); // Close loading
+          Navigator.pop(context);
+          dialogClosed = true;
           _otpController.clear();
           _isVerifying = false;
-          
-          // Show error - OTP is genuinely invalid
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Invalid OTP. Please check and try again.'),
-              backgroundColor: AppColors.error,
-            ),
+          showErrorPopup(
+            context,
+            title: 'Invalid OTP',
+            message: 'The OTP you entered is incorrect. Please check and try again.',
           );
         }
         return;
       }
-      
-      // Get Firebase ID token
+
       final idToken = await userCredential.user?.getIdToken();
       if (idToken == null) {
         if (mounted) {
-          Navigator.pop(context); // Close loading
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Failed to get authentication token'),
-              backgroundColor: AppColors.error,
-            ),
+          Navigator.pop(context);
+          dialogClosed = true;
+          _isVerifying = false;
+          showErrorPopup(
+            context,
+            title: 'Authentication Error',
+            message: 'Failed to get authentication token. Please try again.',
           );
         }
         return;
       }
-      
+
       print('✅ Firebase OTP verified, phone: ${userCredential.user?.phoneNumber}');
       print('🔐 Sending Firebase token to backend...');
-      
-      // Now authenticate with backend using Firebase ID token
+
       final result = await ref.read(authNotifierProvider.notifier)
-          .verifyFirebasePhoneAuth(idToken, userCredential.user!.phoneNumber!.substring(3)); // Remove +91
-      
+          .verifyFirebasePhoneAuth(idToken, userCredential.user!.phoneNumber!.substring(3));
+
       if (!mounted) return;
-      
+
       // Close loading dialog
       Navigator.pop(context);
-      
+      dialogClosed = true;
+
       print('🔐 OTP Verification Result: $result');
-      print('🔐 Result is null: ${result == null}');
-      
-      // Check for success FIRST before checking error messages
+
       if (result != null) {
-        // Success! Clear any stale error messages in state IMMEDIATELY
-        print('✅ OTP verification successful!');
-        print('🔐 Result is NOT null - isNewUser: ${result.isNewUser}');
-        
-        // CRITICAL: Clear error message in state to prevent it from showing
-        // Do this synchronously before any navigation or UI updates
+        print('✅ OTP verification successful! isNewUser: ${result.isNewUser}');
         ref.read(authNotifierProvider.notifier).clearError();
-        
-        // Get current auth state AFTER clearing errors
         final authState = ref.read(authNotifierProvider);
-        
+
         if (result.isNewUser) {
-          // New user - navigate to registration with temp token stored
-          // Temp token is already stored in auth service
-          print('🔐 New user detected - navigating to registration');
-          Navigator.of(context).pushReplacementNamed(
-            '/registration',
-            arguments: {
-              'phoneNumber': widget.phoneNumber,
-              'tempToken': result.tempToken,
-            },
-          );
+          print('🔐 New user detected');
+          if (!mounted) return;
+
+          if (FlavorConfig.isDriver) {
+            // New phone in the driver app → start driver registration
+            Navigator.of(context).pushReplacementNamed(
+              '/driver-registration',
+              arguments: {'phoneNumber': widget.phoneNumber},
+            );
+          } else {
+            // New phone in the passenger app → passenger registration
+            Navigator.of(context).pushReplacementNamed(
+              '/registration',
+              arguments: {
+                'phoneNumber': widget.phoneNumber,
+                'tempToken': result.tempToken,
+              },
+            );
+          }
         } else {
-          // Existing user - use the userType from the fresh API response, not from stored state
           final userType = result.user?.userType ?? authState.userType;
-          print('🔐 Existing user - userType from API: ${result.user?.userType}');
-          print('🔐 Existing user - userType from state: ${authState.userType}');
-          print('🔐 Using userType: $userType');
-          print('🔐 Auth state details:');
-          print('   - isAuthenticated: ${authState.isAuthenticated}');
-          print('   - userId: ${authState.userId}');
-          
+          print('🔐 Existing user - userType: $userType');
+
+          // Flavor guard: phone belongs to the other app's user type
+          final expectedType = FlavorConfig.isDriver ? 'driver' : 'passenger';
+          if (userType != null && userType != expectedType) {
+            print('⚠️ User type "$userType" does not match ${FlavorConfig.appName}');
+            await ref.read(authNotifierProvider.notifier).logout();
+            if (!mounted) return;
+            _showWrongAppDialog();
+            return;
+          }
+
           if (userType == 'passenger') {
             print('🔐 Passenger - navigating to home');
+            if (!mounted) return;
             Navigator.of(context).pushNamedAndRemoveUntil(
               '/passenger/home',
               (route) => false,
             );
           } else if (userType == 'driver') {
-            // For drivers, check verification status before navigating
             print('🔐 Driver detected - checking verification status');
             try {
-              // Load profile to get verification status
               await ref.read(userProfileNotifierProvider.notifier).loadProfile();
-              
               if (!mounted) return;
-              
+
               final profileState = ref.read(userProfileNotifierProvider);
               final verificationStatus = profileState.profile?.verificationStatus;
-              
               print('🔐 Driver verification status: $verificationStatus');
-              print('🔐 Profile loaded: ${profileState.profile != null}');
-              
+
               if (verificationStatus == 'approved') {
-                // Driver approved - go to dashboard
                 print('🔐 Driver approved - navigating to dashboard');
+                if (!mounted) return;
                 Navigator.of(context).pushNamedAndRemoveUntil(
                   '/driver/dashboard',
                   (route) => false,
                 );
               } else {
-                // Driver pending or rejected - go to verification pending screen
-                print('🔐 Driver not approved ($verificationStatus) - navigating to verification pending');
+                print('🔐 Driver not approved ($verificationStatus) - verification pending');
+                if (!mounted) return;
                 Navigator.of(context).pushNamedAndRemoveUntil(
                   '/driver/verification-pending',
                   (route) => false,
                 );
               }
             } catch (e) {
-              // On error, default to verification pending screen to be safe
               print('🔐 Error loading driver profile: $e');
               if (mounted) {
                 Navigator.of(context).pushNamedAndRemoveUntil(
@@ -325,8 +317,8 @@ class _OtpVerificationScreenState extends ConsumerState<OtpVerificationScreen> w
               }
             }
           } else {
-            // User type not set, navigate to user type selection
             print('🔐 User type not set - navigating to user type selection');
+            if (!mounted) return;
             Navigator.of(context).pushNamedAndRemoveUntil(
               '/user-type',
               (route) => false,
@@ -334,72 +326,75 @@ class _OtpVerificationScreenState extends ConsumerState<OtpVerificationScreen> w
           }
         }
       } else {
-        // Only show error if result is null (authentication failed)
-        print('🔐 ERROR: Result is NULL - Authentication failed');
-        
-        // Get auth state to check for error messages
+        print('🔐 ERROR: Authentication failed (result is null)');
+        _isVerifying = false;
+
         final authState = ref.read(authNotifierProvider);
-        
-        if (authState.errorMessage != null) {
-          final errorMsg = authState.errorMessage!;
-          final isInvalidOtp = errorMsg.toLowerCase().contains('invalid') || 
-                              errorMsg.toLowerCase().contains('wrong') || 
-                              errorMsg.toLowerCase().contains('expired');
-          
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Row(
-                children: [
-                  Icon(
-                    isInvalidOtp ? Icons.error_outline : Icons.warning_amber_rounded,
-                    color: Colors.white,
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      isInvalidOtp 
-                          ? 'Invalid or expired OTP. Please try again.' 
-                          : errorMsg,
-                    ),
-                  ),
-                ],
-              ),
-              backgroundColor: AppColors.error,
-              duration: const Duration(seconds: 4),
-              action: SnackBarAction(
-                label: 'Dismiss',
-                textColor: Colors.white,
-                onPressed: () {
-                  ScaffoldMessenger.of(context).hideCurrentSnackBar();
-                },
-              ),
-            ),
-          );
-        } else {
-          // No error message but result is null
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Verification failed. Please try again.'),
-              backgroundColor: AppColors.error,
-              duration: Duration(seconds: 4),
-            ),
-          );
-        }
+        final errorMsg = authState.errorMessage;
+
+        showErrorPopup(
+          context,
+          title: 'Verification Failed',
+          message: errorMsg != null
+              ? ErrorMessages.fromRawError(errorMsg)
+              : 'Verification failed. Please try again.',
+        );
       }
     } catch (e) {
-      // Handle any unexpected errors
       print('🔴 Error during verification: $e');
       _isVerifying = false;
       if (mounted) {
-        Navigator.pop(context); // Close loading dialog
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Verification failed: ${e.toString()}'),
-            backgroundColor: AppColors.error,
-          ),
+        if (!dialogClosed) {
+          Navigator.pop(context);
+        }
+        showErrorPopup(
+          context,
+          title: 'Verification Error',
+          message: ErrorMessages.fromRawError(e),
         );
       }
     }
+  }
+
+  /// Shows a non-dismissible blocking dialog when the phone number belongs to
+  /// the wrong app type (e.g. a passenger phone in the driver app).
+  void _showWrongAppDialog() {
+    if (!mounted) return;
+    _isVerifying = false;
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Row(
+          children: [
+            Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 28),
+            SizedBox(width: 10),
+            Text('Wrong App'),
+          ],
+        ),
+        content: Text(
+          FlavorConfig.isDriver
+              ? 'This app is for drivers only.\n\nYour phone number is registered as a passenger. Please use the VanYatra app to book your rides.'
+              : 'This app is for passengers only.\n\nYour phone number is registered as a driver. Please use the VanYatra Driver app.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.of(ctx).pop(); // Close this dialog
+              if (mounted) {
+                // Return to the main login/onboarding screen — user cannot proceed
+                Navigator.of(context).pushNamedAndRemoveUntil(
+                  '/login-onboarding',
+                  (route) => false,
+                );
+              }
+            },
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
   }
   
   Future<void> _handleResend() async {
@@ -407,20 +402,10 @@ class _OtpVerificationScreenState extends ConsumerState<OtpVerificationScreen> w
     
     // Check if too many attempts
     if (_resendAttempts >= 5) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Row(
-            children: [
-              Icon(Icons.block, color: Colors.white),
-              SizedBox(width: 8),
-              Expanded(
-                child: Text('Too many attempts. Please try again after 24 hours or use test phone numbers.'),
-              ),
-            ],
-          ),
-          backgroundColor: AppColors.error,
-          duration: Duration(seconds: 6),
-        ),
+      showErrorPopup(
+        context,
+        title: 'Too Many Attempts',
+        message: 'You have exceeded the maximum number of resend attempts. Please try again after some time.',
       );
       return;
     }
@@ -475,38 +460,10 @@ class _OtpVerificationScreenState extends ConsumerState<OtpVerificationScreen> w
         if (mounted) {
           Navigator.pop(context); // Close loading
           
-          // Check if rate limit error
-          final isRateLimited = error.toLowerCase().contains('too many') ||
-                               error.toLowerCase().contains('unusual activity') ||
-                               error.toLowerCase().contains('blocked');
-          
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Row(
-                children: [
-                  const Icon(Icons.warning_amber_rounded, color: Colors.white),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      isRateLimited
-                          ? '⚠️ Rate limit reached. Use test number +919511803142 with code 123456, or wait 24 hours.'
-                          : error,
-                    ),
-                  ),
-                ],
-              ),
-              backgroundColor: AppColors.error,
-              duration: const Duration(seconds: 6),
-              action: isRateLimited
-                  ? SnackBarAction(
-                      label: 'Got it',
-                      textColor: Colors.white,
-                      onPressed: () {
-                        ScaffoldMessenger.of(context).hideCurrentSnackBar();
-                      },
-                    )
-                  : null,
-            ),
+          showErrorPopup(
+            context,
+            title: 'Resend Failed',
+            message: ErrorMessages.fromRawError(error),
           );
         }
       },

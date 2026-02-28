@@ -84,5 +84,11 @@ namespace RideSharing.API.Repositories.Implementation
             user.UpdatedAt = DateTime.UtcNow;
             await _context.SaveChangesAsync();
         }
+
+        public async Task<string?> GetFCMTokenAsync(Guid userId)
+        {
+            var user = await _context.Users.FindAsync(userId);
+            return user?.FCMToken;
+        }
     }
 }
