@@ -27,12 +27,24 @@ jobs:
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
 
-      # Write the Firebase service account JSON directly from the GitHub Secret.
-      # Store the full JSON content as the secret FIREBASE_SERVICE_ACCOUNT_JSON.
+      # Write the Firebase service account from a base64-encoded GitHub Secret.
+      # The secret FIREBASE_SERVICE_ACCOUNT_B64 must contain the single-line
+      # base64 output of: base64 -i firebase-service-account.json | tr -d '\n'
+      # Passing via env avoids GitHub Actions expression quoting issues.
       - name: Write Firebase service account
+        env:
+          FIREBASE_B64: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_B64 }}
         run: |
-          printf '%s' '${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}' \
+          echo "$FIREBASE_B64" | base64 -d \
             > server/ride_sharing_application/RideSharing.API/firebase-service-account.json
+          python3 -c "
+import json
+data = json.load(open('server/ride_sharing_application/RideSharing.API/firebase-service-account.json'))
+pk = data.get('private_key','')
+assert '-----BEGIN PRIVATE KEY-----' in pk, 'private_key is missing or malformed'
+print('✅ firebase-service-account.json is valid. Project:', data.get('project_id'))
+print('   Key lines:', len(pk.split(chr(10))))
+"
 
       - name: Restore & Publish
         run: |
