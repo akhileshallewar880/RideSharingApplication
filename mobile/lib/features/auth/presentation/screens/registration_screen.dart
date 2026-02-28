@@ -331,45 +331,6 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
                       
                       const SizedBox(height: AppSpacing.xxxl),
                       
-                    // Driver registration link
-                    Center(
-                      child: Container(
-                        padding: const EdgeInsets.all(AppSpacing.md),
-                        decoration: BoxDecoration(
-                          color: isDark 
-                              ? AppColors.darkSurface 
-                              : Colors.grey[100],
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: TextButton.icon(
-                          onPressed: () {
-                            Navigator.of(context).pushNamed(
-                              '/driver-registration',
-                              arguments: {'phoneNumber': _phoneNumber},
-                            );
-                          },
-                          icon: Icon(
-                            Icons.local_taxi,
-                            color: AppColors.primaryYellow,
-                          ),
-                          label: Text(
-                            'Want to drive with us?',
-                            style: TextStyle(
-                              color: isDark ? Colors.white : AppColors.primaryDark,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          style: TextButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: AppSpacing.lg,
-                              vertical: AppSpacing.sm,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ).animate()
-                        .fadeIn(delay: 1300.ms)
-                        .scale(begin: const Offset(0.95, 0.95), delay: 1300.ms),
                     ],
                   ),
                 ),

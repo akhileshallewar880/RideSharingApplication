@@ -17,6 +17,7 @@ import 'package:allapalli_ride/features/passenger/presentation/screens/profile_s
 import 'package:allapalli_ride/features/passenger/presentation/screens/ride_history_screen.dart';
 import 'package:allapalli_ride/features/passenger/presentation/screens/location_search_screen.dart';
 import 'package:allapalli_ride/features/passenger/presentation/screens/ride_results_screen.dart';
+import 'package:allapalli_ride/shared/utils/permission_manager.dart';
 import 'package:allapalli_ride/features/passenger/presentation/screens/area_not_served_screen.dart';
 import 'package:allapalli_ride/features/passenger/presentation/screens/passenger_live_tracking_screen.dart';
 import 'package:allapalli_ride/features/passenger/presentation/widgets/location_search_field.dart';
@@ -187,6 +188,8 @@ class _PassengerHomeScreenState extends ConsumerState<PassengerHomeScreen> with 
     _startHeaderAnimation();
     // Check user's location on app launch
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      // Request location + notification permissions proactively
+      PermissionManager.requestAllPermissions(context);
       _checkUserLocation();
       // Load ride history to check for scheduled rides
       ref.read(passengerRideNotifierProvider.notifier).loadRideHistory();

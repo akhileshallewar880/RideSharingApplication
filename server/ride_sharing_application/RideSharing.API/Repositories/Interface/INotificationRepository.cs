@@ -10,5 +10,6 @@ namespace RideSharing.API.Repositories.Interface
         Task<bool> MarkAllAsReadAsync(Guid userId);
         Task<Notification> CreateNotificationAsync(Notification notification);
         Task UpdateFCMTokenAsync(Guid userId, string fcmToken);
+        Task<string?> GetFCMTokenAsync(Guid userId);
     }
 }

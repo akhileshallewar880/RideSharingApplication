@@ -76,12 +76,20 @@ android {
             applicationIdSuffix ""           // com.allapalli.allapalli_ride
             versionNameSuffix "-passenger"
             resValue "string", "app_name", "VanYatra"
+            manifestPlaceholders = [
+                launcher_icon: "@mipmap/launcher_icon_passenger",
+                adaptive_icon: "@mipmap/launcher_icon_passenger"
+            ]
         }
         driver {
             dimension "app"
             applicationIdSuffix ".driver"    // com.allapalli.allapalli_ride.driver
             versionNameSuffix "-driver"
             resValue "string", "app_name", "VanYatra Driver"
+            manifestPlaceholders = [
+                launcher_icon: "@mipmap/launcher_icon_driver",
+                adaptive_icon: "@mipmap/launcher_icon_driver"
+            ]
         }
     }
 

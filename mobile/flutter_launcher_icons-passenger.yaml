@@ -1,0 +1,11 @@
+# Flutter Launcher Icons Configuration for Passenger
+# Run: flutter pub run flutter_launcher_icons:main -f flutter_launcher_icons-passenger.yaml
+
+flutter_launcher_icons:
+  image_path: "assets/images/vanyatra_launcher_final.png"
+  android: "launcher_icon_passenger"
+  ios: "AppIcon-passenger"
+  adaptive_icon_background: "#1B5E20"
+  adaptive_icon_foreground: "assets/images/vanyatra_launcher_final.png"
+  remove_alpha_ios: true
+  min_sdk_android: 21
