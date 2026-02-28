@@ -291,6 +291,13 @@ _ = Task.Run(async () =>
             {
                 await appDbConnection.CloseAsync();
             }
+
+            // Seed cities if the table is empty
+            var citiesSeeder = new RideSharing.API.Seeders.CitiesSeeder(
+                appDb,
+                scope.ServiceProvider.GetRequiredService<ILogger<RideSharing.API.Seeders.CitiesSeeder>>()
+            );
+            await citiesSeeder.SeedCitiesAsync();
         }
         catch (Exception ex)
         {

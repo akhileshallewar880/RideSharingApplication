@@ -32,7 +32,15 @@ class _RideResultsScreenState extends ConsumerState<RideResultsScreen> {
   String _sortBy = 'departure'; // departure, price, duration, rating
   late DateTime _selectedDate;
   int? _selectedSeatCapacity; // null means all capacities
-  
+
+  // Responsive helpers
+  late double _screenWidth;
+  late double _screenHeight;
+
+  /// Scales a base value proportionally to screen width.
+  /// Baseline is 390 (iPhone 14 Pro / common mid-size device).
+  double _scale(double base) => base * (_screenWidth / 390).clamp(0.75, 1.35);
+
   @override
   void initState() {
     super.initState();
@@ -44,7 +52,12 @@ class _RideResultsScreenState extends ConsumerState<RideResultsScreen> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final state = ref.watch(passengerRideNotifierProvider);
     final rides = _getSortedRides(state.availableRides);
-    
+
+    // Capture screen dimensions for responsive scaling
+    final mediaQuery = MediaQuery.of(context);
+    _screenWidth = mediaQuery.size.width;
+    _screenHeight = mediaQuery.size.height;
+
     // Set white status bar
     SystemChrome.setSystemUIOverlayStyle(
       SystemUiOverlayStyle(
@@ -54,17 +67,17 @@ class _RideResultsScreenState extends ConsumerState<RideResultsScreen> {
         systemNavigationBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
       ),
     );
-    
+
     return Scaffold(
       backgroundColor: isDark ? AppColors.darkBackground : const Color(0xFFF5F5F5),
       body: Column(
         children: [
           // Header with route info
           _buildHeader(isDark),
-          
+
           // Filter buttons
           _buildFilterBar(isDark),
-          
+
           // Rides list or loading/error state
           Expanded(
             child: _buildContent(isDark, state, rides),
@@ -75,13 +88,15 @@ class _RideResultsScreenState extends ConsumerState<RideResultsScreen> {
   }
   
   Widget _buildHeader(bool isDark) {
+    final hPad = _scale(AppSpacing.md);
+    final vPad = _scale(AppSpacing.sm);
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.sm),
+      padding: EdgeInsets.symmetric(horizontal: hPad, vertical: vPad),
       decoration: BoxDecoration(
         color: isDark ? AppColors.darkSurface : Colors.white,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 2,
             offset: const Offset(0, 1),
           ),
@@ -93,12 +108,12 @@ class _RideResultsScreenState extends ConsumerState<RideResultsScreen> {
           children: [
             // Back button
             IconButton(
-              icon: const Icon(Icons.arrow_back, size: 24),
+              icon: Icon(Icons.arrow_back, size: _scale(22)),
               onPressed: () => Navigator.pop(context),
               padding: EdgeInsets.zero,
               constraints: const BoxConstraints(),
             ),
-            const SizedBox(width: AppSpacing.sm),
+            SizedBox(width: _scale(AppSpacing.sm)),
             // Route and rides count
             Expanded(
               child: Column(
@@ -112,19 +127,19 @@ class _RideResultsScreenState extends ConsumerState<RideResultsScreen> {
                           widget.pickupLocation.address,
                           style: TextStyles.bodyLarge.copyWith(
                             fontWeight: FontWeight.w600,
-                            fontSize: 16,
+                            fontSize: _scale(15),
                           ),
                           overflow: TextOverflow.ellipsis,
                           maxLines: 1,
                         ),
                       ),
                       Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 6),
+                        padding: EdgeInsets.symmetric(horizontal: _scale(5)),
                         child: Icon(
                           Icons.arrow_forward,
-                          size: 18,
-                          color: isDark 
-                              ? AppColors.darkTextSecondary 
+                          size: _scale(16),
+                          color: isDark
+                              ? AppColors.darkTextSecondary
                               : AppColors.lightTextSecondary,
                         ),
                       ),
@@ -133,7 +148,7 @@ class _RideResultsScreenState extends ConsumerState<RideResultsScreen> {
                           widget.dropoffLocation.address,
                           style: TextStyles.bodyLarge.copyWith(
                             fontWeight: FontWeight.w600,
-                            fontSize: 16,
+                            fontSize: _scale(15),
                           ),
                           overflow: TextOverflow.ellipsis,
                           maxLines: 1,
@@ -145,29 +160,29 @@ class _RideResultsScreenState extends ConsumerState<RideResultsScreen> {
                   Text(
                     '${ref.watch(passengerRideNotifierProvider).availableRides.length} Rides',
                     style: TextStyles.caption.copyWith(
-                      color: isDark 
-                          ? AppColors.darkTextSecondary 
-                          : AppColors.lightTextSecondary.withOpacity(0.7),
-                      fontSize: 12,
+                      color: isDark
+                          ? AppColors.darkTextSecondary
+                          : AppColors.lightTextSecondary.withValues(alpha: 0.7),
+                      fontSize: _scale(11),
                     ),
                   ),
                 ],
               ),
             ),
-            const SizedBox(width: AppSpacing.sm),
+            SizedBox(width: _scale(AppSpacing.sm)),
             // Date badge - clickable
             GestureDetector(
               onTap: () => _showDatePicker(context),
               child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 8,
+                padding: EdgeInsets.symmetric(
+                  horizontal: _scale(10),
+                  vertical: _scale(7),
                 ),
                 decoration: BoxDecoration(
                   color: isDark ? AppColors.darkCardBg : const Color(0xFFF5F5F5),
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(
-                    color: AppColors.primaryGreen.withOpacity(0.3),
+                    color: AppColors.primaryGreen.withValues(alpha: 0.3),
                     width: 1,
                   ),
                 ),
@@ -182,26 +197,26 @@ class _RideResultsScreenState extends ConsumerState<RideResultsScreen> {
                           DateFormat('dd MMM').format(_selectedDate),
                           style: TextStyles.bodyMedium.copyWith(
                             fontWeight: FontWeight.w600,
-                            fontSize: 14,
+                            fontSize: _scale(13),
                           ),
                         ),
                         Text(
                           DateFormat('E').format(_selectedDate),
                           style: TextStyles.caption.copyWith(
-                            color: isDark 
-                                ? AppColors.darkTextSecondary 
+                            color: isDark
+                                ? AppColors.darkTextSecondary
                                 : AppColors.lightTextSecondary,
-                            fontSize: 11,
+                            fontSize: _scale(10),
                           ),
                         ),
                       ],
                     ),
-                    const SizedBox(width: 6),
+                    SizedBox(width: _scale(5)),
                     Icon(
                       Icons.calendar_today,
-                      size: 16,
-                      color: isDark 
-                          ? AppColors.darkTextSecondary 
+                      size: _scale(14),
+                      color: isDark
+                          ? AppColors.darkTextSecondary
                           : AppColors.lightTextSecondary,
                     ),
                   ],
@@ -216,9 +231,9 @@ class _RideResultsScreenState extends ConsumerState<RideResultsScreen> {
   
   Widget _buildFilterBar(bool isDark) {
     return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.md,
-        vertical: 10,
+      padding: EdgeInsets.symmetric(
+        horizontal: _scale(AppSpacing.md),
+        vertical: _scale(9),
       ),
       decoration: BoxDecoration(
         color: isDark ? AppColors.darkSurface : Colors.white,
@@ -239,7 +254,7 @@ class _RideResultsScreenState extends ConsumerState<RideResultsScreen> {
               isDark,
               onTap: _showSortOptions,
             ),
-            const SizedBox(width: 8),
+            SizedBox(width: _scale(8)),
             _buildFilterChip(
               '4 Seater',
               Icons.directions_car_outlined,
@@ -247,7 +262,7 @@ class _RideResultsScreenState extends ConsumerState<RideResultsScreen> {
               isActive: _selectedSeatCapacity == 4,
               onTap: () => _filterBySeatCapacity(4),
             ),
-            const SizedBox(width: 8),
+            SizedBox(width: _scale(8)),
             _buildFilterChip(
               '7 Seater',
               Icons.airport_shuttle_outlined,
@@ -255,7 +270,7 @@ class _RideResultsScreenState extends ConsumerState<RideResultsScreen> {
               isActive: _selectedSeatCapacity == 7,
               onTap: () => _filterBySeatCapacity(7),
             ),
-            const SizedBox(width: 8),
+            SizedBox(width: _scale(8)),
             _buildFilterChip(
               '8+ Seater',
               Icons.airport_shuttle_outlined,
@@ -268,24 +283,25 @@ class _RideResultsScreenState extends ConsumerState<RideResultsScreen> {
       ),
     );
   }
-  
-  Widget _buildFilterChip(String label, IconData icon, bool isDark, {bool isActive = false, VoidCallback? onTap}) {
+
+  Widget _buildFilterChip(String label, IconData icon, bool isDark,
+      {bool isActive = false, VoidCallback? onTap}) {
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(20),
       child: Container(
-        padding: const EdgeInsets.symmetric(
-          horizontal: 14,
-          vertical: 8,
+        padding: EdgeInsets.symmetric(
+          horizontal: _scale(12),
+          vertical: _scale(7),
         ),
         decoration: BoxDecoration(
-          color: isActive 
-              ? AppColors.primaryYellow.withOpacity(0.15)
+          color: isActive
+              ? AppColors.primaryGreen.withValues(alpha: 0.12)
               : (isDark ? AppColors.darkCardBg : Colors.white),
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
-            color: isActive 
-                ? AppColors.primaryYellow
+            color: isActive
+                ? AppColors.primaryGreen
                 : (isDark ? AppColors.darkBorder : const Color(0xFFE0E0E0)),
             width: 1,
           ),
@@ -295,19 +311,19 @@ class _RideResultsScreenState extends ConsumerState<RideResultsScreen> {
           children: [
             Icon(
               icon,
-              size: 18,
-              color: isActive 
-                  ? AppColors.primaryYellow
+              size: _scale(16),
+              color: isActive
+                  ? AppColors.primaryGreen
                   : (isDark ? AppColors.darkTextPrimary : const Color(0xFF424242)),
             ),
-            const SizedBox(width: 6),
+            SizedBox(width: _scale(5)),
             Text(
               label,
               style: TextStyles.bodySmall.copyWith(
                 fontWeight: isActive ? FontWeight.w600 : FontWeight.w500,
-                fontSize: 13,
-                color: isActive 
-                    ? AppColors.primaryYellow
+                fontSize: _scale(12),
+                color: isActive
+                    ? AppColors.primaryGreen
                     : (isDark ? AppColors.darkTextPrimary : const Color(0xFF424242)),
               ),
             ),
@@ -324,7 +340,7 @@ class _RideResultsScreenState extends ConsumerState<RideResultsScreen> {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             CircularProgressIndicator(
-              color: AppColors.primaryYellow,
+              color: AppColors.primaryGreen,
             ),
             const SizedBox(height: AppSpacing.md),
             Text(
@@ -413,9 +429,9 @@ class _RideResultsScreenState extends ConsumerState<RideResultsScreen> {
     }
     
     return ListView.separated(
-      padding: const EdgeInsets.all(12),
+      padding: EdgeInsets.all(_scale(12)),
       itemCount: rides.length,
-      separatorBuilder: (context, index) => const SizedBox(height: 12),
+      separatorBuilder: (context, index) => SizedBox(height: _scale(10)),
       itemBuilder: (context, index) {
         final ride = rides[index];
         return _buildRideCard(ride, isDark, index);
@@ -443,7 +459,7 @@ class _RideResultsScreenState extends ConsumerState<RideResultsScreen> {
           borderRadius: BorderRadius.circular(8),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.08),
+              color: Colors.black.withValues(alpha: 0.08),
               blurRadius: 6,
               offset: const Offset(0, 2),
             ),
@@ -454,23 +470,27 @@ class _RideResultsScreenState extends ConsumerState<RideResultsScreen> {
           children: [
             // Top row with available seats (left) and discount badge (right)
             Padding(
-              padding: const EdgeInsets.only(left: 8, right: 8, top: 8),
+              padding: EdgeInsets.only(
+                left: _scale(8),
+                right: _scale(8),
+                top: _scale(8),
+              ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   // Available seats on the left
                   Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 6,
+                    padding: EdgeInsets.symmetric(
+                      horizontal: _scale(9),
+                      vertical: _scale(5),
                     ),
                     decoration: BoxDecoration(
-                      color: isDark 
-                          ? AppColors.primaryGreen.withOpacity(0.2)
-                          : AppColors.primaryGreen.withOpacity(0.1),
+                      color: isDark
+                          ? AppColors.primaryGreen.withValues(alpha: 0.2)
+                          : AppColors.primaryGreen.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(6),
                       border: Border.all(
-                        color: AppColors.primaryGreen.withOpacity(0.4),
+                        color: AppColors.primaryGreen.withValues(alpha: 0.4),
                         width: 1,
                       ),
                     ),
@@ -479,41 +499,45 @@ class _RideResultsScreenState extends ConsumerState<RideResultsScreen> {
                       children: [
                         Icon(
                           Icons.airline_seat_recline_normal,
-                          size: 16,
+                          size: _scale(15),
                           color: AppColors.primaryGreen,
                         ),
-                        const SizedBox(width: 4),
+                        SizedBox(width: _scale(4)),
                         Text(
                           '${ride.availableSeats} Seats Left',
                           style: TextStyle(
-                            fontSize: 12,
+                            fontSize: _scale(11),
                             fontWeight: FontWeight.w600,
-                            color: isDark 
-                                ? AppColors.primaryGreen.withOpacity(0.9)
+                            color: isDark
+                                ? AppColors.primaryGreen.withValues(alpha: 0.9)
                                 : AppColors.primaryGreen,
                           ),
                         ),
                       ],
                     ),
                   ),
-                  
+
                   // Discount badge on the right
                   if (discountBadge != null)
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: badgeColor,
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: Text(
-                        discountBadge,
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                          color: const Color(0xFFE65100),
+                    Flexible(
+                      child: Container(
+                        margin: EdgeInsets.only(left: _scale(8)),
+                        padding: EdgeInsets.symmetric(
+                          horizontal: _scale(10),
+                          vertical: _scale(4),
+                        ),
+                        decoration: BoxDecoration(
+                          color: badgeColor,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          discountBadge,
+                          style: TextStyle(
+                            fontSize: _scale(11),
+                            fontWeight: FontWeight.w600,
+                            color: const Color(0xFFE65100),
+                          ),
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
                     ),
@@ -522,143 +546,112 @@ class _RideResultsScreenState extends ConsumerState<RideResultsScreen> {
             ),
             
             Padding(
-              padding: const EdgeInsets.all(16),
+              padding: EdgeInsets.all(_scale(14)),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   // "STARTING" label
                   Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 3,
+                    padding: EdgeInsets.symmetric(
+                      horizontal: _scale(7),
+                      vertical: _scale(3),
                     ),
                     decoration: BoxDecoration(
-                      color: isDark ? const Color(0xFF3949AB).withOpacity(0.2) : const Color(0xFFE8EAF6),
+                      color: isDark
+                          ? const Color(0xFF3949AB).withValues(alpha: 0.2)
+                          : const Color(0xFFE8EAF6),
                       borderRadius: BorderRadius.circular(4),
                     ),
                     child: Text(
                       'STARTING',
                       style: TextStyle(
-                        fontSize: 11,
+                        fontSize: _scale(10),
                         fontWeight: FontWeight.w600,
-                        color: isDark ? const Color(0xFF9FA8DA) : const Color(0xFF3949AB),
+                        color: isDark
+                            ? const Color(0xFF9FA8DA)
+                            : const Color(0xFF3949AB),
                         letterSpacing: 0.5,
                       ),
                     ),
                   ),
-                  
-                  const SizedBox(height: 10),
-                  
+
+                  SizedBox(height: _scale(10)),
+
                   // Route display with intermediate stops
                   _buildCompactRoute(ride, isDark),
-                  
-                  const SizedBox(height: 16),
-                  
-                  // Time and Price row
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.center,
+
+                  SizedBox(height: _scale(14)),
+
+                  // Time row — departure → duration → arrival
+                  Wrap(
+                    spacing: _scale(3),
+                    runSpacing: _scale(2),
+                    crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
-                      // Departure time - Duration - Arrival time with locations
-                      Expanded(
-                        child: Wrap(
-                          spacing: 4,
-                          runSpacing: 4,
-                          crossAxisAlignment: WrapCrossAlignment.center,
-                          children: [
-                            Text(
-                              _formatTimeTo12Hour(ride.departureTime),
-                              style: TextStyle(
-                                fontSize: 20,
-                                fontWeight: FontWeight.w600,
-                                color: isDark 
-                                    ? AppColors.darkTextPrimary 
-                                    : const Color(0xFF212121),
-                              ),
-                            ),
-                            Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 4),
-                              child: Text(
-                                '—',
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  color: isDark 
-                                      ? AppColors.darkTextSecondary 
-                                      : const Color(0xFF9E9E9E),
-                                ),
-                              ),
-                            ),
-                            Text(
-                              _getJourneyDuration(ride),
-                              style: TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w500,
-                                color: isDark 
-                                    ? AppColors.darkTextSecondary 
-                                    : const Color(0xFF757575),
-                              ),
-                            ),
-                            Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 4),
-                              child: Text(
-                                '—',
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  color: isDark 
-                                      ? AppColors.darkTextSecondary 
-                                      : const Color(0xFF9E9E9E),
-                                ),
-                              ),
-                            ),
-                            Text(
-                              _getArrivalTime(ride),
-                              style: TextStyle(
-                                fontSize: 20,
-                                fontWeight: FontWeight.w600,
-                                color: isDark 
-                                    ? AppColors.darkTextPrimary 
-                                    : const Color(0xFF212121),
-                              ),
-                            ),
-                          ],
+                      Text(
+                        _formatTimeTo12Hour(ride.departureTime),
+                        style: TextStyle(
+                          fontSize: _scale(18),
+                          fontWeight: FontWeight.w600,
+                          color: isDark
+                              ? AppColors.darkTextPrimary
+                              : const Color(0xFF212121),
                         ),
                       ),
-                      
-                      const SizedBox(width: 12),
-                      
-                      // Price
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            '₹${ride.pricePerSeat.toStringAsFixed(0)}',
-                            style: TextStyle(
-                              fontSize: 20,
-                              fontWeight: FontWeight.w700,
-                              color: isDark 
-                                  ? AppColors.darkTextPrimary 
-                                  : const Color(0xFF212121),
-                            ),
+                      Padding(
+                        padding: EdgeInsets.symmetric(horizontal: _scale(3)),
+                        child: Text(
+                          '—',
+                          style: TextStyle(
+                            fontSize: _scale(14),
+                            color: isDark
+                                ? AppColors.darkTextSecondary
+                                : const Color(0xFF9E9E9E),
                           ),
-                          Text(
-                            'Onwards',
-                            style: TextStyle(
-                              fontSize: 11,
-                              color: isDark 
-                                  ? AppColors.darkTextSecondary 
-                                  : const Color(0xFF757575),
-                            ),
+                        ),
+                      ),
+                      Text(
+                        _getJourneyDuration(ride),
+                        style: TextStyle(
+                          fontSize: _scale(10),
+                          fontWeight: FontWeight.w500,
+                          color: isDark
+                              ? AppColors.darkTextSecondary
+                              : const Color(0xFF757575),
+                        ),
+                      ),
+                      Padding(
+                        padding: EdgeInsets.symmetric(horizontal: _scale(3)),
+                        child: Text(
+                          '—',
+                          style: TextStyle(
+                            fontSize: _scale(14),
+                            color: isDark
+                                ? AppColors.darkTextSecondary
+                                : const Color(0xFF9E9E9E),
                           ),
-                        ],
+                        ),
+                      ),
+                      Text(
+                        _getArrivalTime(ride),
+                        style: TextStyle(
+                          fontSize: _scale(18),
+                          fontWeight: FontWeight.w600,
+                          color: isDark
+                              ? AppColors.darkTextPrimary
+                              : const Color(0xFF212121),
+                        ),
                       ),
                     ],
                   ),
                   
-                  const SizedBox(height: 12),
-                  
-                  // Service provider and rating
+                  SizedBox(height: _scale(10)),
+
+                  // Driver name • Rating • Price — all inline in one row
                   Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
+                      // Left: driver name + verified icon + vehicle + plate
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -669,105 +662,141 @@ class _RideResultsScreenState extends ConsumerState<RideResultsScreen> {
                                   child: Text(
                                     ride.driverName,
                                     style: TextStyle(
-                                      fontSize: 15,
+                                      fontSize: _scale(13),
                                       fontWeight: FontWeight.w600,
-                                      color: isDark 
-                                          ? AppColors.darkTextPrimary 
+                                      color: isDark
+                                          ? AppColors.darkTextPrimary
                                           : const Color(0xFF212121),
                                     ),
                                     overflow: TextOverflow.ellipsis,
                                   ),
                                 ),
-                                const SizedBox(width: 6),
+                                SizedBox(width: _scale(4)),
                                 Icon(
                                   Icons.verified,
-                                  size: 16,
-                                  color: isDark ? const Color(0xFF64B5F6) : const Color(0xFF2196F3),
+                                  size: _scale(13),
+                                  color: isDark
+                                      ? const Color(0xFF64B5F6)
+                                      : const Color(0xFF2196F3),
                                 ),
                               ],
                             ),
-                            const SizedBox(height: 4),
+                            SizedBox(height: _scale(2)),
                             Text(
-                              '${ride.vehicleType} ${ride.vehicleModel}',
+                              '${ride.vehicleType} · ${ride.vehicleModel}',
                               style: TextStyle(
-                                fontSize: 12,
-                                color: isDark 
-                                    ? AppColors.darkTextSecondary 
-                                    : const Color(0xFF616161),
+                                fontSize: _scale(10),
+                                color: isDark
+                                    ? AppColors.darkTextSecondary
+                                    : const Color(0xFF757575),
                               ),
                               overflow: TextOverflow.ellipsis,
                             ),
-                            const SizedBox(height: 6),
+                            SizedBox(height: _scale(4)),
                             _buildNumberPlate(ride.vehicleNumber, isDark),
                           ],
                         ),
                       ),
-                      
-                      // Rating badge
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 6,
-                        ),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF2E7D32),
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(
-                              Icons.star,
-                              size: 14,
-                              color: Colors.white,
-                            ),
-                            const SizedBox(width: 4),
-                            Text(
-                              ride.driverRating.toStringAsFixed(1),
-                              style: const TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
-                                color: Colors.white,
+
+                      SizedBox(width: _scale(8)),
+
+                      // Right: rating badge + review count + price stacked compactly
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          // Rating + review count inline
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Container(
+                                padding: EdgeInsets.symmetric(
+                                  horizontal: _scale(6),
+                                  vertical: _scale(3),
+                                ),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF2E7D32),
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      Icons.star,
+                                      size: _scale(11),
+                                      color: Colors.white,
+                                    ),
+                                    SizedBox(width: _scale(3)),
+                                    Text(
+                                      ride.driverRating.toStringAsFixed(1),
+                                      style: TextStyle(
+                                        fontSize: _scale(11),
+                                        fontWeight: FontWeight.w600,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                  ],
+                                ),
                               ),
+                              SizedBox(width: _scale(4)),
+                              Text(
+                                '(${ride.driverRatingCount})',
+                                style: TextStyle(
+                                  fontSize: _scale(10),
+                                  color: isDark
+                                      ? AppColors.darkTextSecondary
+                                      : const Color(0xFF757575),
+                                ),
+                              ),
+                            ],
+                          ),
+                          SizedBox(height: _scale(4)),
+                          // Price
+                          Text(
+                            '₹${ride.pricePerSeat.toStringAsFixed(0)}',
+                            style: TextStyle(
+                              fontSize: _scale(16),
+                              fontWeight: FontWeight.w700,
+                              color: isDark
+                                  ? AppColors.primaryGreen
+                                  : AppColors.primaryGreen,
                             ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      // Review count
-                      Text(
-                        '(${ride.driverRatingCount})',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: isDark 
-                              ? AppColors.darkTextSecondary 
-                              : const Color(0xFF757575),
-                        ),
+                          ),
+                          Text(
+                            'per seat',
+                            style: TextStyle(
+                              fontSize: _scale(9),
+                              color: isDark
+                                  ? AppColors.darkTextSecondary
+                                  : const Color(0xFF757575),
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
-                  
+
                   // Special note (for some rides)
                   if (index == 1) ...[
-                    const SizedBox(height: 12),
+                    SizedBox(height: _scale(10)),
                     Container(
                       width: double.infinity,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 8,
+                      padding: EdgeInsets.symmetric(
+                        horizontal: _scale(11),
+                        vertical: _scale(7),
                       ),
                       decoration: BoxDecoration(
-                        color: isDark 
-                            ? const Color(0xFFE1BEE7).withOpacity(0.2) 
+                        color: isDark
+                            ? const Color(0xFFE1BEE7).withValues(alpha: 0.2)
                             : const Color(0xFFFCE4EC),
                         borderRadius: BorderRadius.circular(4),
                       ),
                       child: Text(
                         'Exclusive discounts available for women passengers',
                         style: TextStyle(
-                          fontSize: 12,
-                          color: isDark 
-                              ? const Color(0xFFCE93D8) 
+                          fontSize: _scale(11),
+                          color: isDark
+                              ? const Color(0xFFCE93D8)
                               : const Color(0xFFC2185B),
                         ),
                       ),
@@ -1174,17 +1203,21 @@ class _RideResultsScreenState extends ConsumerState<RideResultsScreen> {
     // First filter by seat capacity if selected
     var filteredRides = rides;
     if (_selectedSeatCapacity != null) {
-      print('🚗 Filtering by seat capacity: $_selectedSeatCapacity');
       filteredRides = rides.where((ride) {
-        print('  Checking vehicle seating capacity: ${ride.vehicleSeatingCapacity}');
-        // For 8+ seater filter, match 8 or more seats. Otherwise exact match.
-        final matches = _selectedSeatCapacity == 8 
-            ? ride.vehicleSeatingCapacity >= 8 
-            : ride.vehicleSeatingCapacity == _selectedSeatCapacity;
-        print('  Matches: $matches');
+        final cap = ride.vehicleSeatingCapacity;
+        final bool matches;
+        if (_selectedSeatCapacity == 8) {
+          // 8+ Seater: mini-bus / tempo
+          matches = cap >= 8;
+        } else if (_selectedSeatCapacity == 7) {
+          // 7 Seater: covers 5–7 seat vehicles (Ertiga, Innova, etc.)
+          matches = cap >= 5 && cap <= 7;
+        } else {
+          // 4 Seater: covers small vehicles ≤ 4 seats (auto, sedan, bike)
+          matches = cap > 0 && cap <= 4;
+        }
         return matches;
       }).toList();
-      print('🚗 Filtered rides count: ${filteredRides.length}');
     }
     
     // Then sort the filtered rides
@@ -1318,7 +1351,7 @@ class _RideResultsScreenState extends ConsumerState<RideResultsScreen> {
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.1),
+            color: Colors.black.withValues(alpha: 0.1),
             blurRadius: 2,
             offset: const Offset(0, 1),
           ),

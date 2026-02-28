@@ -108,9 +108,9 @@ class _CustomTextFieldState extends State<CustomTextField> {
                   ? Icon(
                       widget.prefixIcon,
                       color: _isFocused
-                          ? AppColors.primaryYellow
-                          : (isDark 
-                              ? AppColors.darkTextTertiary 
+                          ? AppColors.primaryGreen
+                          : (isDark
+                              ? AppColors.darkTextTertiary
                               : AppColors.lightTextTertiary),
                     )
                   : null,

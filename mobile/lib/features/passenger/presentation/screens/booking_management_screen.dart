@@ -171,16 +171,19 @@ class _BookingManagementScreenState extends ConsumerState<BookingManagementScree
                             children: [
                               Icon(Icons.directions_car, size: 20, color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary),
                               const SizedBox(width: AppSpacing.sm),
-                              Text(
-                                'Vehicle Number',
-                                style: TextStyles.bodyMedium.copyWith(
-                                  color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
+                              Expanded(
+                                child: Text(
+                                  'Vehicle Number',
+                                  style: TextStyles.bodyMedium.copyWith(
+                                    color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
                                 ),
                               ),
-                              const Spacer(),
+                              const SizedBox(width: AppSpacing.sm),
                               IndianNumberPlate(
                                 vehicleNumber: widget.ride.vehicleNumber!,
-                                scale: 0.7,
+                                scale: 0.65,
                                 backgroundColor: const Color(0xFFFFC107),
                               ),
                             ],

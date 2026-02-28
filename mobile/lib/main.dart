@@ -84,12 +84,26 @@ class VanYatraApp extends StatelessWidget {
     return MaterialApp(
       title: 'VanYatra',
       debugShowCheckedModeBanner: false,
-      
+
       // Themes
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,
       themeMode: ThemeMode.system,
-      
+
+      // Responsive font scaling based on screen width.
+      // Design baseline is 375px (standard iPhone). Fonts scale proportionally
+      // with the screen and are clamped to prevent extremes on tiny/tablet screens.
+      builder: (context, child) {
+        final screenWidth = MediaQuery.of(context).size.width;
+        final fontScale = (screenWidth / 375.0).clamp(0.85, 1.20);
+        return MediaQuery(
+          data: MediaQuery.of(context).copyWith(
+            textScaler: TextScaler.linear(fontScale),
+          ),
+          child: child!,
+        );
+      },
+
       // Initial route - skip splash and login for web, go directly to passenger home
       home: kIsWeb ? const PassengerHomeScreen() : const SplashScreen(),
       

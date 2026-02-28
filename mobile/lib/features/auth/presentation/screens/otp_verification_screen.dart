@@ -527,7 +527,7 @@ class _OtpVerificationScreenState extends ConsumerState<OtpVerificationScreen> w
                   Icon(
                     Icons.edit,
                     size: AppSpacing.iconSM,
-                    color: AppColors.primaryYellow,
+                    color: AppColors.primaryGreen,
                   ),
                 ],
               ).animate()
@@ -561,22 +561,22 @@ class _OtpVerificationScreenState extends ConsumerState<OtpVerificationScreen> w
                       borderRadius: AppSpacing.borderRadiusMD,
                       fieldHeight: fieldHeight,
                       fieldWidth: fieldWidth,
-                      activeFillColor: isDark 
-                          ? AppColors.darkSurface 
+                      activeFillColor: isDark
+                          ? AppColors.darkSurface
                           : AppColors.lightSurface,
-                      inactiveFillColor: isDark 
-                          ? AppColors.darkSurface 
+                      inactiveFillColor: isDark
+                          ? AppColors.darkSurface
                           : AppColors.lightSurface,
-                      selectedFillColor: isDark 
-                          ? AppColors.darkSurface 
+                      selectedFillColor: isDark
+                          ? AppColors.darkSurface
                           : AppColors.lightSurface,
-                      activeColor: AppColors.primaryYellow,
-                      inactiveColor: isDark 
-                          ? AppColors.darkBorder 
+                      activeColor: AppColors.primaryGreen,
+                      inactiveColor: isDark
+                          ? AppColors.darkBorder
                           : AppColors.lightBorder,
-                      selectedColor: AppColors.primaryYellow,
+                      selectedColor: AppColors.primaryGreen,
                     ),
-                    cursorColor: AppColors.primaryYellow,
+                    cursorColor: AppColors.primaryGreen,
                     animationDuration: const Duration(milliseconds: 300),
                     enableActiveFill: true,
                     textInputAction: TextInputAction.done,

@@ -90,7 +90,7 @@ class _RideSearchLoadingScreenState extends State<RideSearchLoadingScreen> with 
         color: isDark ? AppColors.darkSurface : Colors.white,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 4,
             offset: const Offset(0, 2),
           ),
@@ -157,8 +157,11 @@ class _RideSearchLoadingScreenState extends State<RideSearchLoadingScreen> with 
               vertical: AppSpacing.sm,
             ),
             decoration: BoxDecoration(
-              color: AppColors.primaryYellow.withOpacity(0.1),
+              color: isDark ? AppColors.darkSurface : AppColors.lightSurface,
               borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
+              ),
             ),
             child: Column(
               children: [
@@ -185,113 +188,105 @@ class _RideSearchLoadingScreenState extends State<RideSearchLoadingScreen> with 
   }
   
   Widget _buildFilterChipsSkeleton(bool isDark) {
+    final chipColor = isDark ? AppColors.darkCardBg : Colors.grey[200]!;
     return Row(
       children: [
-        _buildShimmerBox(120, 36, isDark, const Color(0xFFFFE5E5)),
+        Expanded(child: _buildShimmerBox(double.infinity, 36, isDark, chipColor)),
         const SizedBox(width: AppSpacing.sm),
-        _buildShimmerBox(100, 36, isDark, const Color(0xFFE5E5FF)),
+        Expanded(child: _buildShimmerBox(double.infinity, 36, isDark, chipColor)),
         const SizedBox(width: AppSpacing.sm),
-        _buildShimmerBox(100, 36, isDark, const Color(0xFFE5FFE5)),
+        Expanded(child: _buildShimmerBox(double.infinity, 36, isDark, chipColor)),
       ],
     );
   }
   
   Widget _buildRideCardSkeleton(bool isDark, Color accentColor) {
-    return AnimatedBuilder(
-      animation: _shimmerAnimation,
-      builder: (context, child) {
-        return Container(
-          decoration: BoxDecoration(
-            color: isDark ? AppColors.darkCardBg : Colors.white,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
-            ),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Padding(
-                padding: const EdgeInsets.all(AppSpacing.lg),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Top section with icon and text
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        _buildShimmerBox(60, 60, isDark, accentColor),
-                        const SizedBox(width: AppSpacing.md),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              _buildShimmerBox(200, 16, isDark, Colors.grey[300]!),
-                              const SizedBox(height: AppSpacing.sm),
-                              _buildShimmerBox(120, 12, isDark, Colors.grey[300]!),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                    
-                    const SizedBox(height: AppSpacing.lg),
-                    
-                    // Middle section
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _buildShimmerBox(double.infinity, 24, isDark, Colors.grey[300]!),
-                        ),
-                        const SizedBox(width: AppSpacing.md),
-                        _buildShimmerBox(80, 40, isDark, accentColor),
-                      ],
-                    ),
-                    
-                    const SizedBox(height: AppSpacing.md),
-                    
-                    // Bottom buttons
-                    Row(
-                      children: [
-                        _buildShimmerBox(100, 32, isDark, Colors.grey[300]!),
-                        const SizedBox(width: AppSpacing.sm),
-                        _buildShimmerBox(100, 32, isDark, Colors.grey[300]!),
-                        const SizedBox(width: AppSpacing.sm),
-                        _buildShimmerBox(100, 32, isDark, Colors.grey[300]!),
-                      ],
-                    ),
-                  ],
+    final greyColor = isDark ? AppColors.darkBorder : Colors.grey[300]!;
+    return Container(
+      decoration: BoxDecoration(
+        color: isDark ? AppColors.darkCardBg : Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.lg),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Top section with icon and text
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildShimmerBox(60, 60, isDark, greyColor),
+                const SizedBox(width: AppSpacing.md),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildShimmerBox(double.infinity, 16, isDark, greyColor),
+                      const SizedBox(height: AppSpacing.sm),
+                      _buildShimmerBox(120, 12, isDark, greyColor),
+                    ],
+                  ),
                 ),
-              ),
-            ],
-          ),
-        );
-      },
+              ],
+            ),
+
+            const SizedBox(height: AppSpacing.lg),
+
+            // Middle section
+            Row(
+              children: [
+                Expanded(
+                  child: _buildShimmerBox(double.infinity, 24, isDark, greyColor),
+                ),
+                const SizedBox(width: AppSpacing.md),
+                _buildShimmerBox(80, 40, isDark, greyColor),
+              ],
+            ),
+
+            const SizedBox(height: AppSpacing.md),
+
+            // Bottom buttons
+            Row(
+              children: [
+                Expanded(child: _buildShimmerBox(double.infinity, 32, isDark, greyColor)),
+                const SizedBox(width: AppSpacing.sm),
+                Expanded(child: _buildShimmerBox(double.infinity, 32, isDark, greyColor)),
+                const SizedBox(width: AppSpacing.sm),
+                Expanded(child: _buildShimmerBox(double.infinity, 32, isDark, greyColor)),
+              ],
+            ),
+          ],
+        ),
+      ),
     );
   }
-  
+
   Widget _buildShimmerBox(double width, double height, bool isDark, Color baseColor) {
-    return AnimatedBuilder(
-      animation: _shimmerAnimation,
-      builder: (context, child) {
-        return Container(
-          width: width,
-          height: height,
-          decoration: BoxDecoration(
-            color: baseColor.withOpacity(isDark ? 0.2 : 0.5),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Stack(
-            children: [
-              Positioned.fill(
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // Use actual layout width when double.infinity is passed
+        final resolvedWidth = width == double.infinity ? constraints.maxWidth : width;
+        return AnimatedBuilder(
+          animation: _shimmerAnimation,
+          builder: (context, child) {
+            return ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: Container(
+                width: resolvedWidth,
+                height: height,
+                color: baseColor.withValues(alpha: isDark ? 0.2 : 0.5),
                 child: Transform.translate(
-                  offset: Offset(_shimmerAnimation.value * width, 0),
+                  offset: Offset(_shimmerAnimation.value * resolvedWidth, 0),
                   child: Container(
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
                         colors: [
                           Colors.transparent,
-                          Colors.white.withOpacity(isDark ? 0.1 : 0.3),
+                          Colors.white.withValues(alpha: isDark ? 0.1 : 0.3),
                           Colors.transparent,
                         ],
                         stops: const [0.0, 0.5, 1.0],
@@ -300,8 +295,8 @@ class _RideSearchLoadingScreenState extends State<RideSearchLoadingScreen> with 
                   ),
                 ),
               ),
-            ],
-          ),
+            );
+          },
         );
       },
     );

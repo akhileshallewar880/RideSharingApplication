@@ -14,7 +14,7 @@ class PrimaryButton extends StatelessWidget {
   final double? height;
   final Color? backgroundColor;
   final Color? textColor;
-  
+
   const PrimaryButton({
     super.key,
     required this.text,
@@ -26,19 +26,20 @@ class PrimaryButton extends StatelessWidget {
     this.backgroundColor,
     this.textColor,
   });
-  
+
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return SizedBox(
       width: isFullWidth ? double.infinity : null,
       height: height ?? AppSpacing.buttonHeightLG,
       child: ElevatedButton(
         onPressed: isLoading ? null : onPressed,
         style: ElevatedButton.styleFrom(
-          backgroundColor: backgroundColor ?? AppColors.primaryYellow,
-          foregroundColor: textColor ?? AppColors.primaryDark,
-          disabledBackgroundColor: Theme.of(context).brightness == Brightness.dark
-              ? AppColors.darkBorder 
+          backgroundColor: backgroundColor ?? AppColors.primaryGreen,
+          foregroundColor: textColor ?? Colors.white,
+          disabledBackgroundColor: isDark
+              ? AppColors.darkBorder
               : AppColors.lightBorder,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(50),
@@ -46,12 +47,14 @@ class PrimaryButton extends StatelessWidget {
           elevation: AppSpacing.elevationSM,
         ),
         child: isLoading
-            ? const SizedBox(
+            ? SizedBox(
                 height: 20,
                 width: 20,
                 child: CircularProgressIndicator(
                   strokeWidth: 2,
-                  valueColor: AlwaysStoppedAnimation<Color>(AppColors.primaryDark),
+                  valueColor: AlwaysStoppedAnimation<Color>(
+                    textColor ?? Colors.white,
+                  ),
                 ),
               )
             : Row(
@@ -65,20 +68,12 @@ class PrimaryButton extends StatelessWidget {
                   Text(
                     text,
                     style: TextStyles.buttonLarge.copyWith(
-                      color: textColor ?? AppColors.primaryDark,
+                      color: textColor ?? Colors.white,
                     ),
                   ),
                 ],
               ),
       ),
-    ).animate(
-      onPlay: (controller) => controller.repeat(reverse: true),
-    ).shimmer(
-      duration: 2000.ms,
-      color: Colors.white.withOpacity(0.3),
-    ).then().shake(
-      hz: 0,
-      curve: Curves.easeInOut,
     );
   }
 }
@@ -91,7 +86,7 @@ class SecondaryButton extends StatelessWidget {
   final bool isFullWidth;
   final IconData? icon;
   final double? height;
-  
+
   const SecondaryButton({
     super.key,
     required this.text,
@@ -101,7 +96,7 @@ class SecondaryButton extends StatelessWidget {
     this.icon,
     this.height,
   });
-  
+
   @override
   Widget build(BuildContext context) {
     return SizedBox(
@@ -110,9 +105,9 @@ class SecondaryButton extends StatelessWidget {
       child: OutlinedButton(
         onPressed: isLoading ? null : onPressed,
         style: OutlinedButton.styleFrom(
-          foregroundColor: AppColors.primaryYellow,
+          foregroundColor: AppColors.primaryGreen,
           side: const BorderSide(
-            color: AppColors.primaryYellow,
+            color: AppColors.primaryGreen,
             width: 2,
           ),
           shape: RoundedRectangleBorder(
@@ -125,7 +120,7 @@ class SecondaryButton extends StatelessWidget {
                 width: 20,
                 child: CircularProgressIndicator(
                   strokeWidth: 2,
-                  valueColor: AlwaysStoppedAnimation<Color>(AppColors.primaryYellow),
+                  valueColor: AlwaysStoppedAnimation<Color>(AppColors.primaryGreen),
                 ),
               )
             : Row(
@@ -139,7 +134,7 @@ class SecondaryButton extends StatelessWidget {
                   Text(
                     text,
                     style: TextStyles.buttonLarge.copyWith(
-                      color: AppColors.primaryYellow,
+                      color: AppColors.primaryGreen,
                     ),
                   ),
                 ],

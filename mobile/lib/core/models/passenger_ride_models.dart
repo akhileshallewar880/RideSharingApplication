@@ -143,9 +143,16 @@ class AvailableRide {
       vehicleType: json['vehicleType'] ?? '',
       vehicleModel: json['vehicleModel'] ?? '',
       vehicleNumber: json['vehicleNumber'] ?? '',
-      vehicleSeatingCapacity: (json['vehicleSeatingCapacity'] is int) 
-          ? json['vehicleSeatingCapacity'] 
-          : (int.tryParse(json['vehicleSeatingCapacity']?.toString() ?? '') ?? 0),
+      vehicleSeatingCapacity: () {
+          final cap = (json['vehicleSeatingCapacity'] is int)
+              ? json['vehicleSeatingCapacity'] as int
+              : (int.tryParse(json['vehicleSeatingCapacity']?.toString() ?? '') ?? 0);
+          if (cap > 0) return cap;
+          // Fallback to totalSeats when vehicleSeatingCapacity is missing/zero
+          return (json['totalSeats'] is int)
+              ? json['totalSeats'] as int
+              : (int.tryParse(json['totalSeats']?.toString() ?? '') ?? 0);
+        }(),
       pickupLocation: json['pickupLocation'] ?? '',
       dropoffLocation: json['dropoffLocation'] ?? '',
       departureTime: json['departureTime'] ?? '',

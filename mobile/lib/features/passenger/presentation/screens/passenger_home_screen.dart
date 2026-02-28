@@ -56,7 +56,8 @@ class _PassengerHomeScreenState extends ConsumerState<PassengerHomeScreen> with 
   final Map<String, bool> _previousVerificationStatus = {}; // Track verification status changes
   int _currentCarouselPage = 0; // Current page in rides carousel
   final PageController _ridesCarouselController = PageController(); // Controller for rides carousel
-  
+  bool _isDetectingLocation = false; // Location detection in progress
+
   // Animated placeholder state
   Timer? _placeholderTimer;
   int _currentPlaceholderIndex = 0;
@@ -512,9 +513,11 @@ class _PassengerHomeScreenState extends ConsumerState<PassengerHomeScreen> with 
   }
   
   Future<void> _checkUserLocation() async {
+    if (!mounted) return;
+    setState(() { _isDetectingLocation = true; });
     try {
       final locationService = ref.read(locationServiceProvider);
-      
+
       print('🔍 Starting location detection...');
       
       // Get current position
@@ -618,6 +621,8 @@ class _PassengerHomeScreenState extends ConsumerState<PassengerHomeScreen> with 
           }
         });
       }
+    } finally {
+      if (mounted) setState(() { _isDetectingLocation = false; });
     }
   }
   
@@ -795,12 +800,14 @@ class _PassengerHomeScreenState extends ConsumerState<PassengerHomeScreen> with 
       return;
     }
     
+    // If user typed a location but didn't pick from suggestions, we can't proceed
     if (_selectedPickup == null || _selectedDropoff == null) {
-      print('❌ Validation failed: no locations selected');
+      print('❌ Validation failed: no location suggestion selected');
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Please select locations from suggestions'),
+          content: Text('Please tap a location and select it from the list'),
           backgroundColor: AppColors.error,
+          duration: Duration(seconds: 3),
         ),
       );
       return;
@@ -829,14 +836,22 @@ class _PassengerHomeScreenState extends ConsumerState<PassengerHomeScreen> with 
     }
     
     // Search for available rides
+    // Fallback: use controller text as address if fullAddress is empty
+    final pickupAddress = _selectedPickup!.fullAddress.isNotEmpty
+        ? _selectedPickup!.fullAddress
+        : _selectedPickup!.name;
+    final dropoffAddress = _selectedDropoff!.fullAddress.isNotEmpty
+        ? _selectedDropoff!.fullAddress
+        : _selectedDropoff!.name;
+
     final searchRequest = SearchRidesRequest(
       pickupLocation: Location(
-        address: _selectedPickup!.fullAddress,
+        address: pickupAddress,
         latitude: _selectedPickup!.latitude ?? 0.0,
         longitude: _selectedPickup!.longitude ?? 0.0,
       ),
       dropoffLocation: Location(
-        address: _selectedDropoff!.fullAddress,
+        address: dropoffAddress,
         latitude: _selectedDropoff!.latitude ?? 0.0,
         longitude: _selectedDropoff!.longitude ?? 0.0,
       ),
@@ -1341,16 +1356,22 @@ class _PassengerHomeScreenState extends ConsumerState<PassengerHomeScreen> with 
             Text(
               'Total: ₹${(ride.pricePerSeat * _passengerCount).toStringAsFixed(0)}',
               style: TextStyles.headingSmall.copyWith(
-                color: AppColors.primaryYellow,
+                color: AppColors.primaryGreen,
                 fontWeight: FontWeight.bold,
               ),
             ),
           ],
         ),
+        actionsAlignment: MainAxisAlignment.end,
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
+            child: Text(
+              'Cancel',
+              style: TextStyle(
+                color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
+              ),
+            ),
           ),
           ElevatedButton(
             onPressed: () {
@@ -1358,9 +1379,10 @@ class _PassengerHomeScreenState extends ConsumerState<PassengerHomeScreen> with 
               _bookRide(ride);
             },
             style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.primaryYellow,
+              backgroundColor: AppColors.primaryGreen,
+              foregroundColor: Colors.white,
             ),
-            child: const Text('Confirm Booking'),
+            child: const Text('Confirm'),
           ),
         ],
       ),
@@ -2270,6 +2292,7 @@ class _PassengerHomeScreenState extends ConsumerState<PassengerHomeScreen> with 
                                                   ),
                                                 ),
                                               ),
+                                              // GPS button removed per UX feedback
                                             ],
                                           ),
                                         ),
@@ -2391,21 +2414,25 @@ class _PassengerHomeScreenState extends ConsumerState<PassengerHomeScreen> with 
                                 Row(
                                   children: [
                                     Expanded(
-                                      child: _buildDateButton(
-                                        'Today, ${_dateFormatDay.format(DateTime.now())}-${_dateFormatMonth.format(DateTime.now())}',
+                                      child: _buildQuickDateButton(
+                                        'Today',
                                         DateTime.now(),
                                         isDark,
-                                        amber,
+                                        AppColors.primaryGreen,
                                       ),
                                     ),
-                                    const SizedBox(width: 12),
+                                    const SizedBox(width: 8),
                                     Expanded(
-                                      child: _buildDateButton(
+                                      child: _buildQuickDateButton(
                                         'Tomorrow',
                                         DateTime.now().add(const Duration(days: 1)),
                                         isDark,
-                                        amber,
+                                        AppColors.primaryGreen,
                                       ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: _buildCustomDateButton(isDark, AppColors.primaryGreen),
                                     ),
                                   ],
                                 ),
@@ -2421,10 +2448,10 @@ class _PassengerHomeScreenState extends ConsumerState<PassengerHomeScreen> with 
                               child: ElevatedButton(
                                 onPressed: _handleBookRide,
                                 style: ElevatedButton.styleFrom(
-                                  backgroundColor: amber,
-                                  foregroundColor: Colors.black,
+                                  backgroundColor: AppColors.primaryGreen,
+                                  foregroundColor: Colors.white,
                                   elevation: 4,
-                                  shadowColor: amber.withOpacity(0.4),
+                                  shadowColor: AppColors.primaryGreen.withValues(alpha: 0.4),
                                   shape: RoundedRectangleBorder(
                                     borderRadius: BorderRadius.circular(12),
                                   ),
@@ -2537,44 +2564,6 @@ class _PassengerHomeScreenState extends ConsumerState<PassengerHomeScreen> with 
         });
       }
     });
-  }
-  
-  // Build date button matching the image design
-  Widget _buildDateButton(String label, DateTime date, bool isDark, Color buttonColor) {
-    final isSelected = _dateFormatYMD.format(_selectedDate) == 
-                       _dateFormatYMD.format(date);
-    
-    return InkWell(
-      onTap: () {
-        setState(() {
-          _selectedDate = date;
-        });
-      },
-      borderRadius: BorderRadius.circular(50),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-        decoration: BoxDecoration(
-          color: isSelected ? buttonColor : (isDark ? Colors.grey[800] : Colors.grey[200]),
-          borderRadius: BorderRadius.circular(50),
-          border: Border.all(
-            color: isSelected ? buttonColor : Colors.transparent,
-            width: 1,
-          ),
-        ),
-        child: Center(
-          child: Text(
-            label,
-            style: TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.w600,
-              color: isSelected 
-                  ? Colors.black 
-                  : (isDark ? Colors.white70 : Colors.black87),
-            ),
-          ),
-        ),
-      ),
-    );
   }
   
   Widget _buildQuickDateButton(String label, DateTime date, bool isDark, Color primaryColor) {
@@ -3977,13 +3966,17 @@ class _PassengerHomeScreenState extends ConsumerState<PassengerHomeScreen> with 
     final rideHistory = rideHistoryState.rideHistory;
     
     // Active trip (only for checking if exists)
+    final todayStr = _dateFormatYMD.format(DateTime.now());
     final activeTrip = rideHistory.firstWhere(
       (r) {
         final statusLower = r.status.toLowerCase();
-        return (statusLower == 'active' ||
+        final isTrueActive = statusLower == 'active' ||
             statusLower == 'started' ||
-            statusLower == 'in-progress' ||
-            statusLower == 'confirmed');
+            statusLower == 'in-progress';
+        // 'confirmed' only counts as active when the ride is scheduled for today
+        final isConfirmedToday = statusLower == 'confirmed' &&
+            r.travelDate.startsWith(todayStr);
+        return isTrueActive || isConfirmedToday;
       },
       orElse: () => RideHistoryItem(
         bookingNumber: '',
@@ -3996,13 +3989,15 @@ class _PassengerHomeScreenState extends ConsumerState<PassengerHomeScreen> with 
         status: '',
       ),
     );
-    
-    // Upcoming rides
+
+    // Upcoming rides — exclude the ride already shown as active trip
     final upcomingRides = rideHistory
         .where((r) {
           final statusLower = r.status.toLowerCase();
-          return (statusLower == 'scheduled' || statusLower == 'confirmed') && 
-                 (r.isVerified != true);
+          final isUpcomingStatus = statusLower == 'scheduled' || statusLower == 'confirmed';
+          final isAlreadyActive = r.bookingNumber.isNotEmpty &&
+              r.bookingNumber == activeTrip.bookingNumber;
+          return isUpcomingStatus && !isAlreadyActive && (r.isVerified != true);
         })
         .toList();
     

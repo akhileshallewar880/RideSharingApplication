@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:sms_autofill/sms_autofill.dart';
 import 'package:allapalli_ride/app/themes/app_colors.dart';
+import 'package:allapalli_ride/app/themes/app_spacing.dart';
+import 'package:allapalli_ride/app/themes/text_styles.dart';
 import 'package:allapalli_ride/core/services/firebase_phone_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
@@ -265,69 +267,82 @@ class _PhoneNumberEntryScreenState extends State<PhoneNumberEntryScreen>
       ),
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24.0),
+          padding: const EdgeInsets.all(AppSpacing.xl),
           child: Form(
             key: _formKey,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const SizedBox(height: 20),
-                
+                const SizedBox(height: AppSpacing.xl),
+
                 // Icon
-                Icon(
+                const Icon(
                   Icons.phone_android,
-                  size: 80,
+                  size: AppSpacing.iconHuge,
                   color: AppColors.primaryGreen,
                 ),
-                
-                const SizedBox(height: 24),
-                
+
+                const SizedBox(height: AppSpacing.xxl),
+
                 // Title
                 Text(
                   'Enter Your Phone Number',
-                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
+                  style: TextStyles.headingLarge.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: isDark
+                        ? AppColors.darkTextPrimary
+                        : AppColors.lightTextPrimary,
+                  ),
                   textAlign: TextAlign.center,
                 ),
-                
-                const SizedBox(height: 12),
-                
+
+                const SizedBox(height: AppSpacing.md),
+
                 // Subtitle
                 Text(
                   'We need to verify your phone number for your Google account',
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: Colors.grey[600],
-                      ),
+                  style: TextStyles.bodyMedium.copyWith(
+                    color: isDark
+                        ? AppColors.darkTextSecondary
+                        : AppColors.lightTextSecondary,
+                  ),
                   textAlign: TextAlign.center,
                 ),
-                
-                const SizedBox(height: 32),
-                
+
+                const SizedBox(height: AppSpacing.xxxl),
+
                 // Email info
                 Container(
-                  padding: const EdgeInsets.all(16),
+                  padding: const EdgeInsets.all(AppSpacing.lg),
                   decoration: BoxDecoration(
-                    color: AppColors.primaryGreen.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(12),
+                    color: AppColors.primaryGreen.withValues(alpha: 0.08),
+                    borderRadius: AppSpacing.borderRadiusMD,
+                    border: Border.all(
+                      color: AppColors.primaryGreen.withValues(alpha: 0.2),
+                    ),
                   ),
                   child: Row(
                     children: [
-                      Icon(Icons.email, color: AppColors.primaryGreen),
-                      const SizedBox(width: 12),
+                      const Icon(Icons.email, color: AppColors.primaryGreen),
+                      const SizedBox(width: AppSpacing.md),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
                               'Google Account',
-                              style: Theme.of(context).textTheme.bodySmall,
+                              style: TextStyles.labelMedium.copyWith(
+                                color: isDark
+                                    ? AppColors.darkTextSecondary
+                                    : AppColors.lightTextSecondary,
+                              ),
                             ),
+                            const SizedBox(height: AppSpacing.xs),
                             Text(
                               widget.email,
-                              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                                    fontWeight: FontWeight.bold,
-                                  ),
+                              style: TextStyles.bodyMedium.copyWith(
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
                           ],
                         ),
@@ -335,9 +350,9 @@ class _PhoneNumberEntryScreenState extends State<PhoneNumberEntryScreen>
                     ],
                   ),
                 ),
-                
-                const SizedBox(height: 24),
-                
+
+                const SizedBox(height: AppSpacing.xxl),
+
                 // Phone number input
                 TextFormField(
                   controller: _phoneController,
@@ -348,63 +363,79 @@ class _PhoneNumberEntryScreenState extends State<PhoneNumberEntryScreen>
                   inputFormatters: [
                     FilteringTextInputFormatter.digitsOnly,
                   ],
-                  decoration: InputDecoration(
+                  decoration: const InputDecoration(
                     labelText: 'Mobile Number',
                     hintText: 'Enter 10-digit mobile number',
-                    prefixIcon: const Icon(Icons.phone),
+                    prefixIcon: Icon(Icons.phone),
                     prefixText: '+91 ',
                     border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: AppSpacing.borderRadiusMD,
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: AppSpacing.borderRadiusMD,
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: AppSpacing.borderRadiusMD,
+                      borderSide: BorderSide(
+                        color: AppColors.primaryGreen,
+                        width: 2,
+                      ),
                     ),
                     counterText: '',
                   ),
                   validator: _validatePhone,
                 ),
-                
-                const SizedBox(height: 16),
-                
+
+                const SizedBox(height: AppSpacing.lg),
+
                 // Send OTP button
                 if (!_otpSent)
-                  ElevatedButton(
-                    onPressed: _isLoading ? null : _handleSendOtp,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.primaryGreen,
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
+                  SizedBox(
+                    height: AppSpacing.buttonHeightLG,
+                    child: ElevatedButton(
+                      onPressed: _isLoading ? null : _handleSendOtp,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primaryGreen,
+                        foregroundColor: Colors.white,
+                        shape: const RoundedRectangleBorder(
+                          borderRadius: AppSpacing.borderRadiusFull,
+                        ),
                       ),
+                      child: _isLoading
+                          ? const SizedBox(
+                              height: 20,
+                              width: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor:
+                                    AlwaysStoppedAnimation<Color>(Colors.white),
+                              ),
+                            )
+                          : Text(
+                              'Send OTP',
+                              style: TextStyles.buttonLarge.copyWith(
+                                color: Colors.white,
+                              ),
+                            ),
                     ),
-                    child: _isLoading
-                        ? const SizedBox(
-                            height: 20,
-                            width: 20,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                            ),
-                          )
-                        : const Text(
-                            'Send OTP',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
-                            ),
-                          ),
                   ),
-                
+
                 // OTP input (shown after OTP is sent)
                 if (_otpSent) ...[
-                  const SizedBox(height: 24),
-                  
+                  const SizedBox(height: AppSpacing.xxl),
+
                   Text(
                     'Enter the 6-digit OTP sent to your phone',
-                    style: Theme.of(context).textTheme.bodyMedium,
+                    style: TextStyles.bodyMedium.copyWith(
+                      color: isDark
+                          ? AppColors.darkTextSecondary
+                          : AppColors.lightTextSecondary,
+                    ),
                     textAlign: TextAlign.center,
                   ),
-                  
-                  const SizedBox(height: 16),
-                  
+
+                  const SizedBox(height: AppSpacing.lg),
+
                   TextFormField(
                     controller: _otpController,
                     focusNode: _otpFocusNode,
@@ -413,51 +444,63 @@ class _PhoneNumberEntryScreenState extends State<PhoneNumberEntryScreen>
                     inputFormatters: [
                       FilteringTextInputFormatter.digitsOnly,
                     ],
-                    decoration: InputDecoration(
+                    decoration: const InputDecoration(
                       labelText: 'OTP',
                       hintText: 'Enter 6-digit OTP',
-                      prefixIcon: const Icon(Icons.lock),
+                      prefixIcon: Icon(Icons.lock),
                       border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius: AppSpacing.borderRadiusMD,
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: AppSpacing.borderRadiusMD,
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: AppSpacing.borderRadiusMD,
+                        borderSide: BorderSide(
+                          color: AppColors.primaryGreen,
+                          width: 2,
+                        ),
                       ),
                       counterText: '',
                     ),
                     validator: _validateOtp,
                   ),
-                  
-                  const SizedBox(height: 16),
-                  
+
+                  const SizedBox(height: AppSpacing.lg),
+
                   // Verify OTP button
-                  ElevatedButton(
-                    onPressed: _isLoading ? null : _handleVerifyOtp,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.primaryGreen,
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
+                  SizedBox(
+                    height: AppSpacing.buttonHeightLG,
+                    child: ElevatedButton(
+                      onPressed: _isLoading ? null : _handleVerifyOtp,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primaryGreen,
+                        foregroundColor: Colors.white,
+                        shape: const RoundedRectangleBorder(
+                          borderRadius: AppSpacing.borderRadiusFull,
+                        ),
                       ),
+                      child: _isLoading
+                          ? const SizedBox(
+                              height: 20,
+                              width: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor:
+                                    AlwaysStoppedAnimation<Color>(Colors.white),
+                              ),
+                            )
+                          : Text(
+                              'Verify OTP',
+                              style: TextStyles.buttonLarge.copyWith(
+                                color: Colors.white,
+                              ),
+                            ),
                     ),
-                    child: _isLoading
-                        ? const SizedBox(
-                            height: 20,
-                            width: 20,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                            ),
-                          )
-                        : const Text(
-                            'Verify OTP',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
-                            ),
-                          ),
                   ),
-                  
-                  const SizedBox(height: 16),
-                  
+
+                  const SizedBox(height: AppSpacing.md),
+
                   // Resend OTP
                   TextButton(
                     onPressed: _resendCountdown > 0 ? null : _handleResendOtp,
@@ -465,30 +508,39 @@ class _PhoneNumberEntryScreenState extends State<PhoneNumberEntryScreen>
                       _resendCountdown > 0
                           ? 'Resend OTP in $_resendCountdown seconds'
                           : 'Resend OTP',
-                      style: TextStyle(
-                        color: _resendCountdown > 0 ? Colors.grey : AppColors.primaryGreen,
+                      style: TextStyles.bodyMedium.copyWith(
+                        color: _resendCountdown > 0
+                            ? (isDark
+                                ? AppColors.darkTextTertiary
+                                : AppColors.lightTextTertiary)
+                            : AppColors.primaryGreen,
                       ),
                     ),
                   ),
                 ],
-                
+
                 // Error message
                 if (_errorMessage != null) ...[
-                  const SizedBox(height: 16),
+                  const SizedBox(height: AppSpacing.lg),
                   Container(
-                    padding: const EdgeInsets.all(12),
+                    padding: const EdgeInsets.all(AppSpacing.md),
                     decoration: BoxDecoration(
-                      color: AppColors.error.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(8),
+                      color: AppColors.error.withValues(alpha: 0.08),
+                      borderRadius: AppSpacing.borderRadiusSM,
+                      border: Border.all(
+                        color: AppColors.error.withValues(alpha: 0.3),
+                      ),
                     ),
                     child: Row(
                       children: [
-                        Icon(Icons.error_outline, color: AppColors.error),
-                        const SizedBox(width: 12),
+                        const Icon(Icons.error_outline, color: AppColors.error),
+                        const SizedBox(width: AppSpacing.md),
                         Expanded(
                           child: Text(
                             _errorMessage!,
-                            style: TextStyle(color: AppColors.error),
+                            style: TextStyles.bodySmall.copyWith(
+                              color: AppColors.error,
+                            ),
                           ),
                         ),
                       ],

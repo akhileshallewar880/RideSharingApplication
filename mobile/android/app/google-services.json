@@ -41,6 +41,35 @@
           ]
         }
       }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:657234227532:android:6de0f950897774b199dfe9",
+        "android_client_info": {
+          "package_name": "com.allapalli.allapalli_ride.driver"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "657234227532-huehlrive2scm4b4nu623j9edllnc23m.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA-3oBOl-D-ErM5JyFKGHWEGtORMo4iBn8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "657234227532-huehlrive2scm4b4nu623j9edllnc23m.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
     }
   ],
   "configuration_version": "1"

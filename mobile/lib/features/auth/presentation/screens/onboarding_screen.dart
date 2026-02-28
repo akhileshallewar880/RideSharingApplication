@@ -104,10 +104,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 controller: _pageController,
                 count: _pages.length,
                 effect: WormEffect(
-                  dotColor: isDark 
-                      ? AppColors.darkBorder 
+                  dotColor: isDark
+                      ? AppColors.darkBorder
                       : AppColors.lightBorder,
-                  activeDotColor: AppColors.primaryYellow,
+                  activeDotColor: AppColors.primaryGreen,
                   dotHeight: 8,
                   dotWidth: 8,
                   spacing: 12,

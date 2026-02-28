@@ -522,7 +522,7 @@ class _LoginWithOnboardingScreenState extends ConsumerState<LoginWithOnboardingS
                           text: 'Get OTP',
                           onPressed: _isOtpLoading ? null : _handleOtpLogin,
                           isLoading: _isOtpLoading,
-                          textColor: Colors.black,
+                          textColor: Colors.white,
                         ).animate()
                             .fadeIn(delay: 300.ms, duration: 400.ms)
                             .slideY(begin: 0.2, end: 0, delay: 300.ms),

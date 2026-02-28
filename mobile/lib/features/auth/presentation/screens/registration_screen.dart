@@ -106,6 +106,7 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final authState = ref.watch(authNotifierProvider);
+    final screenHeight = MediaQuery.of(context).size.height;
 
     return Scaffold(
       backgroundColor: isDark ? AppColors.darkBackground : Colors.white,
@@ -113,16 +114,16 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
       body: SingleChildScrollView(
         child: Column(
           children: [
-            // Decorative top section with gradient and logo
+            // Decorative top section with gradient and logo — responsive height
             Container(
-              height: 320,
+              height: (screenHeight * 0.35).clamp(240.0, 360.0),
               decoration: BoxDecoration(
-                gradient: LinearGradient(
+                gradient: const LinearGradient(
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                   colors: [
-                    const Color(0xFF1B5E20), // Deep Forest Green
-                    const Color(0xFF2E7D32), // Medium Green
+                    AppColors.primaryDark,  // Deep Forest Green
+                    AppColors.primaryGreen, // Medium Green
                   ],
                 ),
                 borderRadius: const BorderRadius.only(
@@ -141,7 +142,7 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
                       height: 200,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        color: Colors.white.withOpacity(0.1),
+                        color: Colors.white.withValues(alpha: 0.1),
                       ),
                     ),
                   ),
@@ -153,7 +154,7 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
                       height: 150,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        color: Colors.white.withOpacity(0.1),
+                        color: Colors.white.withValues(alpha: 0.1),
                       ),
                     ),
                   ),
@@ -163,37 +164,34 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          // VanYatra Logo with animation (no white card)
+                          // VanYatra Logo with animation
                           Image.asset(
                             'assets/images/vanyatra_new_logo_home.png',
-                            height: 120,
+                            height: 100,
                           ).animate()
                               .scale(duration: 600.ms, curve: Curves.elasticOut)
                               .then()
                               .shimmer(duration: 1000.ms),
-                          
-                          const SizedBox(height: AppSpacing.xl),
-                          
+
+                          const SizedBox(height: AppSpacing.lg),
+
                           // Welcome text
                           Text(
                             'Welcome Aboard!',
-                            style: TextStyle(
-                              fontSize: 32,
-                              fontWeight: FontWeight.bold,
+                            style: TextStyles.displaySmall.copyWith(
                               color: Colors.white,
                               letterSpacing: 0.5,
                             ),
                           ).animate()
                               .fadeIn(delay: 300.ms)
                               .slideY(begin: 0.3, end: 0, delay: 300.ms),
-                          
+
                           const SizedBox(height: AppSpacing.sm),
-                          
+
                           Text(
                             'Just one step away from your journey',
-                            style: TextStyle(
-                              fontSize: 16,
-                              color: Colors.white.withOpacity(0.9),
+                            style: TextStyles.bodyMedium.copyWith(
+                              color: Colors.white.withValues(alpha: 0.9),
                               fontWeight: FontWeight.w500,
                             ),
                           ).animate()
@@ -206,7 +204,7 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
                 ],
               ),
             ),
-            
+
             // Form section
             Padding(
               padding: const EdgeInsets.all(AppSpacing.xxxl),
@@ -216,7 +214,7 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const SizedBox(height: AppSpacing.lg),
-                    
+
                     // Title
                     Text(
                       'What should we call you?',
@@ -227,9 +225,9 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
                     ).animate()
                         .fadeIn(delay: 700.ms)
                         .slideX(begin: -0.2, end: 0, delay: 700.ms),
-                    
+
                     const SizedBox(height: AppSpacing.sm),
-                    
+
                     Text(
                       'Enter your full name to continue',
                       style: TextStyles.bodyMedium.copyWith(
@@ -240,20 +238,20 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
                     ).animate()
                         .fadeIn(delay: 800.ms)
                         .slideX(begin: -0.2, end: 0, delay: 800.ms),
-                    
+
                     const SizedBox(height: AppSpacing.xxxl),
-                    
+
                     // Name field with enhanced styling
                     Container(
                       decoration: BoxDecoration(
-                        color: isDark 
-                            ? AppColors.darkSurface 
+                        color: isDark
+                            ? AppColors.darkSurface
                             : Colors.grey[50],
-                        borderRadius: BorderRadius.circular(16),
+                        borderRadius: AppSpacing.borderRadiusLG,
                         boxShadow: [
                           BoxShadow(
-                            color: AppColors.primaryYellow.withOpacity(0.1),
-                            blurRadius: 20,
+                            color: AppColors.primaryGreen.withValues(alpha: 0.08),
+                            blurRadius: 16,
                             offset: const Offset(0, 4),
                           ),
                         ],
@@ -267,27 +265,26 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
                       ),
                     ).animate()
                         .fadeIn(delay: 900.ms)
-                        .slideY(begin: 0.3, end: 0, delay: 900.ms)
-                        .shimmer(delay: 900.ms, duration: 1500.ms),
-                    
+                        .slideY(begin: 0.3, end: 0, delay: 900.ms),
+
                     const SizedBox(height: AppSpacing.xxxl),
-                    
+
                     // Info card
                     Container(
                       padding: const EdgeInsets.all(AppSpacing.lg),
                       decoration: BoxDecoration(
-                        color: AppColors.primaryYellow.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(12),
+                        color: AppColors.primaryGreen.withValues(alpha: 0.08),
+                        borderRadius: AppSpacing.borderRadiusMD,
                         border: Border.all(
-                          color: AppColors.primaryYellow.withOpacity(0.3),
+                          color: AppColors.primaryGreen.withValues(alpha: 0.25),
                         ),
                       ),
                       child: Row(
                         children: [
-                          Icon(
+                          const Icon(
                             Icons.info_outline,
-                            color: AppColors.primaryYellow,
-                            size: 24,
+                            color: AppColors.primaryGreen,
+                            size: AppSpacing.iconMD,
                           ),
                           const SizedBox(width: AppSpacing.md),
                           Expanded(
@@ -302,19 +299,19 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
                       ),
                     ).animate()
                         .fadeIn(delay: 1000.ms)
-                        .scale(begin: const Offset(0.9, 0.9), delay: 1000.ms),
-                      
-                      const SizedBox(height: AppSpacing.xxxl),
-                      
-                    // Register button with enhanced styling
+                        .scale(begin: const Offset(0.95, 0.95), delay: 1000.ms),
+
+                    const SizedBox(height: AppSpacing.xxxl),
+
+                    // Register button with green shadow
                     Container(
                       decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(50),
+                        borderRadius: AppSpacing.borderRadiusFull,
                         boxShadow: [
                           BoxShadow(
-                            color: AppColors.primaryYellow.withOpacity(0.4),
-                            blurRadius: 20,
-                            offset: const Offset(0, 10),
+                            color: AppColors.primaryGreen.withValues(alpha: 0.35),
+                            blurRadius: 16,
+                            offset: const Offset(0, 8),
                           ),
                         ],
                       ),
@@ -326,18 +323,16 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
                       ),
                     ).animate()
                         .fadeIn(delay: 1100.ms)
-                        .slideY(begin: 0.3, end: 0, delay: 1100.ms)
-                        .shimmer(delay: 1100.ms, duration: 2000.ms),
-                      
-                      const SizedBox(height: AppSpacing.xxxl),
-                      
-                    ],
-                  ),
+                        .slideY(begin: 0.3, end: 0, delay: 1100.ms),
+
+                    const SizedBox(height: AppSpacing.xxxl),
+                  ],
                 ),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
+      ),
     );
   }
 }

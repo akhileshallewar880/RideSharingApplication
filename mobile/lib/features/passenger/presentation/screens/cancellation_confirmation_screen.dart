@@ -74,28 +74,40 @@ class _CancellationConfirmationScreenState extends State<CancellationConfirmatio
     return Scaffold(
       backgroundColor: isDark ? AppColors.darkBackground : Colors.white,
       body: SafeArea(
-        child: Padding(
+        child: SingleChildScrollView(
           padding: const EdgeInsets.all(AppSpacing.xl),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              // Animated checkmark icon
-              ScaleTransition(
-                scale: _scaleAnimation,
-                child: Container(
-                  width: 120,
-                  height: 120,
-                  decoration: BoxDecoration(
-                    color: AppColors.error.withOpacity(0.1),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(
-                    Icons.cancel,
-                    size: 80,
-                    color: AppColors.error,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              minHeight: MediaQuery.of(context).size.height -
+                  MediaQuery.of(context).padding.top -
+                  MediaQuery.of(context).padding.bottom -
+                  AppSpacing.xl * 2,
+            ),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                // Animated checkmark icon
+                ScaleTransition(
+                  scale: _scaleAnimation,
+                  child: Builder(
+                    builder: (context) {
+                      final iconSize = (MediaQuery.of(context).size.width * 0.28).clamp(80.0, 120.0);
+                      return Container(
+                        width: iconSize,
+                        height: iconSize,
+                        decoration: BoxDecoration(
+                          color: AppColors.error.withValues(alpha: 0.1),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(
+                          Icons.cancel,
+                          size: iconSize * 0.65,
+                          color: AppColors.error,
+                        ),
+                      );
+                    },
                   ),
                 ),
-              ),
               
               const SizedBox(height: AppSpacing.xl),
               
@@ -212,24 +224,33 @@ class _CancellationConfirmationScreenState extends State<CancellationConfirmatio
           ),
         ),
       ),
-    );
+    ),
+  );
   }
   
   Widget _buildInfoRow(String label, String value, bool isDark, {Color? valueColor}) {
     return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          label,
-          style: TextStyles.bodyMedium.copyWith(
-            color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
+        Expanded(
+          child: Text(
+            label,
+            style: TextStyles.bodyMedium.copyWith(
+              color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
+            ),
+            overflow: TextOverflow.ellipsis,
           ),
         ),
-        Text(
-          value,
-          style: TextStyles.bodyMedium.copyWith(
-            fontWeight: FontWeight.w600,
-            color: valueColor ?? (isDark ? Colors.white : AppColors.lightTextPrimary),
+        const SizedBox(width: 8),
+        Flexible(
+          child: Text(
+            value,
+            style: TextStyles.bodyMedium.copyWith(
+              fontWeight: FontWeight.w600,
+              color: valueColor ?? (isDark ? Colors.white : AppColors.lightTextPrimary),
+            ),
+            textAlign: TextAlign.right,
+            overflow: TextOverflow.ellipsis,
           ),
         ),
       ],

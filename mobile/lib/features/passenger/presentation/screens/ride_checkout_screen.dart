@@ -200,22 +200,37 @@ class _RideCheckoutScreenState extends ConsumerState<RideCheckoutScreen> {
     return Scaffold(
       backgroundColor: isDark ? AppColors.darkBackground : const Color(0xFFF5F5F5),
       appBar: AppBar(
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Passenger Information',
-              style: TextStyles.headingSmall.copyWith(fontSize: 18),
-            ),
-            Text(
-              '${widget.pickupLocation} → ${widget.dropoffLocation}',
-              style: TextStyles.caption.copyWith(
-                color: isDark 
-                    ? AppColors.darkTextSecondary 
-                    : AppColors.lightTextSecondary,
-              ),
-            ),
-          ],
+        title: LayoutBuilder(
+          builder: (context, constraints) {
+            final screenW = MediaQuery.of(context).size.width;
+            final titleSize = screenW < 360 ? 13.0 : (screenW < 414 ? 15.0 : 16.0);
+            final subtitleSize = screenW < 360 ? 10.0 : 11.0;
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Passenger Information',
+                  style: TextStyles.headingSmall.copyWith(
+                    fontSize: titleSize,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 1),
+                Text(
+                  '${widget.pickupLocation} → ${widget.dropoffLocation}',
+                  style: TextStyles.caption.copyWith(
+                    fontSize: subtitleSize,
+                    color: isDark
+                        ? AppColors.darkTextSecondary
+                        : AppColors.lightTextSecondary,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
+                ),
+              ],
+            );
+          },
         ),
         actions: [
           // Countdown timer
@@ -351,6 +366,7 @@ class _RideCheckoutScreenState extends ConsumerState<RideCheckoutScreen> {
                       style: TextStyles.headingSmall.copyWith(
                         fontWeight: FontWeight.bold,
                       ),
+                      overflow: TextOverflow.ellipsis,
                     ),
                     const SizedBox(height: 2),
                     Row(
@@ -363,7 +379,7 @@ class _RideCheckoutScreenState extends ConsumerState<RideCheckoutScreen> {
                               : AppColors.lightTextSecondary,
                         ),
                         const SizedBox(width: 4),
-                        Flexible(
+                        Expanded(
                           child: Text(
                             widget.ride.vehicleModel,
                             style: TextStyles.bodySmall.copyWith(
@@ -384,6 +400,7 @@ class _RideCheckoutScreenState extends ConsumerState<RideCheckoutScreen> {
                             ? AppColors.darkTextSecondary 
                             : AppColors.lightTextSecondary,
                       ),
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ],
                 ),
@@ -412,7 +429,7 @@ class _RideCheckoutScreenState extends ConsumerState<RideCheckoutScreen> {
                           widget.ride.driverRating.toStringAsFixed(1),
                           style: TextStyles.caption.copyWith(
                             color: AppColors.success,
-                            fontWeight: FontWeight.bold,
+                            fontWeight: FontWeight.w600,
                           ),
                         ),
                       ],
@@ -438,7 +455,7 @@ class _RideCheckoutScreenState extends ConsumerState<RideCheckoutScreen> {
           
           // Date and Time - Highlighted
           Container(
-            padding: const EdgeInsets.all(AppSpacing.md),
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: AppSpacing.md),
             decoration: BoxDecoration(
               color: AppColors.primaryGreen.withOpacity(0.1),
               borderRadius: BorderRadius.circular(8),
@@ -447,46 +464,59 @@ class _RideCheckoutScreenState extends ConsumerState<RideCheckoutScreen> {
               ),
             ),
             child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
-                Row(
-                  children: [
-                    Icon(
-                      Icons.calendar_today,
-                      size: 16,
-                      color: AppColors.primaryGreen,
-                    ),
-                    const SizedBox(width: AppSpacing.xs),
-                    Text(
-                      DateFormat('EEE, dd MMM').format(widget.travelDate),
-                      style: TextStyles.bodySmall.copyWith(
-                        color: isDark ? Colors.white : AppColors.primaryGreen,
-                        fontWeight: FontWeight.w600,
+                Expanded(
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.calendar_today,
+                        size: 16,
+                        color: AppColors.primaryGreen,
                       ),
-                    ),
-                  ],
+                      const SizedBox(width: AppSpacing.xs),
+                      Flexible(
+                        child: Text(
+                          DateFormat('EEE, dd MMM').format(widget.travelDate),
+                          style: TextStyles.bodySmall.copyWith(
+                            color: isDark ? Colors.white : AppColors.primaryGreen,
+                            fontWeight: FontWeight.w600,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
                 Container(
                   height: 20,
                   width: 1,
                   color: AppColors.primaryGreen.withOpacity(0.3),
+                  margin: const EdgeInsets.symmetric(horizontal: AppSpacing.xs),
                 ),
-                Row(
-                  children: [
-                    Icon(
-                      Icons.access_time,
-                      size: 16,
-                      color: AppColors.primaryGreen,
-                    ),
-                    const SizedBox(width: AppSpacing.xs),
-                    Text(
-                      _formatTimeTo12Hour(widget.ride.departureTime),
-                      style: TextStyles.bodySmall.copyWith(
-                        color: isDark ? Colors.white : AppColors.primaryGreen,
-                        fontWeight: FontWeight.w600,
+                Expanded(
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.access_time,
+                        size: 16,
+                        color: AppColors.primaryGreen,
                       ),
-                    ),
-                  ],
+                      const SizedBox(width: AppSpacing.xs),
+                      Flexible(
+                        child: Text(
+                          _formatTimeTo12Hour(widget.ride.departureTime),
+                          style: TextStyles.bodySmall.copyWith(
+                            color: isDark ? Colors.white : AppColors.primaryGreen,
+                            fontWeight: FontWeight.w600,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
@@ -529,6 +559,9 @@ class _RideCheckoutScreenState extends ConsumerState<RideCheckoutScreen> {
                       ? () {
                           setState(() {
                             _passengerCount--;
+                            if (_selectedSeats.length > _passengerCount) {
+                              _selectedSeats = _selectedSeats.sublist(0, _passengerCount);
+                            }
                           });
                         }
                       : null,
@@ -572,6 +605,8 @@ class _RideCheckoutScreenState extends ConsumerState<RideCheckoutScreen> {
                       ? () {
                           setState(() {
                             _passengerCount++;
+                            // No need to trim selected seats when increasing passenger count
+                            // as the max allowed simply increases
                           });
                         }
                       : null,
@@ -1070,6 +1105,7 @@ class _RideCheckoutScreenState extends ConsumerState<RideCheckoutScreen> {
                   style: TextStyles.bodyLarge.copyWith(
                     fontWeight: FontWeight.bold,
                   ),
+                  overflow: TextOverflow.ellipsis,
                 ),
                 Text(
                   'Donate ₹5 to support responsible tourism initiatives',
@@ -1366,44 +1402,55 @@ class _RideCheckoutScreenState extends ConsumerState<RideCheckoutScreen> {
       ),
       child: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.all(AppSpacing.md),
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.md,
+            vertical: AppSpacing.sm,
+          ),
           child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
+              // Amount section
               Expanded(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    Text(
+                      'Amount',
+                      style: TextStyles.bodySmall.copyWith(
+                        color: isDark
+                            ? AppColors.darkTextSecondary
+                            : AppColors.lightTextSecondary,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
                     Row(
+                      mainAxisSize: MainAxisSize.min,
                       children: [
-                        Text(
-                          'Amount',
-                          style: TextStyles.bodyMedium.copyWith(
-                            color: isDark 
-                                ? AppColors.darkTextSecondary 
-                                : AppColors.lightTextSecondary,
+                        Flexible(
+                          child: Text(
+                            '₹${_totalAmount.toStringAsFixed(0)}',
+                            style: TextStyles.headingMedium.copyWith(
+                              fontWeight: FontWeight.bold,
+                            ),
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ),
-                        const Spacer(),
-                        Text(
-                          '₹${_totalAmount.toStringAsFixed(0)}',
-                          style: TextStyles.headingMedium.copyWith(
-                            fontWeight: FontWeight.bold,
+                        const SizedBox(width: 4),
+                        GestureDetector(
+                          onTap: () => _showPriceBreakup(context, isDark),
+                          child: const Icon(
+                            Icons.info_outline,
+                            size: 18,
                           ),
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.add_circle_outline),
-                          onPressed: () => _showPriceBreakup(context, isDark),
-                          padding: EdgeInsets.zero,
-                          constraints: const BoxConstraints(),
                         ),
                       ],
                     ),
                     Text(
                       'Tax excluded',
                       style: TextStyles.caption.copyWith(
-                        color: isDark 
-                            ? AppColors.darkTextSecondary 
+                        color: isDark
+                            ? AppColors.darkTextSecondary
                             : AppColors.lightTextSecondary,
                       ),
                     ),
@@ -1411,6 +1458,7 @@ class _RideCheckoutScreenState extends ConsumerState<RideCheckoutScreen> {
                 ),
               ),
               const SizedBox(width: AppSpacing.md),
+              // Book / Pay button
               Expanded(
                 child: ElevatedButton(
                   onPressed: _isProcessing ? null : _processPayment,
@@ -1683,19 +1731,22 @@ class _RideCheckoutScreenState extends ConsumerState<RideCheckoutScreen> {
         contentPadding: const EdgeInsets.all(24),
         content: Column(
           mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             // Success icon
-            Container(
-              width: 80,
-              height: 80,
-              decoration: BoxDecoration(
-                color: AppColors.primaryGreen.withOpacity(0.1),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(
-                Icons.check_circle_rounded,
-                size: 50,
-                color: AppColors.primaryGreen,
+            Center(
+              child: Container(
+                width: 80,
+                height: 80,
+                decoration: BoxDecoration(
+                  color: AppColors.primaryGreen.withOpacity(0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  Icons.check_circle_rounded,
+                  size: 50,
+                  color: AppColors.primaryGreen,
+                ),
               ),
             ),
             const SizedBox(height: 20),
@@ -1718,6 +1769,9 @@ class _RideCheckoutScreenState extends ConsumerState<RideCheckoutScreen> {
                     ? AppColors.darkBackground 
                     : Colors.grey.shade50,
                 borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
+                ),
               ),
               child: Column(
                 children: [
@@ -1734,6 +1788,8 @@ class _RideCheckoutScreenState extends ConsumerState<RideCheckoutScreen> {
                       '$_passengerCount seat${_passengerCount > 1 ? 's' : ''}',
                       Icons.airline_seat_recline_normal,
                     ),
+                  const SizedBox(height: 12),
+                  const Divider(height: 1),
                   const SizedBox(height: 12),
                   _buildConfirmationRow(
                     'Amount',
@@ -1769,56 +1825,66 @@ class _RideCheckoutScreenState extends ConsumerState<RideCheckoutScreen> {
           ],
         ),
         actions: [
-          // Cancel button
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            style: TextButton.styleFrom(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 24,
-                vertical: 12,
+          Row(
+            children: [
+              // Cancel button
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: () => Navigator.of(context).pop(false),
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    side: BorderSide(
+                      color: isDark 
+                          ? AppColors.darkBorder 
+                          : AppColors.lightBorder,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  child: Text(
+                    'Cancel',
+                    style: TextStyle(
+                      color: isDark 
+                          ? AppColors.darkTextPrimary 
+                          : AppColors.lightTextPrimary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
               ),
-            ),
-            child: Text(
-              'Cancel',
-              style: TextStyle(
-                color: isDark 
-                    ? AppColors.darkTextSecondary 
-                    : AppColors.lightTextSecondary,
+              const SizedBox(width: 12),
+              // Confirm button
+              Expanded(
+                child: ElevatedButton(
+                  onPressed: () async {
+                    // Trigger success haptic
+                    HapticFeedback.heavyImpact();
+                    
+                    // Sound will play on confirmation screen, not here
+                    Navigator.of(context).pop(true);
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primaryGreen,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    elevation: 0,
+                  ),
+                  child: Text(
+                    _selectedUpiApp == 'cash' ? 'Confirm' : 'Pay Now',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
               ),
-            ),
-          ),
-          
-          // Confirm button
-          ElevatedButton(
-            onPressed: () async {
-              // Trigger success haptic
-              HapticFeedback.heavyImpact();
-              
-              // Sound will play on confirmation screen, not here
-              Navigator.of(context).pop(true);
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.primaryGreen,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(
-                horizontal: 32,
-                vertical: 12,
-              ),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
-              elevation: 0,
-            ),
-            child: Text(
-              _selectedUpiApp == 'cash' ? 'Confirm Booking' : 'Proceed to Pay',
-              style: const TextStyle(
-                fontWeight: FontWeight.bold,
-              ),
-            ),
+            ],
           ),
         ],
-        actionsAlignment: MainAxisAlignment.spaceBetween,
-        actionsPadding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
+        actionsPadding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
       ),
     );
     
@@ -1882,6 +1948,19 @@ class _RideCheckoutScreenState extends ConsumerState<RideCheckoutScreen> {
       _showErrorDialog(
         'Too Late to Book',
         'This ride is departing in less than 5 minutes. Please search for another ride.',
+      );
+      return;
+    }
+
+    // Check if the number of selected seats matches the passenger count
+    if (_showSeatSelection && _selectedSeats.isNotEmpty && _selectedSeats.length != _passengerCount) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Please select exactly $_passengerCount seat(s) for your ${_passengerCount > 1 ? 'passengers' : 'passenger'}.'),
+          backgroundColor: AppColors.error,
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 3),
+        ),
       );
       return;
     }
