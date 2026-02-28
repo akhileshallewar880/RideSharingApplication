@@ -42,8 +42,10 @@ class _SplashScreenState extends ConsumerState<SplashScreen> with SingleTickerPr
   }
   
   Future<void> _checkAuthAndNavigate() async {
-    // Wait for animation to complete
-    await Future.delayed(const Duration(milliseconds: 2000));
+    // Wait for animation to complete only for passenger
+    if (!FlavorConfig.isDriver) {
+      await Future.delayed(const Duration(milliseconds: 2000));
+    }
     
     if (!mounted) return;
     
@@ -145,53 +147,57 @@ class _SplashScreenState extends ConsumerState<SplashScreen> with SingleTickerPr
     return Scaffold(
       extendBodyBehindAppBar: true,
       body: Container(
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [
-              Color(0xFF1B5E20), // deepForestGreen
-              Color(0xFF2E7D32),
-              Color(0xFF388E3C),
-            ],
+            colors: FlavorConfig.isDriver
+                ? const [
+                    Color(0xFF0D1B2A), // deep navy
+                    Color(0xFF1B2A3B),
+                    Color(0xFF1F3A5F), // steel blue
+                  ]
+                : const [
+                    Color(0xFF1B5E20), // deepForestGreen
+                    Color(0xFF2E7D32),
+                    Color(0xFF388E3C),
+                  ],
           ),
         ),
         child: SafeArea(
-          child: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            // VanYatra Logo - Simple fade in
-            Image.asset(
-              'assets/images/vanyatra_new_logo.png',
-              width: 250,
-              height: 250,
-              fit: BoxFit.contain,
-            ).animate(controller: _controller)
-                .fadeIn(duration: 800.ms)
-                .scale(
-                  begin: const Offset(0.8, 0.8),
-                  end: const Offset(1, 1),
-                  duration: 800.ms,
-                  curve: Curves.easeOut,
+          child: FlavorConfig.isDriver
+              ? const Center(
+                  child: CircularProgressIndicator(
+                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                  ),
+                )
+              : Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      // VanYatra Logo
+                      ColorFiltered(
+                        colorFilter: const ColorFilter.mode(
+                          Colors.transparent,
+                          BlendMode.srcOver,
+                        ),
+                        child: Image.asset(
+                          'assets/images/vanyatra_new_logo.png',
+                          width: 250,
+                          height: 250,
+                          fit: BoxFit.contain,
+                        ),
+                      ).animate(controller: _controller)
+                          .fadeIn(duration: 800.ms)
+                          .scale(
+                            begin: const Offset(0.8, 0.8),
+                            end: const Offset(1, 1),
+                            duration: 800.ms,
+                            curve: Curves.easeOut,
+                          ),
+                    ],
+                  ),
                 ),
-            
-            const SizedBox(height: AppSpacing.xl),
-            
-            // Tagline - Simple fade in
-            // Text(
-            //   'Rural Rides, Reliable Rides',
-            //   style: TextStyles.headingSmall.copyWith(
-            //     color: const Color(0xFF2D5F3E),
-            //     fontWeight: FontWeight.w600,
-            //     letterSpacing: 0.5,
-            //   ),
-            //   textAlign: TextAlign.center,
-            // ).animate(controller: _controller)
-            //     .fadeIn(delay: 400.ms, duration: 600.ms),
-          ],
-        ),
-      ),
         ),
       ),
     );

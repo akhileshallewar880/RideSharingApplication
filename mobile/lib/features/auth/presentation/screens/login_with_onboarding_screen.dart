@@ -10,6 +10,7 @@ import 'package:allapalli_ride/shared/widgets/buttons.dart';
 import 'package:allapalli_ride/shared/widgets/input_fields.dart';
 import 'package:allapalli_ride/core/providers/auth_provider.dart';
 import 'package:allapalli_ride/core/services/firebase_phone_service.dart';
+import 'package:allapalli_ride/shared/widgets/error_dialog.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 /// Merged login and onboarding screen with carousel banners and Google Sign-In
@@ -208,6 +209,14 @@ class _LoginWithOnboardingScreenState extends ConsumerState<LoginWithOnboardingS
               }
             } catch (e) {
               print('❌ Auto-verification error: $e');
+              if (mounted) {
+                setState(() { _isOtpLoading = false; });
+                showErrorPopup(
+                  context,
+                  title: 'Auto-Verification Failed',
+                  message: ErrorMessages.fromRawError(e),
+                );
+              }
             }
           }
         },
@@ -233,31 +242,15 @@ class _LoginWithOnboardingScreenState extends ConsumerState<LoginWithOnboardingS
               _isOtpLoading = false;
             });
             
-            // Check if rate limit error
-            final isRateLimited = error.code == 'too-many-requests' ||
-                                 error.message?.toLowerCase().contains('too many') == true ||
-                                 error.message?.toLowerCase().contains('unusual activity') == true ||
-                                 error.message?.toLowerCase().contains('blocked') == true;
+            final userMessage = ErrorMessages.fromFirebaseCode(
+              error.code,
+              error.message,
+            );
             
-            final errorMessage = isRateLimited
-                ? '⚠️ Too many requests. Use test number +919511803142 with code 123456, or wait 24 hours.'
-                : error.message ?? 'Failed to send OTP';
-            
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(errorMessage),
-                backgroundColor: AppColors.error,
-                duration: Duration(seconds: isRateLimited ? 6 : 4),
-                action: isRateLimited
-                    ? SnackBarAction(
-                        label: 'Got it',
-                        textColor: Colors.white,
-                        onPressed: () {
-                          ScaffoldMessenger.of(context).hideCurrentSnackBar();
-                        },
-                      )
-                    : null,
-              ),
+            showErrorPopup(
+              context,
+              title: 'OTP Request Failed',
+              message: userMessage,
             );
           }
         },

@@ -3,6 +3,7 @@
 import 'package:firebase_core/firebase_core.dart' show FirebaseOptions;
 import 'package:flutter/foundation.dart'
     show defaultTargetPlatform, kIsWeb, TargetPlatform;
+import 'app/config/flavor_config.dart';
 
 /// Default [FirebaseOptions] for use with your Firebase apps.
 ///
@@ -24,7 +25,7 @@ class DefaultFirebaseOptions {
     }
     switch (defaultTargetPlatform) {
       case TargetPlatform.android:
-        return android;
+        return FlavorConfig.isDriver ? androidDriver : androidPassenger;
       case TargetPlatform.iOS:
         throw UnsupportedError(
           'DefaultFirebaseOptions have not been configured for iOS - '
@@ -52,9 +53,17 @@ class DefaultFirebaseOptions {
     }
   }
 
-  static const FirebaseOptions android = FirebaseOptions(
+  static const FirebaseOptions androidPassenger = FirebaseOptions(
     apiKey: 'AIzaSyA-3oBOl-D-ErM5JyFKGHWEGtORMo4iBn8',
     appId: '1:657234227532:android:6de0f950897774b199dfe9',
+    messagingSenderId: '657234227532',
+    projectId: 'vanyatra-69e38',
+    storageBucket: 'vanyatra-69e38.firebasestorage.app',
+  );
+
+  static const FirebaseOptions androidDriver = FirebaseOptions(
+    apiKey: 'AIzaSyA-3oBOl-D-ErM5JyFKGHWEGtORMo4iBn8',
+    appId: '1:657234227532:android:84f15b4a64572b3a99dfe9',
     messagingSenderId: '657234227532',
     projectId: 'vanyatra-69e38',
     storageBucket: 'vanyatra-69e38.firebasestorage.app',

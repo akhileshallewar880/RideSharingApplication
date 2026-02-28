@@ -11,13 +11,16 @@ namespace RideSharing.API.Controllers
     {
         private readonly INotificationRepository _notificationRepository;
         private readonly ILogger<NotificationsController> _logger;
+        private readonly RideSharing.API.Services.Notification.FCMNotificationService _fcmService;
 
         public NotificationsController(
             INotificationRepository notificationRepository,
-            ILogger<NotificationsController> logger)
+            ILogger<NotificationsController> logger,
+            RideSharing.API.Services.Notification.FCMNotificationService fcmService)
         {
             _notificationRepository = notificationRepository;
             _logger = logger;
+            _fcmService = fcmService;
         }
 
         /// <summary>
@@ -366,6 +369,63 @@ namespace RideSharing.API.Controllers
                         Code = "SERVER_ERROR",
                         Message = "Failed to delete FCM token"
                     }
+                });
+            }
+        }
+
+        /// <summary>
+        /// Send a test push notification to the current user's device (for debugging)
+        /// </summary>
+        [HttpPost("test-push")]
+        [Authorize]
+        public async Task<ActionResult<ApiResponseDto>> SendTestPush()
+        {
+            try
+            {
+                var userIdClaim = User.FindFirst("sub") ?? User.FindFirst("userId");
+                if (userIdClaim == null || !Guid.TryParse(userIdClaim.Value, out Guid userId))
+                {
+                    return Unauthorized(new ApiResponseDto
+                    {
+                        Success = false,
+                        Error = new ErrorDto { Code = "AUTH_REQUIRED", Message = "User authentication required" }
+                    });
+                }
+
+                // Retrieve the user's FCM token from the database
+                var fcmToken = await _notificationRepository.GetFCMTokenAsync(userId);
+
+                if (string.IsNullOrWhiteSpace(fcmToken))
+                {
+                    _logger.LogWarning($"❌ No FCM token found in DB for user {userId}. Token sync may have failed.");
+                    return Ok(new ApiResponseDto
+                    {
+                        Success = false,
+                        Error = new ErrorDto
+                        {
+                            Code = "NO_FCM_TOKEN",
+                            Message = "No FCM token found for your account. Please re-login or refresh your token in the debug screen."
+                        }
+                    });
+                }
+
+                _logger.LogInformation($"📤 Sending test push to user {userId}, token: {fcmToken.Substring(0, Math.Min(20, fcmToken.Length))}...");
+
+                await _fcmService.SendTestNotificationAsync(fcmToken);
+
+                return Ok(new ApiResponseDto
+                {
+                    Success = true,
+                    Message = $"✅ Test push sent! Token in DB: {fcmToken.Substring(0, Math.Min(20, fcmToken.Length))}..."
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error sending test push notification");
+                return StatusCode(500, new ApiResponseDto
+                {
+                    Success = false,
+                    Error = new ErrorDto { Code = "SERVER_ERROR", Message = $"Failed to send test push: {ex.Message}" }
                 });
             }
         }

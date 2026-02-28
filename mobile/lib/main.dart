@@ -5,6 +5,7 @@ import 'package:hive_flutter/hive_flutter.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'firebase_options.dart';
+import 'app/config/flavor_config.dart';
 import 'app/themes/app_theme.dart';
 import 'core/data/local/ride_cache.dart';
 import 'core/services/notification_service.dart';
@@ -28,6 +29,9 @@ import 'features/driver/presentation/screens/driver_tracking_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  
+  // Default to passenger flavor when running generic main.dart
+  FlavorConfig.initialize(AppFlavor.passenger);
   
   // Initialize Firebase with platform-specific options
   try {
