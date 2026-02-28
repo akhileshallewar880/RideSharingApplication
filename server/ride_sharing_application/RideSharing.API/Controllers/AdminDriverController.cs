@@ -37,7 +37,7 @@ namespace RideSharing.API.Controllers
                     return BadRequest(new
                     {
                         success = false,
-                        message = "Phone number, password, and name are required"
+                        message = "Phone number, password, and name are required to proceed further"
                     });
                 }
 
