@@ -142,6 +142,10 @@ namespace RideSharing.API.Models.DTO
         public List<string>? IntermediateStops { get; set; }
         public decimal? Distance { get; set; } // in kilometers
         public int? Duration { get; set; } // in minutes
+        public decimal? PickupLatitude { get; set; }
+        public decimal? PickupLongitude { get; set; }
+        public decimal? DropoffLatitude { get; set; }
+        public decimal? DropoffLongitude { get; set; }
     }
 
     public class CalculateRouteRequestDto

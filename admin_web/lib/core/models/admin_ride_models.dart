@@ -60,6 +60,10 @@ class AdminRideInfo {
   final List<String>? intermediateStops;
   final double? distance; // in kilometers
   final int? duration; // in minutes
+  final double? pickupLatitude;
+  final double? pickupLongitude;
+  final double? dropoffLatitude;
+  final double? dropoffLongitude;
 
   AdminRideInfo({
     required this.rideId,
@@ -84,6 +88,10 @@ class AdminRideInfo {
     this.intermediateStops,
     this.distance,
     this.duration,
+    this.pickupLatitude,
+    this.pickupLongitude,
+    this.dropoffLatitude,
+    this.dropoffLongitude,
   });
 
   factory AdminRideInfo.fromJson(Map<String, dynamic> json) {
@@ -112,6 +120,10 @@ class AdminRideInfo {
           : null,
       distance: json['distance'] != null ? (json['distance'] as num).toDouble() : null,
       duration: json['duration'] as int?,
+      pickupLatitude: json['pickupLatitude'] != null ? (json['pickupLatitude'] as num).toDouble() : null,
+      pickupLongitude: json['pickupLongitude'] != null ? (json['pickupLongitude'] as num).toDouble() : null,
+      dropoffLatitude: json['dropoffLatitude'] != null ? (json['dropoffLatitude'] as num).toDouble() : null,
+      dropoffLongitude: json['dropoffLongitude'] != null ? (json['dropoffLongitude'] as num).toDouble() : null,
     );
   }
 }

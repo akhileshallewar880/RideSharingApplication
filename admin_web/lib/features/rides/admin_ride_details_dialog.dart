@@ -375,6 +375,10 @@ class _AdminRideDetailsDialogState extends State<AdminRideDetailsDialog> with Si
       'distance': widget.ride.distance,
       'duration': widget.ride.duration,
       'departureTime': widget.ride.departureTime,
+      'pickupLatitude': widget.ride.pickupLatitude,
+      'pickupLongitude': widget.ride.pickupLongitude,
+      'dropoffLatitude': widget.ride.dropoffLatitude,
+      'dropoffLongitude': widget.ride.dropoffLongitude,
       'passengers': [], // TODO: Fetch passengers from API when available
     };
 

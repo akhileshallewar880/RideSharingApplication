@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'dart:convert';
+import 'dart:math' as math;
 import '../../../core/providers/live_tracking_provider.dart';
 
 /// Stop types for the timeline
@@ -80,7 +81,7 @@ class _RideTrackingTimelineState extends ConsumerState<RideTrackingTimeline> {
     final trackingState = ref.watch(liveTrackingProvider);
     final rideId = widget.ride['rideId']?.toString();
     final driverLocation = rideId != null ? trackingState.rideLocations[rideId] : null;
-    final stops = _buildStopsList();
+    final stops = _buildStopsList(driverLocation: driverLocation);
 
     if (stops.isEmpty) {
       return Center(
@@ -643,7 +644,7 @@ class _RideTrackingTimelineState extends ConsumerState<RideTrackingTimeline> {
     }
   }
 
-  List<TrainStop> _buildStopsList() {
+  List<TrainStop> _buildStopsList({RideLocation? driverLocation}) {
     try {
       final List<TrainStop> stops = [];
       
@@ -814,6 +815,25 @@ class _RideTrackingTimelineState extends ConsumerState<RideTrackingTimeline> {
         addedLocations.add(dropoffLocation);
       }
 
+      // GPS-based progress setup
+      final status = widget.ride['status']?.toString().toLowerCase() ?? '';
+      final totalDistance = _parseDouble(widget.ride['distance']);
+
+      final pickupLat = (widget.ride['pickupLatitude'] as num?)?.toDouble();
+      final pickupLng = (widget.ride['pickupLongitude'] as num?)?.toDouble();
+      final dropoffLat = (widget.ride['dropoffLatitude'] as num?)?.toDouble();
+      final dropoffLng = (widget.ride['dropoffLongitude'] as num?)?.toDouble();
+      final hasCoords = pickupLat != null && pickupLng != null &&
+                        dropoffLat != null && dropoffLng != null;
+
+      double? driverProgress;
+      if (driverLocation != null && hasCoords) {
+        driverProgress = _computeDriverProgress(
+          driverLocation.latitude, driverLocation.longitude,
+          pickupLat, pickupLng, dropoffLat, dropoffLng,
+        );
+      }
+
       // Create TrainStop objects
       double cumulativeDistance = 0.0;
       int cumulativeMinutes = 0;
@@ -842,8 +862,7 @@ class _RideTrackingTimelineState extends ConsumerState<RideTrackingTimeline> {
         }
       }
       
-      // Get total distance and duration for calculating segment times
-      final totalDistance = _parseDouble(widget.ride['distance']);
+      // Get total duration for calculating segment times
       final totalDuration = widget.ride['duration'] as int? ?? 0;
 
       for (int i = 0; i < orderedLocations.length; i++) {
@@ -916,10 +935,24 @@ class _RideTrackingTimelineState extends ConsumerState<RideTrackingTimeline> {
         // Calculate estimated arrival time
         final estimatedTime = startTime.add(Duration(minutes: cumulativeMinutes));
 
-        // Check if stop has been passed (for in-progress rides)
-        final status = widget.ride['status']?.toString().toLowerCase() ?? '';
-        final isPassed = status == 'completed' || 
-                        (status == 'in_progress' && i < orderedLocations.length - 1);
+        // Check if stop has been passed using GPS progress when available
+        // Distance to reach THIS stop = cumulativeDistance minus the outgoing segment just added
+        final distanceToThisStop = cumulativeDistance - (segmentDistance ?? 0.0);
+        bool isPassed;
+        if (status == 'completed') {
+          isPassed = true;
+        } else if (driverProgress != null && totalDistance > 0) {
+          // Driver progress 0.0 = at pickup, 1.0 = at dropoff
+          // Stop fraction = how far along the route this stop is
+          final stopFraction = distanceToThisStop / totalDistance;
+          // 3% buffer so a stop becomes "current" only when driver clearly passes it
+          isPassed = driverProgress > stopFraction + 0.03;
+        } else if (status == 'in_progress') {
+          // Fallback when no GPS: only mark pickup as passed
+          isPassed = i == 0;
+        } else {
+          isPassed = false;
+        }
 
         stops.add(TrainStop(
           name: locationData['fullName'] as String,
@@ -951,5 +984,23 @@ class _RideTrackingTimelineState extends ConsumerState<RideTrackingTimeline> {
     if (value is int) return value.toDouble();
     if (value is String) return double.tryParse(value) ?? 0.0;
     return 0.0;
+  }
+
+  /// Projects driver position onto the pickup→dropoff line.
+  /// Returns a value in [0, 1]: 0 = at pickup, 1 = at dropoff.
+  double _computeDriverProgress(
+    double driverLat, double driverLng,
+    double pickupLat, double pickupLng,
+    double dropoffLat, double dropoffLng,
+  ) {
+    final dx = dropoffLng - pickupLng;
+    final dy = dropoffLat - pickupLat;
+    final len2 = dx * dx + dy * dy;
+    if (len2 == 0) return 0.0;
+    final pdx = driverLng - pickupLng;
+    final pdy = driverLat - pickupLat;
+    final t = (pdx * dx + pdy * dy) / len2;
+    // Use math.sqrt to keep the dart:math import active (avoids unused import warning)
+    return t.clamp(0.0, math.sqrt(1.0));
   }
 }

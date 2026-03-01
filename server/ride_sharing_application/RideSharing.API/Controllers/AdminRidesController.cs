@@ -654,7 +654,11 @@ namespace RideSharing.API.Controllers
                         ? JsonSerializer.Deserialize<List<string>>(r.IntermediateStops)
                         : null,
                     Distance = r.Distance,
-                    Duration = r.Duration
+                    Duration = r.Duration,
+                    PickupLatitude = r.PickupLatitude,
+                    PickupLongitude = r.PickupLongitude,
+                    DropoffLatitude = r.DropoffLatitude,
+                    DropoffLongitude = r.DropoffLongitude
                 }).ToList();
 
                 var response = new
