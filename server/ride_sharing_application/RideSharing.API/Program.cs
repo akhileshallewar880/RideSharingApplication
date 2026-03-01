@@ -143,8 +143,13 @@ builder.Services.AddSingleton<RideSharing.API.Services.Notification.FCMNotificat
 builder.Services.AddHostedService<RideSharing.API.Services.Implementation.RideAutoCancellationService>();
 builder.Services.AddHostedService<RideSharing.API.Services.Implementation.BookingNoShowService>();
 
-// Add SignalR
-builder.Services.AddSignalR();
+// Add SignalR with camelCase JSON serialization so property names like Latitude/Longitude
+// are sent as latitude/longitude to match what Flutter clients expect
+builder.Services.AddSignalR()
+    .AddJsonProtocol(options =>
+    {
+        options.PayloadSerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
+    });
 
 // Legacy repositories (keep for backward compatibility)
 builder.Services.AddScoped<RideSharing.API.Repositories.Interface.IRoutesSchedulesRepository, RideSharing.API.Repositories.Implementation.RoutesSchedulesRepository>();

@@ -7,31 +7,38 @@ class SignalRService {
   HubConnection? _hubConnection;
   final AdminAuthService _authService;
   bool _isConnected = false;
-  
+  bool _isInitializing = false; // Guard against concurrent initialize() calls
+
   // Callback handlers
   Function(String rideId, double latitude, double longitude)? onLocationUpdate;
   Function(String rideId, String status)? onRideStatusUpdate;
   Function(Map<String, dynamic> notification)? onNotificationReceived;
-  
+
   SignalRService(this._authService);
-  
+
   /// Check if connected to SignalR hub
   bool get isConnected => _isConnected;
-  
+
   /// Initialize SignalR connection
   Future<void> initialize() async {
     if (_hubConnection != null && _isConnected) {
       debugPrint('SignalR: Already connected');
       return;
     }
-    
+    // Prevent duplicate concurrent initialization
+    if (_isInitializing) {
+      debugPrint('SignalR: Initialization already in progress');
+      return;
+    }
+    _isInitializing = true;
+
     try {
       final token = await _authService.getToken();
       if (token == null) {
         debugPrint('SignalR: No auth token available');
         return;
       }
-      
+
       // Create hub connection
       _hubConnection = HubConnectionBuilder()
           .withUrl(
@@ -42,10 +49,10 @@ class SignalRService {
           )
           .withAutomaticReconnect()
           .build();
-      
+
       // Register event handlers
       _registerEventHandlers();
-      
+
       // Start connection
       await _hubConnection!.start();
       _isConnected = true;
@@ -53,6 +60,8 @@ class SignalRService {
     } catch (e) {
       debugPrint('SignalR: Connection error: $e');
       _isConnected = false;
+    } finally {
+      _isInitializing = false;
     }
   }
   
@@ -62,15 +71,29 @@ class SignalRService {
     
     // Location update handler - matches backend "LocationUpdate" event
     _hubConnection!.on('LocationUpdate', (arguments) {
-      if (arguments != null && arguments.isNotEmpty) {
-        final data = arguments[0] as Map<String, dynamic>;
-        final rideId = data['rideId'] as String;
-        final location = data['location'] as Map<String, dynamic>;
-        final latitude = (location['latitude'] as num).toDouble();
-        final longitude = (location['longitude'] as num).toDouble();
-        
-        debugPrint('SignalR: Location update - Ride: $rideId, Lat: $latitude, Lng: $longitude');
-        onLocationUpdate?.call(rideId, latitude, longitude);
+      try {
+        if (arguments != null && arguments.isNotEmpty) {
+          final data = arguments[0] as Map<String, dynamic>;
+          final rideId = (data['rideId'] ?? data['RideId']) as String?;
+          if (rideId == null || rideId.isEmpty) return;
+
+          final locationRaw = data['location'] ?? data['Location'];
+          if (locationRaw == null) return;
+          final location = locationRaw as Map<String, dynamic>;
+
+          // Support both camelCase (latitude) and PascalCase (Latitude) from server
+          final latRaw = location['latitude'] ?? location['Latitude'];
+          final lngRaw = location['longitude'] ?? location['Longitude'];
+          if (latRaw == null || lngRaw == null) return;
+
+          final latitude = (latRaw as num).toDouble();
+          final longitude = (lngRaw as num).toDouble();
+
+          debugPrint('SignalR: Location update - Ride: $rideId, Lat: $latitude, Lng: $longitude');
+          onLocationUpdate?.call(rideId, latitude, longitude);
+        }
+      } catch (e) {
+        debugPrint('SignalR: Error parsing LocationUpdate: $e');
       }
     });
     

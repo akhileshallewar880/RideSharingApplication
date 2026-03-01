@@ -367,16 +367,20 @@ class LocationUpdateEvent {
   });
   
   factory LocationUpdateEvent.fromJson(Map<String, dynamic> json) {
-    final location = json['location'] as Map<String, dynamic>? ?? json;
-    
+    final location = (json['location'] ?? json['Location']) as Map<String, dynamic>? ?? json;
+
+    // Support both camelCase (latitude) and PascalCase (Latitude) from server
+    final latRaw = location['latitude'] ?? location['Latitude'];
+    final lngRaw = location['longitude'] ?? location['Longitude'];
+
     return LocationUpdateEvent(
-      rideId: json['rideId'] as String? ?? '',
-      latitude: (location['latitude'] as num).toDouble(),
-      longitude: (location['longitude'] as num).toDouble(),
-      speed: (location['speed'] as num?)?.toDouble() ?? 0.0,
-      heading: (location['heading'] as num?)?.toDouble() ?? 0.0,
+      rideId: (json['rideId'] ?? json['RideId']) as String? ?? '',
+      latitude: latRaw != null ? (latRaw as num).toDouble() : 0.0,
+      longitude: lngRaw != null ? (lngRaw as num).toDouble() : 0.0,
+      speed: ((location['speed'] ?? location['Speed']) as num?)?.toDouble() ?? 0.0,
+      heading: ((location['heading'] ?? location['Heading']) as num?)?.toDouble() ?? 0.0,
       timestamp: DateTime.parse(
-        location['timestamp'] as String? ?? DateTime.now().toIso8601String(),
+        (location['timestamp'] ?? location['Timestamp']) as String? ?? DateTime.now().toIso8601String(),
       ),
       estimatedArrival: (json['estimatedArrival'] as num?)?.toDouble(),
       remainingDistance: (json['remainingDistance'] as num?)?.toDouble(),
