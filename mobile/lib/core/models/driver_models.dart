@@ -51,21 +51,27 @@ class SegmentPrice {
 }
 
 class LocationDto {
+  final String? cityId; // FK to Cities table — used for accurate route timing
   final String address;
   final double latitude;
   final double longitude;
 
   LocationDto({
+    this.cityId,
     required this.address,
     required this.latitude,
     required this.longitude,
   });
 
-  Map<String, dynamic> toJson() => {
-        'address': address,
-        'latitude': latitude,
-        'longitude': longitude,
-      };
+  Map<String, dynamic> toJson() {
+    final map = <String, dynamic>{
+      'address': address,
+      'latitude': latitude,
+      'longitude': longitude,
+    };
+    if (cityId != null) map['cityId'] = cityId;
+    return map;
+  }
 }
 
 class ScheduleRideRequest {

@@ -182,6 +182,7 @@ namespace RideSharing.API.Models.DTO
     // Helper DTOs
     public class LocationDto
     {
+        public Guid? CityId { get; set; } // FK to Cities table — used for accurate route lookup
         public string Address { get; set; }
         public decimal Latitude { get; set; }
         public decimal Longitude { get; set; }

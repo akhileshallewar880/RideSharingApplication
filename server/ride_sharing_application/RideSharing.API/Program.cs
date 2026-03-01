@@ -291,6 +291,22 @@ _ = Task.Run(async () =>
                         WHERE TABLE_NAME = 'Rides' AND COLUMN_NAME = 'RouteStopsTimingJson')
                       BEGIN
                           ALTER TABLE Rides ADD RouteStopsTimingJson NVARCHAR(MAX) NULL;
+                      END",
+                    // AddCityIdFieldsToRide - 2026-03-01
+                    @"IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS
+                        WHERE TABLE_NAME = 'Rides' AND COLUMN_NAME = 'PickupCityId')
+                      BEGIN
+                          ALTER TABLE Rides ADD PickupCityId UNIQUEIDENTIFIER NULL;
+                      END",
+                    @"IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS
+                        WHERE TABLE_NAME = 'Rides' AND COLUMN_NAME = 'DropoffCityId')
+                      BEGIN
+                          ALTER TABLE Rides ADD DropoffCityId UNIQUEIDENTIFIER NULL;
+                      END",
+                    @"IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS
+                        WHERE TABLE_NAME = 'Rides' AND COLUMN_NAME = 'IntermediateStopIds')
+                      BEGIN
+                          ALTER TABLE Rides ADD IntermediateStopIds NVARCHAR(MAX) NULL;
                       END"
                 };
 

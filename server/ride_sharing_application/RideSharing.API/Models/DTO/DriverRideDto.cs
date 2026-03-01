@@ -22,9 +22,15 @@ namespace RideSharing.API.Models.DTO
 
     public class ScheduleRideRequestDto
     {
+        // Location IDs — Flutter sends pickupLocationId / dropoffLocationId at the top level
+        public Guid? PickupLocationId { get; set; }
+        public Guid? DropoffLocationId { get; set; }
+        // Intermediate stop city IDs — Flutter sends intermediateStopsIds
+        public List<Guid>? IntermediateStopsIds { get; set; }
+
         public LocationDto PickupLocation { get; set; }
         public LocationDto DropoffLocation { get; set; }
-        public List<string>? IntermediateStops { get; set; } // NEW
+        public List<string>? IntermediateStops { get; set; } // city name strings
         public DateTime TravelDate { get; set; }
         public string DepartureTime { get; set; }
         public string? VehicleType { get; set; } // Optional - will use from registered vehicle if not provided

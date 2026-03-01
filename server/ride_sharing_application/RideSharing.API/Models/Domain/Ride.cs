@@ -23,19 +23,23 @@ namespace RideSharing.API.Models.Domain
         [Required]
         [MaxLength(500)]
         public string PickupLocation { get; set; }
-        
+
         public decimal PickupLatitude { get; set; }
         public decimal PickupLongitude { get; set; }
-        
+        public Guid? PickupCityId { get; set; } // FK to Cities table
+
         [Required]
         [MaxLength(500)]
         public string DropoffLocation { get; set; }
-        
+
         public decimal DropoffLatitude { get; set; }
         public decimal DropoffLongitude { get; set; }
-        
+        public Guid? DropoffCityId { get; set; } // FK to Cities table
+
         // Intermediate Stops (JSON array of location strings)
         public string? IntermediateStops { get; set; } // ["Bhamragarh", "Mul"]
+        // Intermediate Stop City IDs (JSON array of Guids) — parallel to IntermediateStops
+        public string? IntermediateStopIds { get; set; } // ["guid1","guid2"]
         
         // Segment Pricing (JSON array of segment price objects)
         public string? SegmentPrices { get; set; } // [{"fromLocation":"...","toLocation":"...","price":300,...}]

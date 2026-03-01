@@ -461,11 +461,13 @@ class _ScheduleRideScreenState extends ConsumerState<ScheduleRideScreen> {
         pickupLocationId: _selectedPickup!.id,
         dropoffLocationId: _selectedDropoff!.id,
         pickupLocation: LocationDto(
+          cityId: _selectedPickup!.id,
           address: _selectedPickup!.fullAddress,
           latitude: _selectedPickup!.latitude ?? 0.0,
           longitude: _selectedPickup!.longitude ?? 0.0,
         ),
         dropoffLocation: LocationDto(
+          cityId: _selectedDropoff!.id,
           address: _selectedDropoff!.fullAddress,
           latitude: _selectedDropoff!.latitude ?? 0.0,
           longitude: _selectedDropoff!.longitude ?? 0.0,

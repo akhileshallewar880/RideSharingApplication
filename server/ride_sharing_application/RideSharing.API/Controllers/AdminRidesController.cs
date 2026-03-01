@@ -101,44 +101,43 @@ namespace RideSharing.API.Controllers
                     segmentPricesJson = System.Text.Json.JsonSerializer.Serialize(request.SegmentPrices);
                 }
 
-                // Build complete stop list for per-stop timing calculation
-                var allCities = new List<string> { request.PickupLocation.Address };
-                if (request.IntermediateStops != null && request.IntermediateStops.Any())
-                    allCities.AddRange(request.IntermediateStops);
-                allCities.Add(request.DropoffLocation.Address);
+                // Build complete stop list with coordinates for accurate per-stop timing
+                var stopsWithCoords = new List<(string name, double lat, double lng)>();
+                stopsWithCoords.Add((request.PickupLocation.Address,
+                    (double)request.PickupLocation.Latitude,
+                    (double)request.PickupLocation.Longitude));
 
-                // Calculate route using Google Maps API for accurate multi-stop distance
+                if (request.IntermediateStopLocations != null && request.IntermediateStopLocations.Any())
+                {
+                    foreach (var loc in request.IntermediateStopLocations)
+                        stopsWithCoords.Add((loc.Address, (double)loc.Latitude, (double)loc.Longitude));
+                }
+                else if (request.IntermediateStops != null && request.IntermediateStops.Any())
+                {
+                    foreach (var stop in request.IntermediateStops)
+                        stopsWithCoords.Add((stop, 0, 0));
+                }
+
+                stopsWithCoords.Add((request.DropoffLocation.Address,
+                    (double)request.DropoffLocation.Latitude,
+                    (double)request.DropoffLocation.Longitude));
+
+                // Calculate route using Google Maps API for accurate total distance, then coord-based for per-stop timing
                 try
                 {
-                    _logger.LogInformation("🗺️  Calculating route with Google Maps: {Pickup} → {Dropoff}",
-                        request.PickupLocation.Address, request.DropoffLocation.Address);
+                    _logger.LogInformation("🗺️  Calculating route: {Route}",
+                        string.Join(" → ", stopsWithCoords.Select(s => s.name)));
 
-                    _logger.LogInformation("📥 IntermediateStopLocations count: {Count}",
-                        request.IntermediateStopLocations?.Count ?? 0);
-                    _logger.LogInformation("📥 IntermediateStops count: {Count}",
-                        request.IntermediateStops?.Count ?? 0);
-
-                    if (request.IntermediateStopLocations != null && request.IntermediateStopLocations.Any())
-                    {
-                        foreach (var loc in request.IntermediateStopLocations)
-                        {
-                            _logger.LogInformation("📍 Intermediate stop: {Address} ({Lat}, {Lng})",
-                                loc.Address, loc.Latitude, loc.Longitude);
-                        }
-                    }
-
-                    // Build waypoints list from IntermediateStopLocations if available
+                    // Build waypoints list from IntermediateStopLocations for Google Maps
                     List<(decimal lat, decimal lng)>? waypoints = null;
-
                     if (request.IntermediateStopLocations != null && request.IntermediateStopLocations.Any())
                     {
                         waypoints = request.IntermediateStopLocations
                             .Select(loc => (lat: loc.Latitude, lng: loc.Longitude))
                             .ToList();
-                        _logger.LogInformation("🎯 Using {Count} intermediate stops with coordinates for Google Maps", waypoints.Count);
                     }
 
-                    // If we have waypoints or no intermediate stops, use Google Maps API for total distance
+                    // Use Google Maps for accurate total distance
                     if (waypoints != null || request.IntermediateStops == null || !request.IntermediateStops.Any())
                     {
                         var directionsResult = await _googleMapsService.GetDirectionsAsync(
@@ -153,16 +152,15 @@ namespace RideSharing.API.Controllers
                         {
                             totalDistance = (decimal)directionsResult.DistanceKm;
                             totalDuration = directionsResult.DurationMinutes;
-                            _logger.LogInformation("✅ Route calculated with Google Maps: {Distance}km, {Duration}min",
+                            _logger.LogInformation("✅ Google Maps: {Distance}km, {Duration}min",
                                 totalDistance, totalDuration);
                         }
                     }
 
-                    // Always use RouteDistanceService for per-stop timing (database-backed, city-level granularity)
-                    var perStopRoute = _routeDistanceService.CalculateMultiLegRoute(allCities);
+                    // Use coordinate-based multi-leg calculation for per-stop timing
+                    var perStopRoute = await _routeDistanceService.CalculateMultiLegRouteByCoordinatesAsync(stopsWithCoords);
                     if (perStopRoute != null)
                     {
-                        // If Google Maps didn't return data, use database totals as fallback
                         if (totalDistance == 0) totalDistance = (decimal)perStopRoute.Value.totalDistanceKm;
                         if (totalDuration == 0) totalDuration = perStopRoute.Value.totalDurationMinutes;
 
@@ -171,7 +169,7 @@ namespace RideSharing.API.Controllers
                         int cumDurMin = 0;
                         stopTimings.Add(new RouteStopTimingData
                         {
-                            Location = allCities[0],
+                            Location = stopsWithCoords[0].name,
                             CumulativeDistanceKm = 0,
                             CumulativeDurationMinutes = 0
                         });
@@ -188,17 +186,6 @@ namespace RideSharing.API.Controllers
                         }
                         routeStopsTimingJson = System.Text.Json.JsonSerializer.Serialize(stopTimings);
                         _logger.LogInformation("✅ Per-stop timing calculated for {Count} stops", stopTimings.Count);
-                    }
-                    else if (request.IntermediateStops != null && request.IntermediateStops.Any())
-                    {
-                        // Fallback: only database-based calculation when no coordinates
-                        _logger.LogWarning("⚠️  Intermediate stops without coordinates, using database calculation only");
-                        var dbRouteResult = _routeDistanceService.CalculateMultiLegRoute(allCities);
-                        if (dbRouteResult != null)
-                        {
-                            if (totalDistance == 0) totalDistance = (decimal)dbRouteResult.Value.totalDistanceKm;
-                            if (totalDuration == 0) totalDuration = dbRouteResult.Value.totalDurationMinutes;
-                        }
                     }
                 }
                 catch (Exception ex)
@@ -217,10 +204,19 @@ namespace RideSharing.API.Controllers
                     PickupLocation = request.PickupLocation.Address,
                     PickupLatitude = request.PickupLocation.Latitude,
                     PickupLongitude = request.PickupLocation.Longitude,
+                    PickupCityId = request.PickupLocation.CityId,
                     DropoffLocation = request.DropoffLocation.Address,
                     DropoffLatitude = request.DropoffLocation.Latitude,
                     DropoffLongitude = request.DropoffLocation.Longitude,
+                    DropoffCityId = request.DropoffLocation.CityId,
                     IntermediateStops = intermediateStopsJson,
+                    IntermediateStopIds = request.IntermediateStopLocations != null && request.IntermediateStopLocations.Any()
+                        ? System.Text.Json.JsonSerializer.Serialize(
+                            request.IntermediateStopLocations
+                                .Where(l => l.CityId.HasValue)
+                                .Select(l => l.CityId!.Value)
+                                .ToList())
+                        : null,
                     SegmentPrices = segmentPricesJson,
                     TravelDate = request.TravelDate,
                     DepartureTime = departureTime,
@@ -287,11 +283,18 @@ namespace RideSharing.API.Controllers
                         PickupLocation = request.DropoffLocation.Address,
                         PickupLatitude = request.DropoffLocation.Latitude,
                         PickupLongitude = request.DropoffLocation.Longitude,
+                        PickupCityId = request.DropoffLocation.CityId,
                         DropoffLocation = request.PickupLocation.Address,
                         DropoffLatitude = request.PickupLocation.Latitude,
                         DropoffLongitude = request.PickupLocation.Longitude,
+                        DropoffCityId = request.PickupLocation.CityId,
                         IntermediateStops = intermediateStopsJson != null && request.IntermediateStops != null
                             ? System.Text.Json.JsonSerializer.Serialize(Enumerable.Reverse(request.IntermediateStops).ToList())
+                            : null,
+                        IntermediateStopIds = ride.IntermediateStopIds != null
+                            ? System.Text.Json.JsonSerializer.Serialize(
+                                System.Text.Json.JsonSerializer.Deserialize<List<Guid>>(ride.IntermediateStopIds)!
+                                    .AsEnumerable().Reverse().ToList())
                             : null,
                         SegmentPrices = segmentPricesJson != null && request.SegmentPrices != null
                             ? System.Text.Json.JsonSerializer.Serialize(Enumerable.Reverse(request.SegmentPrices).ToList())

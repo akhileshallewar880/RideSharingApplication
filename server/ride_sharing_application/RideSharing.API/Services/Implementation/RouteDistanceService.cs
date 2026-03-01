@@ -139,6 +139,86 @@ namespace RideSharing.API.Services.Implementation
         }
 
         /// <summary>
+        /// Calculate multi-leg route using (name, lat, lng) tuples.
+        /// Tries the RouteSegments DB lookup first; falls back to Haversine using provided coordinates.
+        /// This guarantees timing data is always produced even when city names don't match the DB.
+        /// </summary>
+        public async Task<(double totalDistanceKm, int totalDurationMinutes, List<RouteSegment> segments)?> CalculateMultiLegRouteByCoordinatesAsync(
+            List<(string name, double lat, double lng)> stops)
+        {
+            if (stops == null || stops.Count < 2)
+                return null;
+
+            try
+            {
+                var segments = new List<RouteSegment>();
+                double totalDistance = 0;
+                int totalDuration = 0;
+
+                for (int i = 0; i < stops.Count - 1; i++)
+                {
+                    var from = stops[i];
+                    var to = stops[i + 1];
+
+                    // Try DB-backed name lookup first
+                    var dbRoute = await GetDistanceAndDurationAsync(from.name, to.name);
+                    double distKm;
+                    int durMin;
+
+                    if (dbRoute != null)
+                    {
+                        distKm = dbRoute.Value.distanceKm;
+                        durMin = dbRoute.Value.durationMinutes;
+                        _logger.LogInformation("✅ DB route: {From} → {To} = {Dist}km, {Dur}min", from.name, to.name, distKm, durMin);
+                    }
+                    else if (from.lat != 0 && from.lng != 0 && to.lat != 0 && to.lng != 0)
+                    {
+                        // Fallback: Haversine using supplied coordinates
+                        var straight = CalculateHaversineDistance(from.lat, from.lng, to.lat, to.lng);
+                        distKm = Math.Round(straight * 1.3, 2); // road-distance factor
+                        durMin = (int)Math.Ceiling(distKm / 50.0 * 60); // assume 50 km/h
+                        _logger.LogWarning("⚠️ Haversine fallback: {From} → {To} = {Dist}km (estimated)", from.name, to.name, distKm);
+                    }
+                    else
+                    {
+                        _logger.LogError("❌ Cannot compute distance for {From} → {To}: no DB entry and no coordinates", from.name, to.name);
+                        return null;
+                    }
+
+                    segments.Add(new RouteSegment
+                    {
+                        FromLocation = from.name,
+                        ToLocation = to.name,
+                        DistanceKm = distKm,
+                        DurationMinutes = durMin
+                    });
+
+                    totalDistance += distKm;
+                    totalDuration += durMin;
+                }
+
+                _logger.LogInformation("✅ Coord-based multi-leg route: {TotalDist}km, {TotalDur}min, {Segs} segments",
+                    totalDistance, totalDuration, segments.Count);
+
+                return (totalDistance, totalDuration, segments);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error in CalculateMultiLegRouteByCoordinatesAsync");
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Synchronous wrapper for CalculateMultiLegRouteByCoordinatesAsync
+        /// </summary>
+        public (double totalDistanceKm, int totalDurationMinutes, List<RouteSegment> segments)? CalculateMultiLegRouteByCoordinates(
+            List<(string name, double lat, double lng)> stops)
+        {
+            return CalculateMultiLegRouteByCoordinatesAsync(stops).GetAwaiter().GetResult();
+        }
+
+        /// <summary>
         /// Fallback distance calculation using Haversine formula
         /// Multiplied by 1.3 to approximate road distance
         /// </summary>

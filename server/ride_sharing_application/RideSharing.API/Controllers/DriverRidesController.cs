@@ -158,7 +158,7 @@ namespace RideSharing.API.Controllers
                     }
                 }
 
-                // **Calculate route distance and ETA from predefined data**
+                // **Calculate route distance and ETA using coordinates for reliable timing**
                 decimal? totalDistance = null;
                 int? totalDuration = null;
                 List<decimal>? segmentDistances = null;
@@ -166,19 +166,39 @@ namespace RideSharing.API.Controllers
 
                 try
                 {
-                    var cities = new List<string> { request.PickupLocation.Address };
+                    // Build stops list with coordinates
+                    var stopsWithCoords = new List<(string name, double lat, double lng)>();
+                    stopsWithCoords.Add((request.PickupLocation.Address,
+                        (double)request.PickupLocation.Latitude,
+                        (double)request.PickupLocation.Longitude));
 
-                    // Add intermediate stops
-                    if (request.IntermediateStops != null && request.IntermediateStops.Any())
+                    // Look up intermediate stop coordinates from Cities table using IDs
+                    if (request.IntermediateStopsIds != null && request.IntermediateStopsIds.Any())
                     {
-                        cities.AddRange(request.IntermediateStops);
+                        foreach (var stopId in request.IntermediateStopsIds)
+                        {
+                            var city = await _context.Cities.FindAsync(stopId);
+                            if (city != null)
+                            {
+                                stopsWithCoords.Add((city.Name,
+                                    (double)(city.Latitude ?? 0),
+                                    (double)(city.Longitude ?? 0)));
+                            }
+                        }
+                    }
+                    else if (request.IntermediateStops != null && request.IntermediateStops.Any())
+                    {
+                        foreach (var stop in request.IntermediateStops)
+                            stopsWithCoords.Add((stop, 0, 0));
                     }
 
-                    cities.Add(request.DropoffLocation.Address);
+                    stopsWithCoords.Add((request.DropoffLocation.Address,
+                        (double)request.DropoffLocation.Latitude,
+                        (double)request.DropoffLocation.Longitude));
 
-                    _logger.LogInformation("🗺️  Calculating route: {Route}", string.Join(" → ", cities));
+                    _logger.LogInformation("🗺️  Calculating route: {Route}", string.Join(" → ", stopsWithCoords.Select(s => s.name)));
 
-                    var routeResult = _routeDistanceService.CalculateMultiLegRoute(cities);
+                    var routeResult = await _routeDistanceService.CalculateMultiLegRouteByCoordinatesAsync(stopsWithCoords);
 
                     if (routeResult != null)
                     {
@@ -195,7 +215,7 @@ namespace RideSharing.API.Controllers
                         int cumDurMin = 0;
                         stopTimings.Add(new RouteStopTimingData
                         {
-                            Location = cities[0],
+                            Location = stopsWithCoords[0].name,
                             CumulativeDistanceKm = 0,
                             CumulativeDurationMinutes = 0
                         });
@@ -235,10 +255,15 @@ namespace RideSharing.API.Controllers
                     PickupLocation = request.PickupLocation.Address,
                     PickupLatitude = request.PickupLocation.Latitude,
                     PickupLongitude = request.PickupLocation.Longitude,
+                    PickupCityId = request.PickupLocationId,
                     DropoffLocation = request.DropoffLocation.Address,
                     DropoffLatitude = request.DropoffLocation.Latitude,
                     DropoffLongitude = request.DropoffLocation.Longitude,
+                    DropoffCityId = request.DropoffLocationId,
                     IntermediateStops = intermediateStopsJson,
+                    IntermediateStopIds = request.IntermediateStopsIds != null && request.IntermediateStopsIds.Any()
+                        ? System.Text.Json.JsonSerializer.Serialize(request.IntermediateStopsIds)
+                        : null,
                     SegmentPrices = segmentPricesJson,
                     TravelDate = request.TravelDate,
                     DepartureTime = departureTime,
@@ -340,15 +365,20 @@ namespace RideSharing.API.Controllers
                         PickupLocation = request.DropoffLocation.Address, // Swapped
                         PickupLatitude = request.DropoffLocation.Latitude,
                         PickupLongitude = request.DropoffLocation.Longitude,
+                        PickupCityId = request.DropoffLocationId, // Swapped
                         DropoffLocation = request.PickupLocation.Address, // Swapped
                         DropoffLatitude = request.PickupLocation.Latitude,
                         DropoffLongitude = request.PickupLocation.Longitude,
+                        DropoffCityId = request.PickupLocationId, // Swapped
                         IntermediateStops = intermediateStopsJson != null && request.IntermediateStops != null
                             ? System.Text.Json.JsonSerializer.Serialize(Enumerable.Reverse(request.IntermediateStops).ToList())
-                            : null, // Reverse intermediate stops for return
+                            : null,
+                        IntermediateStopIds = request.IntermediateStopsIds != null && request.IntermediateStopsIds.Any()
+                            ? System.Text.Json.JsonSerializer.Serialize(Enumerable.Reverse(request.IntermediateStopsIds).ToList())
+                            : null,
                         SegmentPrices = segmentPricesJson != null && request.SegmentPrices != null
                             ? System.Text.Json.JsonSerializer.Serialize(Enumerable.Reverse(request.SegmentPrices).ToList())
-                            : null, // Reverse segment prices for return
+                            : null,
                         TravelDate = returnDepartureDateTime.Date,
                         DepartureTime = returnDepartureDateTime.TimeOfDay,
                         TotalSeats = request.TotalSeats,
