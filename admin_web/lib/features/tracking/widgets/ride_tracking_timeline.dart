@@ -31,12 +31,6 @@ class TrainStop {
   });
 }
 
-// Live tracking provider
-final liveTrackingProvider = StateNotifierProvider<LiveTrackingNotifier, LiveTrackingState>((ref) {
-  final signalRService = ref.watch(signalRServiceProvider);
-  return LiveTrackingNotifier(signalRService);
-});
-
 /// Widget to display a train-style tracking timeline for a ride
 class RideTrackingTimeline extends ConsumerStatefulWidget {
   final dynamic ride;

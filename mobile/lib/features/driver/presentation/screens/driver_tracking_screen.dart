@@ -439,27 +439,40 @@ class _DriverTrackingScreenState extends ConsumerState<DriverTrackingScreen> {
     for (var passenger in rideDetails.passengers) {
       final normalizedPassengerPickup = normalizeLocation(passenger.pickupLocation);
       final normalizedPassengerDropoff = normalizeLocation(passenger.dropoffLocation);
-      
+
+      // Determine if this passenger boards at the origin stop.
+      // Use ID match when both IDs are non-empty; always also check by name.
+      final idMatchesOrigin = passenger.pickupLocationId.isNotEmpty &&
+          rideDetails.pickupLocationId.isNotEmpty &&
+          passenger.pickupLocationId == rideDetails.pickupLocationId;
+      final isPickupAtOrigin = idMatchesOrigin || normalizedPassengerPickup == normalizedOrigin;
+
       // Count pickups at each intermediate stop (excluding main origin)
-      if (passenger.pickupLocationId != rideDetails.pickupLocationId &&
-          normalizedPassengerPickup != normalizedOrigin) {
+      if (!isPickupAtOrigin) {
         // Find matching stop in orderedRoute
         for (var stop in orderedRoute) {
           final stopName = stop['name'] ?? '';
-          if (passenger.pickupLocationId == stop['id'] || normalizeLocation(stopName) == normalizedPassengerPickup) {
+          if ((passenger.pickupLocationId.isNotEmpty && passenger.pickupLocationId == stop['id']) ||
+              normalizeLocation(stopName) == normalizedPassengerPickup) {
             pickupCounts[stopName] = (pickupCounts[stopName] ?? 0) + 1;
             break;
           }
         }
       }
-      
+
+      // Determine if this passenger alights at the destination stop.
+      final idMatchesDest = passenger.dropoffLocationId.isNotEmpty &&
+          rideDetails.dropoffLocationId.isNotEmpty &&
+          passenger.dropoffLocationId == rideDetails.dropoffLocationId;
+      final isDropoffAtDestination = idMatchesDest || normalizedPassengerDropoff == normalizedDestination;
+
       // Count dropoffs at each intermediate stop (excluding main destination)
-      if (passenger.dropoffLocationId != rideDetails.dropoffLocationId &&
-          normalizedPassengerDropoff != normalizedDestination) {
+      if (!isDropoffAtDestination) {
         // Find matching stop in orderedRoute
         for (var stop in orderedRoute) {
           final stopName = stop['name'] ?? '';
-          if (passenger.dropoffLocationId == stop['id'] || normalizeLocation(stopName) == normalizedPassengerDropoff) {
+          if ((passenger.dropoffLocationId.isNotEmpty && passenger.dropoffLocationId == stop['id']) ||
+              normalizeLocation(stopName) == normalizedPassengerDropoff) {
             dropoffCounts[stopName] = (dropoffCounts[stopName] ?? 0) + 1;
             break;
           }

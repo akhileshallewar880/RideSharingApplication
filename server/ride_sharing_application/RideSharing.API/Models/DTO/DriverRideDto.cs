@@ -133,7 +133,10 @@ namespace RideSharing.API.Models.DTO
         public decimal PickupLongitude { get; set; }
         public decimal DropoffLatitude { get; set; }
         public decimal DropoffLongitude { get; set; }
+        public Guid? PickupLocationId { get; set; }
+        public Guid? DropoffLocationId { get; set; }
         public List<string>? IntermediateStops { get; set; }
+        public List<string>? IntermediateStopsIds { get; set; }
         public DateTime Date { get; set; }
         public string DepartureTime { get; set; }
         public int TotalSeats { get; set; }
@@ -201,6 +204,8 @@ namespace RideSharing.API.Models.DTO
         public bool IsVerified { get; set; }
         public string? PickupLocation { get; set; }
         public string? DropoffLocation { get; set; }
+        public Guid? PickupLocationId { get; set; }
+        public Guid? DropoffLocationId { get; set; }
         public decimal? PickupLatitude { get; set; }
         public decimal? PickupLongitude { get; set; }
         public decimal? DropoffLatitude { get; set; }

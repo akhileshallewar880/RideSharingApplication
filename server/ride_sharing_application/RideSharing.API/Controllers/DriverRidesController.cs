@@ -516,27 +516,6 @@ namespace RideSharing.API.Controllers
                     }
                 }
 
-                var passengers = ride.Bookings?.Where(b => b.Status != "cancelled").Select(b => new PassengerInfoDto
-                {
-                    BookingId = b.Id,
-                    PassengerId = b.PassengerId,
-                    Name = b.Passenger?.Profile?.Name ?? b.Passenger?.PhoneNumber ?? "Unknown",
-                    PhoneNumber = b.Passenger?.PhoneNumber ?? "",
-                    PickupLocation = b.PickupLocation,
-                    DropoffLocation = b.DropoffLocation,
-                    PickupLatitude = b.PickupLatitude,
-                    PickupLongitude = b.PickupLongitude,
-                    DropoffLatitude = b.DropoffLatitude,
-                    DropoffLongitude = b.DropoffLongitude,
-                    PassengerCount = b.PassengerCount,
-                    Otp = b.OTP,
-                    IsVerified = b.IsVerified,
-                    TotalFare = b.TotalFare,
-                    TotalAmount = b.TotalAmount,
-                    PaymentStatus = b.PaymentStatus ?? "pending",
-                    BoardingStatus = b.IsVerified ? "boarded" : "pending"
-                }).ToList();
-
                 // Parse intermediate stops from JSON
                 List<string>? intermediateStops = null;
                 if (!string.IsNullOrEmpty(ride.IntermediateStops))
@@ -551,21 +530,92 @@ namespace RideSharing.API.Controllers
                     }
                 }
 
-                // Calculate segment distances if intermediate stops exist
+                // Parse intermediate stop IDs from JSON
+                List<Guid>? intermediateStopIds = null;
+                if (!string.IsNullOrEmpty(ride.IntermediateStopIds))
+                {
+                    try
+                    {
+                        intermediateStopIds = System.Text.Json.JsonSerializer.Deserialize<List<Guid>>(ride.IntermediateStopIds);
+                    }
+                    catch
+                    {
+                        _logger.LogWarning("Failed to parse IntermediateStopIds for ride {RideId}", rideId);
+                    }
+                }
+
+                // Build a stop-name → city-ID lookup for deriving passenger location IDs
+                static string NormalizeStopName(string name) => name.Split(',')[0].Trim().ToLowerInvariant();
+
+                var stopNameToId = new Dictionary<string, Guid?>(StringComparer.OrdinalIgnoreCase);
+                stopNameToId[NormalizeStopName(ride.PickupLocation)] = ride.PickupCityId;
+                stopNameToId[NormalizeStopName(ride.DropoffLocation)] = ride.DropoffCityId;
+                if (intermediateStops != null && intermediateStopIds != null)
+                {
+                    for (int i = 0; i < intermediateStops.Count && i < intermediateStopIds.Count; i++)
+                        stopNameToId[NormalizeStopName(intermediateStops[i])] = intermediateStopIds[i];
+                }
+
+                var passengers = ride.Bookings?.Where(b => b.Status != "cancelled").Select(b =>
+                {
+                    stopNameToId.TryGetValue(NormalizeStopName(b.PickupLocation), out var pickupId);
+                    stopNameToId.TryGetValue(NormalizeStopName(b.DropoffLocation), out var dropoffId);
+                    return new PassengerInfoDto
+                    {
+                        BookingId = b.Id,
+                        PassengerId = b.PassengerId,
+                        Name = b.Passenger?.Profile?.Name ?? b.Passenger?.PhoneNumber ?? "Unknown",
+                        PhoneNumber = b.Passenger?.PhoneNumber ?? "",
+                        PickupLocation = b.PickupLocation,
+                        DropoffLocation = b.DropoffLocation,
+                        PickupLocationId = pickupId,
+                        DropoffLocationId = dropoffId,
+                        PickupLatitude = b.PickupLatitude,
+                        PickupLongitude = b.PickupLongitude,
+                        DropoffLatitude = b.DropoffLatitude,
+                        DropoffLongitude = b.DropoffLongitude,
+                        PassengerCount = b.PassengerCount,
+                        Otp = b.OTP,
+                        IsVerified = b.IsVerified,
+                        TotalFare = b.TotalFare,
+                        TotalAmount = b.TotalAmount,
+                        PaymentStatus = b.PaymentStatus ?? "pending",
+                        BoardingStatus = b.IsVerified ? "boarded" : "pending"
+                    };
+                }).ToList();
+
+                // Calculate segment distances using coordinate-based method
                 List<decimal>? segmentDistances = null;
                 if (intermediateStops != null && intermediateStops.Any())
                 {
                     try
                     {
-                        var cities = new List<string> { ride.PickupLocation };
-                        cities.AddRange(intermediateStops);
-                        cities.Add(ride.DropoffLocation);
+                        // Build stops with coordinates: look up each city by ID, fallback to name-based
+                        var stopsWithCoords = new List<(string name, double lat, double lng)>
+                        {
+                            (ride.PickupLocation, (double)ride.PickupLatitude, (double)ride.PickupLongitude)
+                        };
+                        for (int i = 0; i < intermediateStops.Count; i++)
+                        {
+                            double lat = 0, lng = 0;
+                            if (intermediateStopIds != null && i < intermediateStopIds.Count)
+                            {
+                                var city = await _context.Cities.FindAsync(intermediateStopIds[i]);
+                                if (city != null)
+                                {
+                                    lat = (double)(city.Latitude ?? 0);
+                                    lng = (double)(city.Longitude ?? 0);
+                                }
+                            }
+                            stopsWithCoords.Add((intermediateStops[i], lat, lng));
+                        }
+                        stopsWithCoords.Add((ride.DropoffLocation, (double)ride.DropoffLatitude, (double)ride.DropoffLongitude));
 
-                        var routeResult = _routeDistanceService.CalculateMultiLegRoute(cities);
+                        var routeResult = await _routeDistanceService.CalculateMultiLegRouteByCoordinatesAsync(stopsWithCoords);
                         if (routeResult != null)
                         {
                             segmentDistances = routeResult.Value.segments.Select(s => (decimal)s.DistanceKm).ToList();
-                            _logger.LogInformation("📊 Calculated {Count} segment distances for ride {RideNumber}", 
+                            _logger.LogInformation("📊 Calculated {Count} segment distances for ride {RideNumber}",
                                 segmentDistances.Count, ride.RideNumber);
                         }
                     }
@@ -585,7 +635,10 @@ namespace RideSharing.API.Controllers
                     PickupLongitude = ride.PickupLongitude,
                     DropoffLatitude = ride.DropoffLatitude,
                     DropoffLongitude = ride.DropoffLongitude,
+                    PickupLocationId = ride.PickupCityId,
+                    DropoffLocationId = ride.DropoffCityId,
                     IntermediateStops = intermediateStops,
+                    IntermediateStopsIds = intermediateStopIds?.Select(id => id.ToString()).ToList(),
                     DepartureTime = ride.DepartureTime.ToString(@"hh\:mm"),
                     TotalSeats = ride.TotalSeats,
                     BookedSeats = ride.BookedSeats,
