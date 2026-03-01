@@ -33,6 +33,8 @@ class Location {
 class SearchRidesRequest {
   final String pickupLocationId;
   final String dropoffLocationId;
+  final Location pickupLocation;
+  final Location dropoffLocation;
   final String travelDate;
   final int passengerCount;
   final String? vehicleType;
@@ -40,15 +42,17 @@ class SearchRidesRequest {
   SearchRidesRequest({
     required this.pickupLocationId,
     required this.dropoffLocationId,
+    required this.pickupLocation,
+    required this.dropoffLocation,
     required this.travelDate,
     required this.passengerCount,
     this.vehicleType,
   });
 
   Map<String, dynamic> toJson() {
-    final map = {
-      'pickupLocationId': pickupLocationId,
-      'dropoffLocationId': dropoffLocationId,
+    final map = <String, dynamic>{
+      'pickupLocation': pickupLocation.toJson(),
+      'dropoffLocation': dropoffLocation.toJson(),
       'travelDate': travelDate,
       'passengerCount': passengerCount,
     };
@@ -186,6 +190,8 @@ class BookRideRequest {
   final int passengerCount;
   final String pickupLocationId;
   final String dropoffLocationId;
+  final Location pickupLocation;
+  final Location dropoffLocation;
   final String paymentMethod;
   final List<String>? selectedSeats;
 
@@ -194,6 +200,8 @@ class BookRideRequest {
     required this.passengerCount,
     required this.pickupLocationId,
     required this.dropoffLocationId,
+    required this.pickupLocation,
+    required this.dropoffLocation,
     required this.paymentMethod,
     this.selectedSeats,
   });
@@ -202,15 +210,15 @@ class BookRideRequest {
     final json = <String, dynamic>{
       'rideId': rideId,
       'passengerCount': passengerCount,
-      'pickupLocationId': pickupLocationId,
-      'dropoffLocationId': dropoffLocationId,
+      'pickupLocation': pickupLocation.toJson(),
+      'dropoffLocation': dropoffLocation.toJson(),
       'paymentMethod': paymentMethod,
     };
-    
+
     if (selectedSeats != null && selectedSeats!.isNotEmpty) {
       json['selectedSeats'] = selectedSeats!;
     }
-    
+
     return json;
   }
 }

@@ -60,6 +60,9 @@ namespace RideSharing.API.Models.Domain
         public string? Route { get; set; } // JSON array of waypoints
         public decimal? Distance { get; set; } // in kilometers
         public int? Duration { get; set; } // in minutes
+        // Pre-computed per-stop cumulative timing (JSON) — set at schedule time, read at search time
+        // [{"location":"Gadchiroli","cumulativeDistanceKm":0,"cumulativeDurationMinutes":0}, ...]
+        public string? RouteStopsTimingJson { get; set; }
         
         // Status
         [Required]

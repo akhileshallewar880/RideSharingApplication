@@ -26,7 +26,9 @@ class RideCheckoutScreen extends ConsumerStatefulWidget {
   
   final String pickupLocationId;
   final String dropoffLocationId;
-  
+  final Location? pickupLocationData;
+  final Location? dropoffLocationData;
+
   const RideCheckoutScreen({
     super.key,
     required this.ride,
@@ -36,6 +38,8 @@ class RideCheckoutScreen extends ConsumerStatefulWidget {
     required this.passengerCount,
     required this.pickupLocationId,
     required this.dropoffLocationId,
+    this.pickupLocationData,
+    this.dropoffLocationData,
   });
   
   @override
@@ -1976,6 +1980,20 @@ class _RideCheckoutScreenState extends ConsumerState<RideCheckoutScreen> {
       final verificationRequest = SearchRidesRequest(
         pickupLocationId: widget.pickupLocationId,
         dropoffLocationId: widget.dropoffLocationId,
+        pickupLocation: widget.pickupLocationData ??
+            Location(
+              id: widget.pickupLocationId,
+              address: widget.pickupLocation,
+              latitude: 0.0,
+              longitude: 0.0,
+            ),
+        dropoffLocation: widget.dropoffLocationData ??
+            Location(
+              id: widget.dropoffLocationId,
+              address: widget.dropoffLocation,
+              latitude: 0.0,
+              longitude: 0.0,
+            ),
         travelDate: DateFormat('yyyy-MM-dd').format(widget.travelDate),
         passengerCount: _passengerCount,
       );
@@ -2011,6 +2029,20 @@ class _RideCheckoutScreenState extends ConsumerState<RideCheckoutScreen> {
         passengerCount: _passengerCount,
         pickupLocationId: widget.pickupLocationId,
         dropoffLocationId: widget.dropoffLocationId,
+        pickupLocation: widget.pickupLocationData ??
+            Location(
+              id: widget.pickupLocationId,
+              address: widget.pickupLocation,
+              latitude: 0.0,
+              longitude: 0.0,
+            ),
+        dropoffLocation: widget.dropoffLocationData ??
+            Location(
+              id: widget.dropoffLocationId,
+              address: widget.dropoffLocation,
+              latitude: 0.0,
+              longitude: 0.0,
+            ),
         paymentMethod: _selectedUpiApp,
         selectedSeats: _selectedSeats.isEmpty ? null : _selectedSeats,
       );

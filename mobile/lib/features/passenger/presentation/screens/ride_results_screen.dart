@@ -885,6 +885,8 @@ class _RideResultsScreenState extends ConsumerState<RideResultsScreen> {
     final request = SearchRidesRequest(
       pickupLocationId: widget.pickupLocation.id,
       dropoffLocationId: widget.dropoffLocation.id,
+      pickupLocation: widget.pickupLocation,
+      dropoffLocation: widget.dropoffLocation,
       travelDate: DateFormat('yyyy-MM-dd').format(date),
       passengerCount: widget.passengerCount,
     );
@@ -1427,6 +1429,8 @@ class _RideResultsScreenState extends ConsumerState<RideResultsScreen> {
           passengerCount: widget.passengerCount,
           pickupLocationId: widget.pickupLocation.id,
           dropoffLocationId: widget.dropoffLocation.id,
+          pickupLocationData: widget.pickupLocation,
+          dropoffLocationData: widget.dropoffLocation,
         ),
       ),
     );

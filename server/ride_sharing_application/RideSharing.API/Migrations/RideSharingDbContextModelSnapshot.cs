@@ -1160,6 +1160,9 @@ namespace RideSharing.API.Migrations
                     b.Property<string>("Route")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<string>("RouteStopsTimingJson")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<string>("SegmentPrices")
                         .HasColumnType("nvarchar(max)");
 

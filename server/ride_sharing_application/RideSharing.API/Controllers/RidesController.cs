@@ -125,113 +125,116 @@ namespace RideSharing.API.Controllers
                     double distanceKm = 0;
                     int durationMinutes = 0;
                     List<RideStopWithTimeDto>? routeStopsWithTiming = null;
-                    
+
                     // Get departure time from TimeSpan
                     int depHour = ride.DepartureTime.Hours;
                     int depMinute = ride.DepartureTime.Minutes;
-                    
+
                     _logger.LogInformation($"🚕 Processing ride {ride.RideNumber}");
                     _logger.LogInformation($"   Driver route: {ride.PickupLocation} → {ride.DropoffLocation}");
                     _logger.LogInformation($"   Passenger search: {request.PickupLocation.Address} → {request.DropoffLocation.Address}");
-                    _logger.LogInformation($"   Departure: {depHour:D2}:{depMinute:D2}");
-                    
-                    // ALWAYS calculate for passenger's specific locations
-                    // Step 1: Calculate passenger's journey duration
-                    var passengerJourneyInfo = _routeDistanceService.GetDistanceAndDuration(
-                        request.PickupLocation.Address,
-                        request.DropoffLocation.Address);
-                    
-                    if (passengerJourneyInfo != null)
+
+                    // FAST PATH: use pre-computed per-stop timing stored at schedule time
+                    if (!string.IsNullOrEmpty(ride.RouteStopsTimingJson))
                     {
-                        int passengerJourneyMinutes = passengerJourneyInfo.Value.durationMinutes;
-                        distanceKm = passengerJourneyInfo.Value.distanceKm;
-                        durationMinutes = passengerJourneyMinutes;
-                        
-                        _logger.LogInformation($"   Passenger journey: {passengerJourneyMinutes} min, {distanceKm:F1} km");
-                        
-                        // Step 2: Calculate when driver reaches passenger's pickup location
-                        var driverToPassengerPickup = _routeDistanceService.GetDistanceAndDuration(
-                            ride.PickupLocation,
-                            request.PickupLocation.Address);
-                        
-                        int pickupDelayMinutes = driverToPassengerPickup?.durationMinutes ?? 0;
-                        
-                        _logger.LogInformation($"   Driver to passenger pickup: {pickupDelayMinutes} min");
-                        
-                        // Step 3: Calculate arrival times
-                        int passengerPickupTotalMinutes = depHour * 60 + depMinute + pickupDelayMinutes;
-                        int passengerPickupHour = (passengerPickupTotalMinutes / 60) % 24;
-                        int passengerPickupMinute = passengerPickupTotalMinutes % 60;
-                        
-                        int passengerDropoffTotalMinutes = passengerPickupTotalMinutes + passengerJourneyMinutes;
-                        int passengerDropoffHour = (passengerDropoffTotalMinutes / 60) % 24;
-                        int passengerDropoffMinute = passengerDropoffTotalMinutes % 60;
-                        
-                        _logger.LogInformation($"   Passenger pickup time: {passengerPickupHour:D2}:{passengerPickupMinute:D2}");
-                        _logger.LogInformation($"   Passenger dropoff time: {passengerDropoffHour:D2}:{passengerDropoffMinute:D2}");
-                        
-                        // Step 4: Build COMPLETE DRIVER ROUTE with timing - ALWAYS show full route
-                        routeStopsWithTiming = new List<RideStopWithTimeDto>();
-                        
-                        // Build complete route: driver origin -> ALL intermediate stops -> driver destination
-                        var completeRoute = new List<string> { ride.PickupLocation };
-                        
-                        // Add intermediate stops if they exist
-                        if (intermediateStops != null && intermediateStops.Count > 0)
+                        try
                         {
-                            completeRoute.AddRange(intermediateStops);
-                            _logger.LogInformation($"📍 Found {intermediateStops.Count} intermediate stops: {string.Join(" → ", intermediateStops)}");
-                        }
-                        
-                        completeRoute.Add(ride.DropoffLocation);
-                        
-                        _logger.LogInformation($"🗺️ Complete driver route: {string.Join(" → ", completeRoute)}");
-                        
-                        // Calculate timing for each stop along the route
-                        int cumulativeMinutes = 0;
-                        
-                        // Add driver's origin (departure time)
-                        routeStopsWithTiming.Add(new RideStopWithTimeDto
-                        {
-                            Location = ride.PickupLocation,
-                            ArrivalTime = $"{depHour:D2}:{depMinute:D2}",
-                            CumulativeDurationMinutes = 0
-                        });
-                        
-                        // Calculate timing for each subsequent stop
-                        for (int i = 1; i < completeRoute.Count; i++)
-                        {
-                            var segment = _routeDistanceService.GetDistanceAndDuration(
-                                completeRoute[i - 1],
-                                completeRoute[i]);
-                            
-                            if (segment != null)
+                            var preComputedStops = System.Text.Json.JsonSerializer.Deserialize<List<RouteStopTimingData>>(
+                                ride.RouteStopsTimingJson,
+                                new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+
+                            if (preComputedStops != null && preComputedStops.Count >= 2)
                             {
-                                cumulativeMinutes += segment.Value.durationMinutes;
-                                
-                                int totalMinutes = depHour * 60 + depMinute + cumulativeMinutes;
-                                int arrHour = (totalMinutes / 60) % 24;
-                                int arrMinute = totalMinutes % 60;
-                                
-                                routeStopsWithTiming.Add(new RideStopWithTimeDto
+                                var pickupStop = FindMatchingStop(preComputedStops, request.PickupLocation.Address);
+                                var dropoffStop = FindMatchingStop(preComputedStops, request.DropoffLocation.Address);
+
+                                if (pickupStop != null && dropoffStop != null)
                                 {
-                                    Location = completeRoute[i],
-                                    ArrivalTime = $"{arrHour:D2}:{arrMinute:D2}",
-                                    CumulativeDurationMinutes = cumulativeMinutes
-                                });
-                                
-                                _logger.LogInformation($"   📍 Stop {i}: {completeRoute[i]} at {arrHour:D2}:{arrMinute:D2}");
-                            }
-                            else
-                            {
-                                _logger.LogWarning($"⚠️ Could not calculate route segment: {completeRoute[i - 1]} → {completeRoute[i]}");
+                                    int pickupCumMin = pickupStop.CumulativeDurationMinutes;
+                                    int dropoffCumMin = dropoffStop.CumulativeDurationMinutes;
+                                    durationMinutes = dropoffCumMin - pickupCumMin;
+                                    distanceKm = dropoffStop.CumulativeDistanceKm - pickupStop.CumulativeDistanceKm;
+
+                                    // Build routeStopsWithTiming from pre-computed data (apply departure time offset)
+                                    routeStopsWithTiming = preComputedStops.Select(stop =>
+                                    {
+                                        int totalMin = depHour * 60 + depMinute + stop.CumulativeDurationMinutes;
+                                        return new RideStopWithTimeDto
+                                        {
+                                            Location = stop.Location,
+                                            ArrivalTime = $"{(totalMin / 60) % 24:D2}:{totalMin % 60:D2}",
+                                            CumulativeDurationMinutes = stop.CumulativeDurationMinutes
+                                        };
+                                    }).ToList();
+
+                                    _logger.LogInformation($"✅ Used pre-computed timing: passenger journey {durationMinutes}min, {distanceKm:F1}km");
+                                }
+                                else
+                                {
+                                    _logger.LogWarning($"⚠️ Could not match passenger locations in pre-computed stops (pickup={pickupStop == null}, dropoff={dropoffStop == null}), falling back to live calculation");
+                                }
                             }
                         }
-                        
-                        _logger.LogInformation($"✅ Built complete route with {routeStopsWithTiming.Count} stops (origin + {intermediateStops?.Count ?? 0} intermediate + destination)");
+                        catch (Exception ex)
+                        {
+                            _logger.LogError(ex, "Failed to parse RouteStopsTimingJson for ride {RideId}, falling back to live calculation", ride.Id);
+                        }
                     }
-                    
-                    // Legacy code - only used if passenger journey calculation fails
+
+                    // SLOW PATH: calculate on the fly for rides without pre-computed timing
+                    if (routeStopsWithTiming == null)
+                    {
+                        _logger.LogInformation($"   🔄 Falling back to live route calculation for ride {ride.RideNumber}");
+
+                        var passengerJourneyInfo = _routeDistanceService.GetDistanceAndDuration(
+                            request.PickupLocation.Address,
+                            request.DropoffLocation.Address);
+
+                        if (passengerJourneyInfo != null)
+                        {
+                            int passengerJourneyMinutes = passengerJourneyInfo.Value.durationMinutes;
+                            distanceKm = passengerJourneyInfo.Value.distanceKm;
+                            durationMinutes = passengerJourneyMinutes;
+
+                            var driverToPassengerPickup = _routeDistanceService.GetDistanceAndDuration(
+                                ride.PickupLocation,
+                                request.PickupLocation.Address);
+                            int pickupDelayMinutes = driverToPassengerPickup?.durationMinutes ?? 0;
+
+                            routeStopsWithTiming = new List<RideStopWithTimeDto>();
+
+                            var completeRoute = new List<string> { ride.PickupLocation };
+                            if (intermediateStops != null && intermediateStops.Count > 0)
+                                completeRoute.AddRange(intermediateStops);
+                            completeRoute.Add(ride.DropoffLocation);
+
+                            int cumulativeMinutes = 0;
+                            routeStopsWithTiming.Add(new RideStopWithTimeDto
+                            {
+                                Location = ride.PickupLocation,
+                                ArrivalTime = $"{depHour:D2}:{depMinute:D2}",
+                                CumulativeDurationMinutes = 0
+                            });
+
+                            for (int i = 1; i < completeRoute.Count; i++)
+                            {
+                                var seg = _routeDistanceService.GetDistanceAndDuration(completeRoute[i - 1], completeRoute[i]);
+                                if (seg != null)
+                                {
+                                    cumulativeMinutes += seg.Value.durationMinutes;
+                                    int totalMin = depHour * 60 + depMinute + cumulativeMinutes;
+                                    routeStopsWithTiming.Add(new RideStopWithTimeDto
+                                    {
+                                        Location = completeRoute[i],
+                                        ArrivalTime = $"{(totalMin / 60) % 24:D2}:{totalMin % 60:D2}",
+                                        CumulativeDurationMinutes = cumulativeMinutes
+                                    });
+                                }
+                            }
+                        }
+                    }
+
+                    // Legacy fallback for multi-stop rides that still failed
                     if (routeStopsWithTiming == null && intermediateStops != null && intermediateStops.Count > 0)
                     {
                         // Multi-leg route with intermediate stops
@@ -1202,6 +1205,34 @@ namespace RideSharing.API.Controllers
                 _logger.LogWarning(ex, "Error getting booked seats for ride {RideId}", rideId);
                 return new List<string>();
             }
+        }
+
+        /// <summary>
+        /// Find a pre-computed stop matching a passenger's location address (fuzzy match)
+        /// </summary>
+        private static RouteStopTimingData? FindMatchingStop(List<RouteStopTimingData> stops, string address)
+        {
+            if (string.IsNullOrWhiteSpace(address)) return null;
+            var cleanAddr = CleanForMatch(address);
+            // Exact match first
+            var match = stops.FirstOrDefault(s =>
+                CleanForMatch(s.Location).Equals(cleanAddr, StringComparison.OrdinalIgnoreCase));
+            if (match != null) return match;
+            // Contains match
+            match = stops.FirstOrDefault(s =>
+                CleanForMatch(s.Location).Contains(cleanAddr, StringComparison.OrdinalIgnoreCase) ||
+                cleanAddr.Contains(CleanForMatch(s.Location), StringComparison.OrdinalIgnoreCase));
+            return match;
+        }
+
+        private static string CleanForMatch(string s)
+        {
+            // Strip common suffixes to normalize location names for matching
+            return s.Split(',')[0]
+                .Replace(" Bus Stand", "", StringComparison.OrdinalIgnoreCase)
+                .Replace(" Railway Station", "", StringComparison.OrdinalIgnoreCase)
+                .Replace(" Metro Station", "", StringComparison.OrdinalIgnoreCase)
+                .Trim();
         }
 
         /// <summary>

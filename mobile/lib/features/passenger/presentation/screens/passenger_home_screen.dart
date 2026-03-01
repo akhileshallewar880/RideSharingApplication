@@ -847,6 +847,18 @@ class _PassengerHomeScreenState extends ConsumerState<PassengerHomeScreen> with 
     final searchRequest = SearchRidesRequest(
       pickupLocationId: _selectedPickup!.id,
       dropoffLocationId: _selectedDropoff!.id,
+      pickupLocation: Location(
+        id: _selectedPickup!.id,
+        address: pickupAddress,
+        latitude: _selectedPickup!.latitude ?? 0.0,
+        longitude: _selectedPickup!.longitude ?? 0.0,
+      ),
+      dropoffLocation: Location(
+        id: _selectedDropoff!.id,
+        address: dropoffAddress,
+        latitude: _selectedDropoff!.latitude ?? 0.0,
+        longitude: _selectedDropoff!.longitude ?? 0.0,
+      ),
       travelDate: formattedDate,
       passengerCount: _passengerCount,
     );
@@ -1384,11 +1396,30 @@ class _PassengerHomeScreenState extends ConsumerState<PassengerHomeScreen> with 
   }
   
   Future<void> _bookRide(AvailableRide ride) async {
+    final bookPickupAddress = _selectedPickup!.fullAddress.isNotEmpty
+        ? _selectedPickup!.fullAddress
+        : _selectedPickup!.name;
+    final bookDropoffAddress = _selectedDropoff!.fullAddress.isNotEmpty
+        ? _selectedDropoff!.fullAddress
+        : _selectedDropoff!.name;
+
     final bookRequest = BookRideRequest(
       rideId: ride.rideId,
       passengerCount: _passengerCount,
       pickupLocationId: _selectedPickup!.id,
       dropoffLocationId: _selectedDropoff!.id,
+      pickupLocation: Location(
+        id: _selectedPickup!.id,
+        address: bookPickupAddress,
+        latitude: _selectedPickup!.latitude ?? 0.0,
+        longitude: _selectedPickup!.longitude ?? 0.0,
+      ),
+      dropoffLocation: Location(
+        id: _selectedDropoff!.id,
+        address: bookDropoffAddress,
+        latitude: _selectedDropoff!.latitude ?? 0.0,
+        longitude: _selectedDropoff!.longitude ?? 0.0,
+      ),
       paymentMethod: 'cash',
     );
     

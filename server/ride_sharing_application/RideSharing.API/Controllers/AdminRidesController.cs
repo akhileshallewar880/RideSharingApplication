@@ -89,6 +89,7 @@ namespace RideSharing.API.Controllers
                 string? segmentPricesJson = null;
                 decimal totalDistance = 0;
                 int totalDuration = 0;
+                string? routeStopsTimingJson = null;
 
                 if (request.IntermediateStops != null && request.IntermediateStops.Any())
                 {
@@ -100,59 +101,44 @@ namespace RideSharing.API.Controllers
                     segmentPricesJson = System.Text.Json.JsonSerializer.Serialize(request.SegmentPrices);
                 }
 
+                // Build complete stop list for per-stop timing calculation
+                var allCities = new List<string> { request.PickupLocation.Address };
+                if (request.IntermediateStops != null && request.IntermediateStops.Any())
+                    allCities.AddRange(request.IntermediateStops);
+                allCities.Add(request.DropoffLocation.Address);
+
                 // Calculate route using Google Maps API for accurate multi-stop distance
                 try
                 {
-                    _logger.LogInformation("🗺️  Calculating route with Google Maps: {Pickup} → {Dropoff}", 
+                    _logger.LogInformation("🗺️  Calculating route with Google Maps: {Pickup} → {Dropoff}",
                         request.PickupLocation.Address, request.DropoffLocation.Address);
-                    
-                    // Debug: Log incoming request data
-                    _logger.LogInformation("📥 IntermediateStopLocations count: {Count}", 
+
+                    _logger.LogInformation("📥 IntermediateStopLocations count: {Count}",
                         request.IntermediateStopLocations?.Count ?? 0);
-                    _logger.LogInformation("📥 IntermediateStops count: {Count}", 
+                    _logger.LogInformation("📥 IntermediateStops count: {Count}",
                         request.IntermediateStops?.Count ?? 0);
-                    
+
                     if (request.IntermediateStopLocations != null && request.IntermediateStopLocations.Any())
                     {
                         foreach (var loc in request.IntermediateStopLocations)
                         {
-                            _logger.LogInformation("📍 Intermediate stop: {Address} ({Lat}, {Lng})", 
+                            _logger.LogInformation("📍 Intermediate stop: {Address} ({Lat}, {Lng})",
                                 loc.Address, loc.Latitude, loc.Longitude);
                         }
                     }
 
                     // Build waypoints list from IntermediateStopLocations if available
                     List<(decimal lat, decimal lng)>? waypoints = null;
-                    
+
                     if (request.IntermediateStopLocations != null && request.IntermediateStopLocations.Any())
                     {
-                        // We have full location data with coordinates - use Google Maps API
                         waypoints = request.IntermediateStopLocations
                             .Select(loc => (lat: loc.Latitude, lng: loc.Longitude))
                             .ToList();
-                        
                         _logger.LogInformation("🎯 Using {Count} intermediate stops with coordinates for Google Maps", waypoints.Count);
                     }
-                    else if (request.IntermediateStops != null && request.IntermediateStops.Any())
-                    {
-                        // Only have addresses without coordinates - fall back to database calculation
-                        _logger.LogWarning("⚠️  Intermediate stops provided without coordinates, using database calculation");
-                        
-                        var cities = new List<string> { request.PickupLocation.Address };
-                        cities.AddRange(request.IntermediateStops);
-                        cities.Add(request.DropoffLocation.Address);
-                        
-                        var dbRouteResult = _routeDistanceService.CalculateMultiLegRoute(cities);
-                        if (dbRouteResult != null)
-                        {
-                            totalDistance = (decimal)dbRouteResult.Value.totalDistanceKm;
-                            totalDuration = dbRouteResult.Value.totalDurationMinutes;
-                            _logger.LogInformation("✅ Route calculated from database: {Distance}km, {Duration}min",
-                                totalDistance, totalDuration);
-                        }
-                    }
-                    
-                    // If we have waypoints or no intermediate stops, use Google Maps API
+
+                    // If we have waypoints or no intermediate stops, use Google Maps API for total distance
                     if (waypoints != null || request.IntermediateStops == null || !request.IntermediateStops.Any())
                     {
                         var directionsResult = await _googleMapsService.GetDirectionsAsync(
@@ -169,6 +155,49 @@ namespace RideSharing.API.Controllers
                             totalDuration = directionsResult.DurationMinutes;
                             _logger.LogInformation("✅ Route calculated with Google Maps: {Distance}km, {Duration}min",
                                 totalDistance, totalDuration);
+                        }
+                    }
+
+                    // Always use RouteDistanceService for per-stop timing (database-backed, city-level granularity)
+                    var perStopRoute = _routeDistanceService.CalculateMultiLegRoute(allCities);
+                    if (perStopRoute != null)
+                    {
+                        // If Google Maps didn't return data, use database totals as fallback
+                        if (totalDistance == 0) totalDistance = (decimal)perStopRoute.Value.totalDistanceKm;
+                        if (totalDuration == 0) totalDuration = perStopRoute.Value.totalDurationMinutes;
+
+                        var stopTimings = new List<RouteStopTimingData>();
+                        double cumDistKm = 0;
+                        int cumDurMin = 0;
+                        stopTimings.Add(new RouteStopTimingData
+                        {
+                            Location = allCities[0],
+                            CumulativeDistanceKm = 0,
+                            CumulativeDurationMinutes = 0
+                        });
+                        foreach (var seg in perStopRoute.Value.segments)
+                        {
+                            cumDistKm += seg.DistanceKm;
+                            cumDurMin += seg.DurationMinutes;
+                            stopTimings.Add(new RouteStopTimingData
+                            {
+                                Location = seg.ToLocation,
+                                CumulativeDistanceKm = Math.Round(cumDistKm, 2),
+                                CumulativeDurationMinutes = cumDurMin
+                            });
+                        }
+                        routeStopsTimingJson = System.Text.Json.JsonSerializer.Serialize(stopTimings);
+                        _logger.LogInformation("✅ Per-stop timing calculated for {Count} stops", stopTimings.Count);
+                    }
+                    else if (request.IntermediateStops != null && request.IntermediateStops.Any())
+                    {
+                        // Fallback: only database-based calculation when no coordinates
+                        _logger.LogWarning("⚠️  Intermediate stops without coordinates, using database calculation only");
+                        var dbRouteResult = _routeDistanceService.CalculateMultiLegRoute(allCities);
+                        if (dbRouteResult != null)
+                        {
+                            if (totalDistance == 0) totalDistance = (decimal)dbRouteResult.Value.totalDistanceKm;
+                            if (totalDuration == 0) totalDuration = dbRouteResult.Value.totalDurationMinutes;
                         }
                     }
                 }
@@ -200,6 +229,7 @@ namespace RideSharing.API.Controllers
                     PricePerSeat = request.PricePerSeat,
                     Distance = totalDistance,
                     Duration = totalDuration,
+                    RouteStopsTimingJson = routeStopsTimingJson,
                     Status = "scheduled",
                     IsReturnTrip = false,
                     CreatedAt = DateTime.UtcNow,

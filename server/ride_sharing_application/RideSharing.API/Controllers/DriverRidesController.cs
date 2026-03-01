@@ -162,38 +162,57 @@ namespace RideSharing.API.Controllers
                 decimal? totalDistance = null;
                 int? totalDuration = null;
                 List<decimal>? segmentDistances = null;
+                string? routeStopsTimingJson = null;
 
                 try
                 {
                     var cities = new List<string> { request.PickupLocation.Address };
-                    
+
                     // Add intermediate stops
                     if (request.IntermediateStops != null && request.IntermediateStops.Any())
                     {
                         cities.AddRange(request.IntermediateStops);
                     }
-                    
+
                     cities.Add(request.DropoffLocation.Address);
 
                     _logger.LogInformation("🗺️  Calculating route: {Route}", string.Join(" → ", cities));
-                    
+
                     var routeResult = _routeDistanceService.CalculateMultiLegRoute(cities);
-                    
+
                     if (routeResult != null)
                     {
                         totalDistance = (decimal)routeResult.Value.totalDistanceKm;
                         totalDuration = routeResult.Value.totalDurationMinutes;
                         segmentDistances = routeResult.Value.segments.Select(s => (decimal)s.DistanceKm).ToList();
-                        
+
                         _logger.LogInformation("✅ Route calculated: {Distance}km, {Duration}min",
                             totalDistance, totalDuration);
-                        
-                        // Log segment details
-                        foreach (var segment in routeResult.Value.segments)
+
+                        // Build per-stop cumulative timing and store as JSON
+                        var stopTimings = new List<RouteStopTimingData>();
+                        double cumDistKm = 0;
+                        int cumDurMin = 0;
+                        stopTimings.Add(new RouteStopTimingData
                         {
-                            _logger.LogInformation("   📍 {From} → {To}: {Distance}km, {Duration}min",
-                                segment.FromLocation, segment.ToLocation, segment.DistanceKm, segment.DurationMinutes);
+                            Location = cities[0],
+                            CumulativeDistanceKm = 0,
+                            CumulativeDurationMinutes = 0
+                        });
+                        foreach (var seg in routeResult.Value.segments)
+                        {
+                            cumDistKm += seg.DistanceKm;
+                            cumDurMin += seg.DurationMinutes;
+                            stopTimings.Add(new RouteStopTimingData
+                            {
+                                Location = seg.ToLocation,
+                                CumulativeDistanceKm = Math.Round(cumDistKm, 2),
+                                CumulativeDurationMinutes = cumDurMin
+                            });
+                            _logger.LogInformation("   📍 {From} → {To}: {Distance}km, {Duration}min (cum: {CumDist}km, {CumDur}min)",
+                                seg.FromLocation, seg.ToLocation, seg.DistanceKm, seg.DurationMinutes, Math.Round(cumDistKm, 2), cumDurMin);
                         }
+                        routeStopsTimingJson = System.Text.Json.JsonSerializer.Serialize(stopTimings);
                     }
                     else
                     {
@@ -228,6 +247,7 @@ namespace RideSharing.API.Controllers
                     PricePerSeat = request.PricePerSeat,
                     Distance = totalDistance,
                     Duration = totalDuration,
+                    RouteStopsTimingJson = routeStopsTimingJson,
                     Status = "scheduled",
                     IsReturnTrip = false,
                     CreatedAt = DateTime.UtcNow
@@ -268,6 +288,47 @@ namespace RideSharing.API.Controllers
                         return BadRequest(ApiResponseDto<object>.ErrorResponse("Return trip must be scheduled after outbound trip"));
                     }
 
+                    // Build reversed per-stop timing for return trip
+                    string? returnRouteStopsTimingJson = null;
+                    if (routeStopsTimingJson != null)
+                    {
+                        try
+                        {
+                            var outboundStops = System.Text.Json.JsonSerializer.Deserialize<List<RouteStopTimingData>>(routeStopsTimingJson);
+                            if (outboundStops != null && outboundStops.Count >= 2)
+                            {
+                                // Reverse the stop order; recalculate cumulative values from the reversed segments
+                                var returnStops = new List<RouteStopTimingData>();
+                                double retCumDist = 0;
+                                int retCumDur = 0;
+                                returnStops.Add(new RouteStopTimingData
+                                {
+                                    Location = outboundStops.Last().Location,
+                                    CumulativeDistanceKm = 0,
+                                    CumulativeDurationMinutes = 0
+                                });
+                                for (int i = outboundStops.Count - 1; i >= 1; i--)
+                                {
+                                    var segDist = outboundStops[i].CumulativeDistanceKm - outboundStops[i - 1].CumulativeDistanceKm;
+                                    var segDur = outboundStops[i].CumulativeDurationMinutes - outboundStops[i - 1].CumulativeDurationMinutes;
+                                    retCumDist += segDist;
+                                    retCumDur += segDur;
+                                    returnStops.Add(new RouteStopTimingData
+                                    {
+                                        Location = outboundStops[i - 1].Location,
+                                        CumulativeDistanceKm = Math.Round(retCumDist, 2),
+                                        CumulativeDurationMinutes = retCumDur
+                                    });
+                                }
+                                returnRouteStopsTimingJson = System.Text.Json.JsonSerializer.Serialize(returnStops);
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogError(ex, "❌ Error building return trip route timings");
+                        }
+                    }
+
                     // Create return ride with swapped locations
                     var returnRide = new Ride
                     {
@@ -283,7 +344,7 @@ namespace RideSharing.API.Controllers
                         DropoffLatitude = request.PickupLocation.Latitude,
                         DropoffLongitude = request.PickupLocation.Longitude,
                         IntermediateStops = intermediateStopsJson != null && request.IntermediateStops != null
-                            ? System.Text.Json.JsonSerializer.Serialize(Enumerable.Reverse(request.IntermediateStops).ToList()) 
+                            ? System.Text.Json.JsonSerializer.Serialize(Enumerable.Reverse(request.IntermediateStops).ToList())
                             : null, // Reverse intermediate stops for return
                         SegmentPrices = segmentPricesJson != null && request.SegmentPrices != null
                             ? System.Text.Json.JsonSerializer.Serialize(Enumerable.Reverse(request.SegmentPrices).ToList())
@@ -293,6 +354,9 @@ namespace RideSharing.API.Controllers
                         TotalSeats = request.TotalSeats,
                         BookedSeats = 0,
                         PricePerSeat = request.PricePerSeat,
+                        Distance = totalDistance,
+                        Duration = totalDuration,
+                        RouteStopsTimingJson = returnRouteStopsTimingJson,
                         Status = "scheduled",
                         IsReturnTrip = true,
                         LinkedReturnRideId = ride.Id,

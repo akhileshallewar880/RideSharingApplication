@@ -1,5 +1,15 @@
 namespace RideSharing.API.Models.DTO
 {
+    /// <summary>
+    /// Per-stop cumulative timing data stored in Ride.RouteStopsTimingJson at schedule time
+    /// </summary>
+    public class RouteStopTimingData
+    {
+        public string Location { get; set; } = string.Empty;
+        public double CumulativeDistanceKm { get; set; }
+        public int CumulativeDurationMinutes { get; set; }
+    }
+
     // Request DTOs
     public class SegmentPriceDto
     {
