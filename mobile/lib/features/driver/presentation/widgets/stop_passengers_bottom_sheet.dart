@@ -1,12 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/models/driver_models.dart';
-import '../../../../core/services/driver_ride_service.dart';
 import '../../../../app/themes/app_colors.dart';
 import '../../../../app/themes/app_spacing.dart';
 import '../../../../app/themes/text_styles.dart';
 
-/// Bottom sheet showing passengers at a specific stop for OTP verification and cash collection
+/// Bottom sheet showing passengers at a specific stop for boarding and cash collection
 class StopPassengersBottomSheet extends ConsumerStatefulWidget {
   final String stopLocation;
   final String rideId;
@@ -26,33 +25,19 @@ class StopPassengersBottomSheet extends ConsumerStatefulWidget {
 }
 
 class _StopPassengersBottomSheetState extends ConsumerState<StopPassengersBottomSheet> {
-  final Map<String, TextEditingController> _otpControllers = {};
   final Map<String, bool> _cashCollected = {};
-  final Map<String, bool> _verifyingOtp = {}; // Track which OTPs are being verified
   final Map<String, String> _passengerStatuses = {}; // Track local boarding statuses
-  bool _hasVerifiedPassenger = false; // Track if any passenger was verified
+  bool _hasMarkedPassenger = false; // Track if any passenger was marked as boarded
 
   @override
   void initState() {
     super.initState();
-    // Initialize controllers for each pickup passenger
     for (var passenger in widget.pickupPassengers) {
-      _otpControllers[passenger.bookingId] = TextEditingController();
-      _verifyingOtp[passenger.bookingId] = false;
       _passengerStatuses[passenger.bookingId] = passenger.boardingStatus;
     }
-    // Initialize cash collection status
     for (var passenger in widget.dropoffPassengers) {
       _cashCollected[passenger.bookingId] = false;
     }
-  }
-
-  @override
-  void dispose() {
-    for (var controller in _otpControllers.values) {
-      controller.dispose();
-    }
-    super.dispose();
   }
 
   @override
@@ -71,7 +56,7 @@ class _StopPassengersBottomSheetState extends ConsumerState<StopPassengersBottom
         children: [
           // Handle bar
           Container(
-            margin: EdgeInsets.only(top: AppSpacing.sm),
+            margin: const EdgeInsets.only(top: AppSpacing.sm),
             width: 40,
             height: 4,
             decoration: BoxDecoration(
@@ -79,14 +64,14 @@ class _StopPassengersBottomSheetState extends ConsumerState<StopPassengersBottom
               borderRadius: BorderRadius.circular(2),
             ),
           ),
-          
+
           // Header
           Padding(
-            padding: EdgeInsets.all(AppSpacing.lg),
+            padding: const EdgeInsets.all(AppSpacing.lg),
             child: Row(
               children: [
                 Icon(Icons.location_on, color: AppColors.primaryYellow),
-                SizedBox(width: AppSpacing.sm),
+                const SizedBox(width: AppSpacing.sm),
                 Expanded(
                   child: Text(
                     widget.stopLocation,
@@ -96,37 +81,37 @@ class _StopPassengersBottomSheetState extends ConsumerState<StopPassengersBottom
                   ),
                 ),
                 IconButton(
-                  icon: Icon(Icons.close),
-                  onPressed: () => Navigator.pop(context, _hasVerifiedPassenger),
+                  icon: const Icon(Icons.close),
+                  onPressed: () => Navigator.pop(context, _hasMarkedPassenger),
                 ),
               ],
             ),
           ),
-          
-          Divider(height: 1),
-          
+
+          const Divider(height: 1),
+
           // Content
           Flexible(
             child: SingleChildScrollView(
-              padding: EdgeInsets.all(AppSpacing.lg),
+              padding: const EdgeInsets.all(AppSpacing.lg),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   // Pickup passengers
                   if (hasPickups) ...[
                     _buildSectionHeader('Boarding Passengers', Icons.arrow_circle_up, AppColors.success, isDark),
-                    SizedBox(height: AppSpacing.md),
-                    ...widget.pickupPassengers.map((passenger) => 
+                    const SizedBox(height: AppSpacing.md),
+                    ...widget.pickupPassengers.map((passenger) =>
                       _buildPickupPassengerCard(passenger, isDark)
                     ),
-                    if (hasDropoffs) SizedBox(height: AppSpacing.xl),
+                    if (hasDropoffs) const SizedBox(height: AppSpacing.xl),
                   ],
-                  
+
                   // Dropoff passengers
                   if (hasDropoffs) ...[
                     _buildSectionHeader('Alighting Passengers', Icons.arrow_circle_down, AppColors.error, isDark),
-                    SizedBox(height: AppSpacing.md),
-                    ...widget.dropoffPassengers.map((passenger) => 
+                    const SizedBox(height: AppSpacing.md),
+                    ...widget.dropoffPassengers.map((passenger) =>
                       _buildDropoffPassengerCard(passenger, isDark)
                     ),
                   ],
@@ -143,7 +128,7 @@ class _StopPassengersBottomSheetState extends ConsumerState<StopPassengersBottom
     return Row(
       children: [
         Icon(icon, color: color, size: 20),
-        SizedBox(width: AppSpacing.sm),
+        const SizedBox(width: AppSpacing.sm),
         Text(
           title,
           style: TextStyles.bodyLarge.copyWith(
@@ -156,21 +141,19 @@ class _StopPassengersBottomSheetState extends ConsumerState<StopPassengersBottom
   }
 
   Widget _buildPickupPassengerCard(PassengerInfo passenger, bool isDark) {
-    final isVerified = _passengerStatuses[passenger.bookingId] == 'boarded';
-    final controller = _otpControllers[passenger.bookingId]!;
-    final isVerifying = _verifyingOtp[passenger.bookingId] ?? false;
+    final isBoarded = _passengerStatuses[passenger.bookingId] == 'boarded';
 
     return Container(
-      margin: EdgeInsets.only(bottom: AppSpacing.md),
-      padding: EdgeInsets.all(AppSpacing.md),
+      margin: const EdgeInsets.only(bottom: AppSpacing.md),
+      padding: const EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
-        color: isVerified 
-            ? AppColors.success.withOpacity(0.1)
+        color: isBoarded
+            ? AppColors.success.withValues(alpha: 0.1)
             : (isDark ? AppColors.darkBackground : AppColors.lightBackground),
         borderRadius: BorderRadius.circular(AppSpacing.radiusMD),
         border: Border.all(
-          color: isVerified ? AppColors.success : Colors.grey[300]!,
-          width: isVerified ? 2 : 1,
+          color: isBoarded ? AppColors.success : Colors.grey[300]!,
+          width: isBoarded ? 2 : 1,
         ),
       ),
       child: Column(
@@ -179,13 +162,13 @@ class _StopPassengersBottomSheetState extends ConsumerState<StopPassengersBottom
           Row(
             children: [
               CircleAvatar(
-                backgroundColor: isVerified ? AppColors.success : AppColors.primaryYellow,
+                backgroundColor: isBoarded ? AppColors.success : AppColors.primaryYellow,
                 child: Icon(
-                  isVerified ? Icons.check : Icons.person,
+                  isBoarded ? Icons.check : Icons.person,
                   color: Colors.white,
                 ),
               ),
-              SizedBox(width: AppSpacing.md),
+              const SizedBox(width: AppSpacing.md),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -206,9 +189,9 @@ class _StopPassengersBottomSheetState extends ConsumerState<StopPassengersBottom
                   ],
                 ),
               ),
-              if (isVerified)
+              if (isBoarded)
                 Container(
-                  padding: EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: 4),
+                  padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: 4),
                   decoration: BoxDecoration(
                     color: AppColors.success,
                     borderRadius: BorderRadius.circular(AppSpacing.radiusSM),
@@ -224,23 +207,23 @@ class _StopPassengersBottomSheetState extends ConsumerState<StopPassengersBottom
                 ),
             ],
           ),
-          
-          SizedBox(height: AppSpacing.md),
-          
+
+          const SizedBox(height: AppSpacing.md),
+
           // Trip details
           Row(
             children: [
               Icon(Icons.people, size: 16, color: Colors.grey[600]),
-              SizedBox(width: AppSpacing.xs),
+              const SizedBox(width: AppSpacing.xs),
               Text(
                 '${passenger.passengerCount} ${passenger.passengerCount == 1 ? 'seat' : 'seats'}',
                 style: TextStyles.bodyMedium.copyWith(
                   color: isDark ? Colors.white70 : AppColors.lightTextSecondary,
                 ),
               ),
-              SizedBox(width: AppSpacing.md),
+              const SizedBox(width: AppSpacing.md),
               Icon(Icons.location_on, size: 16, color: Colors.grey[600]),
-              SizedBox(width: AppSpacing.xs),
+              const SizedBox(width: AppSpacing.xs),
               Expanded(
                 child: Text(
                   'To: ${passenger.dropoffLocation}',
@@ -252,73 +235,25 @@ class _StopPassengersBottomSheetState extends ConsumerState<StopPassengersBottom
               ),
             ],
           ),
-          
-          if (!isVerified) ...[
-            SizedBox(height: AppSpacing.md),
-            
-            // OTP Input
-            Row(
-              children: [
-                Expanded(
-                  flex: 2,
-                  child: TextField(
-                    controller: controller,
-                    keyboardType: TextInputType.number,
-                    maxLength: 4,
-                    onChanged: (value) {
-                      // Auto-verify when 4 digits are entered
-                      if (value.length == 4 && !isVerifying) {
-                        _verifyOtp(passenger, value);
-                      }
-                    },
-                    decoration: InputDecoration(
-                      labelText: 'Enter OTP',
-                      hintText: '4-digit OTP',
-                      counterText: '',
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(AppSpacing.radiusSM),
-                      ),
-                      contentPadding: EdgeInsets.symmetric(
-                        horizontal: AppSpacing.md,
-                        vertical: AppSpacing.sm,
-                      ),
-                    ),
+
+          if (!isBoarded) ...[
+            const SizedBox(height: AppSpacing.md),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: () => _markAsBoarded(passenger),
+                icon: const Icon(Icons.check_circle_outline),
+                label: const Text('Mark as Boarded'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.success,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(AppSpacing.radiusSM),
                   ),
                 ),
-                SizedBox(width: AppSpacing.sm),
-                Expanded(
-                  flex: 1,
-                  child: ElevatedButton(
-                    onPressed: isVerifying ? null : () => _verifyOtp(passenger, controller.text),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: isVerifying ? Colors.grey : AppColors.success,
-                      padding: EdgeInsets.symmetric(vertical: AppSpacing.md),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(AppSpacing.radiusSM),
-                      ),
-                    ),
-                    child: isVerifying
-                        ? SizedBox(
-                            height: 16,
-                            width: 16,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                            ),
-                          )
-                        : Text(
-                            'Verify',
-                            style: TextStyles.bodyMedium.copyWith(
-                              color: Colors.white,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                  ),
-                ),
-              ],
+              ),
             ),
-            
-            // OTP removed from display
           ],
         ],
       ),
@@ -329,11 +264,11 @@ class _StopPassengersBottomSheetState extends ConsumerState<StopPassengersBottom
     final cashCollected = _cashCollected[passenger.bookingId] ?? false;
 
     return Container(
-      margin: EdgeInsets.only(bottom: AppSpacing.md),
-      padding: EdgeInsets.all(AppSpacing.md),
+      margin: const EdgeInsets.only(bottom: AppSpacing.md),
+      padding: const EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
         color: cashCollected
-            ? AppColors.success.withOpacity(0.1)
+            ? AppColors.success.withValues(alpha: 0.1)
             : (isDark ? AppColors.darkBackground : AppColors.lightBackground),
         borderRadius: BorderRadius.circular(AppSpacing.radiusMD),
         border: Border.all(
@@ -353,7 +288,7 @@ class _StopPassengersBottomSheetState extends ConsumerState<StopPassengersBottom
                   color: Colors.white,
                 ),
               ),
-              SizedBox(width: AppSpacing.md),
+              const SizedBox(width: AppSpacing.md),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -376,7 +311,7 @@ class _StopPassengersBottomSheetState extends ConsumerState<StopPassengersBottom
               ),
               if (cashCollected)
                 Container(
-                  padding: EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: 4),
+                  padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: 4),
                   decoration: BoxDecoration(
                     color: AppColors.success,
                     borderRadius: BorderRadius.circular(AppSpacing.radiusSM),
@@ -392,23 +327,23 @@ class _StopPassengersBottomSheetState extends ConsumerState<StopPassengersBottom
                 ),
             ],
           ),
-          
-          SizedBox(height: AppSpacing.md),
-          
+
+          const SizedBox(height: AppSpacing.md),
+
           // Trip details
           Row(
             children: [
               Icon(Icons.people, size: 16, color: Colors.grey[600]),
-              SizedBox(width: AppSpacing.xs),
+              const SizedBox(width: AppSpacing.xs),
               Text(
                 '${passenger.passengerCount} ${passenger.passengerCount == 1 ? 'seat' : 'seats'}',
                 style: TextStyles.bodyMedium.copyWith(
                   color: isDark ? Colors.white70 : AppColors.lightTextSecondary,
                 ),
               ),
-              SizedBox(width: AppSpacing.md),
+              const SizedBox(width: AppSpacing.md),
               Icon(Icons.location_on, size: 16, color: Colors.grey[600]),
-              SizedBox(width: AppSpacing.xs),
+              const SizedBox(width: AppSpacing.xs),
               Expanded(
                 child: Text(
                   'From: ${passenger.pickupLocation}',
@@ -420,14 +355,14 @@ class _StopPassengersBottomSheetState extends ConsumerState<StopPassengersBottom
               ),
             ],
           ),
-          
-          SizedBox(height: AppSpacing.md),
-          
+
+          const SizedBox(height: AppSpacing.md),
+
           // Payment info
           Container(
-            padding: EdgeInsets.all(AppSpacing.sm),
+            padding: const EdgeInsets.all(AppSpacing.sm),
             decoration: BoxDecoration(
-              color: AppColors.primaryYellow.withOpacity(0.1),
+              color: AppColors.primaryYellow.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(AppSpacing.radiusSM),
             ),
             child: Row(
@@ -450,9 +385,9 @@ class _StopPassengersBottomSheetState extends ConsumerState<StopPassengersBottom
               ],
             ),
           ),
-          
-          SizedBox(height: AppSpacing.sm),
-          
+
+          const SizedBox(height: AppSpacing.sm),
+
           // Cash collection button
           SizedBox(
             width: double.infinity,
@@ -462,7 +397,7 @@ class _StopPassengersBottomSheetState extends ConsumerState<StopPassengersBottom
               label: Text(cashCollected ? 'Cash Collected' : 'Collect Cash'),
               style: ElevatedButton.styleFrom(
                 backgroundColor: cashCollected ? Colors.grey : AppColors.success,
-                padding: EdgeInsets.symmetric(vertical: AppSpacing.md),
+                padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(AppSpacing.radiusSM),
                 ),
@@ -475,88 +410,44 @@ class _StopPassengersBottomSheetState extends ConsumerState<StopPassengersBottom
   }
 
   String _calculateFare(PassengerInfo passenger) {
-    // This is a placeholder - you would calculate actual fare based on segment pricing
     return '250';
+  }
+
+  void _markAsBoarded(PassengerInfo passenger) {
+    setState(() {
+      _passengerStatuses[passenger.bookingId] = 'boarded';
+      _hasMarkedPassenger = true;
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            const Icon(Icons.check_circle, color: Colors.white),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text('${passenger.passengerName} marked as boarded!'),
+            ),
+          ],
+        ),
+        backgroundColor: AppColors.success,
+        duration: const Duration(seconds: 2),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
   }
 
   void _markCashCollected(String bookingId) {
     setState(() {
       _cashCollected[bookingId] = true;
     });
-    
+
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
+      const SnackBar(
         content: Text('Cash collection marked ✓'),
         backgroundColor: AppColors.success,
         duration: Duration(seconds: 2),
       ),
     );
-  }
-
-  Future<void> _verifyOtp(PassengerInfo passenger, String enteredOtp) async {
-    if (enteredOtp.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Please enter OTP'),
-          backgroundColor: AppColors.error,
-          duration: Duration(seconds: 2),
-        ),
-      );
-      return;
-    }
-
-    // Set loading state
-    setState(() {
-      _verifyingOtp[passenger.bookingId] = true;
-    });
-
-    try {
-      print('🔄 Verifying OTP for ${passenger.passengerName}...');
-      final service = DriverRideService();
-      await service.verifyPassengerOtp(
-        widget.rideId,
-        passenger.bookingId,
-        VerifyOtpRequest(otp: enteredOtp),
-      );
-      
-      print('✅ OTP verified successfully for ${passenger.passengerName}');
-      
-      if (mounted) {
-        // Clear loading state and update passenger status
-        setState(() {
-          _verifyingOtp[passenger.bookingId] = false;
-          _passengerStatuses[passenger.bookingId] = 'boarded';
-          _hasVerifiedPassenger = true;
-        });
-        
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Row(
-              children: [
-                Icon(Icons.check_circle, color: Colors.white),
-                SizedBox(width: 8),
-                Expanded(
-                  child: Text('${passenger.passengerName} verified successfully!'),
-                ),
-              ],
-            ),
-            backgroundColor: AppColors.success,
-            duration: Duration(seconds: 2),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-        
-        // Clear the OTP field after successful verification
-        _otpControllers[passenger.bookingId]?.clear();
-      }
-    } catch (e) {
-      print('❌ OTP verification failed: $e');
-      if (mounted) {
-        // Clear loading state
-        setState(() {
-          _verifyingOtp[passenger.bookingId] = false;
-        });
-      }
-    }
   }
 }

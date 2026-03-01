@@ -6,6 +6,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../../../core/models/driver_models.dart';
 import '../../../../core/providers/driver_ride_provider.dart';
 import '../../../../core/providers/location_tracking_provider.dart';
+import '../../../../core/providers/location_provider.dart';
 import '../../../../app/themes/app_colors.dart';
 import '../../../../app/themes/app_spacing.dart';
 import '../../../../app/themes/text_styles.dart';
@@ -31,22 +32,75 @@ class DriverTrackingScreen extends ConsumerStatefulWidget {
 class _DriverTrackingScreenState extends ConsumerState<DriverTrackingScreen> {
   int _currentStopIndex = 0;
   DateTime? _tripStartTime;
-  
+  // Pre-fetched coordinates for all stops: stopName (normalized) -> {lat, lng}
+  final Map<String, Map<String, double>> _stopCoordinates = {};
+
   // Get the latest ride details from provider, fallback to widget param
   RideDetailsWithPassengers get rideDetails {
     final providerState = ref.read(driverRideNotifierProvider);
     return providerState.currentRideDetails ?? widget.rideDetails;
   }
-  
+
   @override
   void initState() {
     super.initState();
-    // Record trip start time
     _tripStartTime = DateTime.now();
-    // Start tracking when screen loads
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(locationTrackingProvider.notifier).startTracking(widget.rideId);
+      _prefetchStopCoordinates();
     });
+  }
+
+  /// Seed coordinates for every stop in the route.
+  /// Pickup/dropoff come directly from the ride entity (always set).
+  /// Intermediate stops are resolved via the location search API.
+  Future<void> _prefetchStopCoordinates() async {
+    final rd = rideDetails;
+
+    String normalize(String s) => s.split(',').first.trim().toLowerCase();
+
+    // Pickup
+    if (rd.pickupLatitude != 0.0 || rd.pickupLongitude != 0.0) {
+      _stopCoordinates[normalize(rd.pickupLocation)] = {
+        'lat': rd.pickupLatitude,
+        'lng': rd.pickupLongitude,
+      };
+    }
+
+    // Dropoff
+    if (rd.dropoffLatitude != 0.0 || rd.dropoffLongitude != 0.0) {
+      _stopCoordinates[normalize(rd.dropoffLocation)] = {
+        'lat': rd.dropoffLatitude,
+        'lng': rd.dropoffLongitude,
+      };
+    }
+
+    // Intermediate stops — fetch via location search API
+    if (rd.intermediateStops != null) {
+      final locationService = ref.read(locationServiceProvider);
+      for (final stopName in rd.intermediateStops!) {
+        final key = normalize(stopName);
+        if (_stopCoordinates.containsKey(key)) continue;
+        try {
+          final results = await locationService.searchLocations(key);
+          if (results.isNotEmpty &&
+              results.first.latitude != null &&
+              results.first.longitude != null) {
+            _stopCoordinates[key] = {
+              'lat': results.first.latitude!,
+              'lng': results.first.longitude!,
+            };
+            debugPrint('✅ Fetched coords for "$stopName": ${results.first.latitude}, ${results.first.longitude}');
+          } else {
+            debugPrint('⚠️ No coords found via API for "$stopName"');
+          }
+        } catch (e) {
+          debugPrint('⚠️ Error fetching coords for "$stopName": $e');
+        }
+      }
+    }
+
+    if (mounted) setState(() {});
   }
   
   @override
@@ -176,73 +230,81 @@ class _DriverTrackingScreenState extends ConsumerState<DriverTrackingScreen> {
           ),
         ],
       ),
-      bottomNavigationBar: Container(
-        padding: EdgeInsets.all(AppSpacing.lg),
-        decoration: BoxDecoration(
-          color: isDark ? AppColors.darkSurface : Colors.white,
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black12,
-              blurRadius: 8,
-              offset: Offset(0, -2),
-            ),
-          ],
-        ),
-        child: Row(
-          children: [
-            // Manage Stop Button
-            Expanded(
-              child: ElevatedButton.icon(
-                onPressed: () async {
-                  final result = await _showStopPassengersSheet(allStops[_currentStopIndex]);
-                  // Reload ride details if OTP was verified
-                  if (result == true && mounted) {
-                    await ref.read(driverRideNotifierProvider.notifier).loadRideDetails(widget.rideId);
-                    setState(() {}); // Trigger rebuild with updated data
-                  }
-                },
-                icon: Icon(Icons.people, size: 20),
-                label: Text(
-                  'Manage Stop',
-                  style: TextStyles.bodyMedium.copyWith(
-                    fontWeight: FontWeight.bold,
+      bottomNavigationBar: SafeArea(
+        child: Container(
+          padding: EdgeInsets.all(AppSpacing.md),
+          decoration: BoxDecoration(
+            color: isDark ? AppColors.darkSurface : Colors.white,
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black12,
+                blurRadius: 8,
+                offset: Offset(0, -2),
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              // Manage Stop Button
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: () async {
+                    final result = await _showStopPassengersSheet(allStops[_currentStopIndex]);
+                    // Reload ride details after managing stop
+                    if (result == true && mounted) {
+                      await ref.read(driverRideNotifierProvider.notifier).loadRideDetails(widget.rideId);
+                      setState(() {}); // Trigger rebuild with updated data
+                    }
+                  },
+                  icon: const Icon(Icons.people, size: 18),
+                  label: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      'Manage Stop',
+                      style: TextStyles.bodyMedium.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                   ),
-                ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primaryYellow,
-                  foregroundColor: Colors.white,
-                  padding: EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(AppSpacing.radiusMD),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primaryYellow,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(AppSpacing.radiusMD),
+                    ),
+                    elevation: 2,
                   ),
-                  elevation: 2,
                 ),
               ),
-            ),
-            SizedBox(width: AppSpacing.md),
-            // Complete Trip Button
-            Expanded(
-              child: ElevatedButton.icon(
-                onPressed: _completeTrip,
-                icon: Icon(Icons.check_circle, size: 20),
-                label: Text(
-                  'Complete Trip',
-                  style: TextStyles.bodyMedium.copyWith(
-                    fontWeight: FontWeight.bold,
+              SizedBox(width: AppSpacing.md),
+              // Complete Trip Button
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: _completeTrip,
+                  icon: const Icon(Icons.check_circle, size: 18),
+                  label: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      'Complete Trip',
+                      style: TextStyles.bodyMedium.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                   ),
-                ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.success,
-                  foregroundColor: Colors.white,
-                  padding: EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(AppSpacing.radiusMD),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.success,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(AppSpacing.radiusMD),
+                    ),
+                    elevation: 2,
                   ),
-                  elevation: 2,
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -257,49 +319,59 @@ class _DriverTrackingScreenState extends ConsumerState<DriverTrackingScreen> {
     final intermediateStopDataList = trackingState.intermediateStops;
     
     // Helper to find coordinates for a location
-    Map<String, double>? findCoordinates(String locationName) {
+    Map<String, double>? findCoordinates(String? locationId, String locationName) {
       final normalized = locationName.split(',').first.trim().toLowerCase();
-      
-      // Check intermediate stops first
+
+      // 1. Pre-fetched coordinates (ride entity coords + location API results)
+      if (_stopCoordinates.containsKey(normalized)) {
+        final c = _stopCoordinates[normalized]!;
+        debugPrint('✅ Found pre-fetched coords for $locationName: ${c['lat']}, ${c['lng']}');
+        return c;
+      }
+
+      // 2. Exact ID match from passenger data
+      if (locationId != null && locationId.isNotEmpty) {
+        for (var passenger in rideDetails.passengers) {
+          if (passenger.pickupLocationId == locationId &&
+              passenger.pickupLatitude != null &&
+              passenger.pickupLongitude != null) {
+            debugPrint('✅ Found coords from passenger pickup (by ID) for $locationName');
+            return {'lat': passenger.pickupLatitude!, 'lng': passenger.pickupLongitude!};
+          }
+          if (passenger.dropoffLocationId == locationId &&
+              passenger.dropoffLatitude != null &&
+              passenger.dropoffLongitude != null) {
+            debugPrint('✅ Found coords from passenger dropoff (by ID) for $locationName');
+            return {'lat': passenger.dropoffLatitude!, 'lng': passenger.dropoffLongitude!};
+          }
+        }
+      }
+
+      // 3. Name match from tracking state intermediate stop data
       for (var stopData in intermediateStopDataList) {
         if (stopData.locationName.split(',').first.trim().toLowerCase() == normalized) {
-          debugPrint('✅ Found coordinates for $locationName: ${stopData.latitude}, ${stopData.longitude}');
-          return {
-            'lat': stopData.latitude,
-            'lng': stopData.longitude,
-          };
+          debugPrint('✅ Found coords for $locationName from tracking state');
+          return {'lat': stopData.latitude, 'lng': stopData.longitude};
         }
       }
-      
-      // For pickup/dropoff that aren't in intermediate stops, check passenger data
+
+      // 4. Name match from passenger pickup/dropoff coordinates
       for (var passenger in rideDetails.passengers) {
-        final pickupNormalized = passenger.pickupLocation.split(',').first.trim().toLowerCase();
-        final dropoffNormalized = passenger.dropoffLocation.split(',').first.trim().toLowerCase();
-        
-        // Check if this location matches passenger pickup with coordinates
-        if (pickupNormalized == normalized && 
-            passenger.pickupLatitude != null && 
+        if (passenger.pickupLocation.split(',').first.trim().toLowerCase() == normalized &&
+            passenger.pickupLatitude != null &&
             passenger.pickupLongitude != null) {
-          debugPrint('✅ Found coordinates from passenger pickup for $locationName: ${passenger.pickupLatitude}, ${passenger.pickupLongitude}');
-          return {
-            'lat': passenger.pickupLatitude!,
-            'lng': passenger.pickupLongitude!,
-          };
+          debugPrint('✅ Found coords from passenger pickup (by name) for $locationName');
+          return {'lat': passenger.pickupLatitude!, 'lng': passenger.pickupLongitude!};
         }
-        
-        // Check if this location matches passenger dropoff with coordinates
-        if (dropoffNormalized == normalized && 
-            passenger.dropoffLatitude != null && 
+        if (passenger.dropoffLocation.split(',').first.trim().toLowerCase() == normalized &&
+            passenger.dropoffLatitude != null &&
             passenger.dropoffLongitude != null) {
-          debugPrint('✅ Found coordinates from passenger dropoff for $locationName: ${passenger.dropoffLatitude}, ${passenger.dropoffLongitude}');
-          return {
-            'lat': passenger.dropoffLatitude!,
-            'lng': passenger.dropoffLongitude!,
-          };
+          debugPrint('✅ Found coords from passenger dropoff (by name) for $locationName');
+          return {'lat': passenger.dropoffLatitude!, 'lng': passenger.dropoffLongitude!};
         }
       }
-      
-      debugPrint('⚠️  No coordinates found for: $locationName');
+
+      debugPrint('⚠️  No coordinates found for: $locationName (ID: $locationId)');
       return null;
     }
     
@@ -307,21 +379,36 @@ class _DriverTrackingScreenState extends ConsumerState<DriverTrackingScreen> {
     final departureTime = DateTime.tryParse(rideDetails.departureTime) ?? DateTime.now();
     
     // Build ordered route: pickup -> intermediateStops -> dropoff
-    final List<String> orderedRoute = [];
-    orderedRoute.add(rideDetails.pickupLocation);
+    final List<Map<String, String?>> orderedRoute = [];
+    orderedRoute.add({
+      'name': rideDetails.pickupLocation,
+      'id': rideDetails.pickupLocationId,
+    });
     
     if (rideDetails.intermediateStops != null && rideDetails.intermediateStops!.isNotEmpty) {
-      orderedRoute.addAll(rideDetails.intermediateStops!);
+      for (int i = 0; i < rideDetails.intermediateStops!.length; i++) {
+        orderedRoute.add({
+          'name': rideDetails.intermediateStops![i],
+          'id': rideDetails.intermediateStopsIds != null && i < rideDetails.intermediateStopsIds!.length 
+              ? rideDetails.intermediateStopsIds![i] 
+              : null,
+        });
+      }
     }
     
-    orderedRoute.add(rideDetails.dropoffLocation);
+    orderedRoute.add({
+      'name': rideDetails.dropoffLocation,
+      'id': rideDetails.dropoffLocationId,
+    });
     
     // Helper function to normalize location for comparison
     String normalizeLocation(String location) {
       // Remove ", State" suffix and trim
       return location.split(',').first.trim().toLowerCase();
     }
-    
+
+    final normalizedOrigin = normalizeLocation(rideDetails.pickupLocation);
+
     // Count pickups and dropoffs at each location
     final Map<String, int> pickupCounts = {};
     final Map<String, int> dropoffCounts = {};
@@ -337,14 +424,15 @@ class _DriverTrackingScreenState extends ConsumerState<DriverTrackingScreen> {
     }
     
     // Count for origin
-    final normalizedOrigin = normalizeLocation(rideDetails.pickupLocation);
     int originPickupCount = rideDetails.passengers.where((p) => 
+      p.pickupLocationId == rideDetails.pickupLocationId || 
       normalizeLocation(p.pickupLocation) == normalizedOrigin
     ).length;
     
     // Count for destination
     final normalizedDestination = normalizeLocation(rideDetails.dropoffLocation);
     int destinationDropoffCount = rideDetails.passengers.where((p) => 
+      p.dropoffLocationId == rideDetails.dropoffLocationId ||
       normalizeLocation(p.dropoffLocation) == normalizedDestination
     ).length;
     
@@ -353,22 +441,26 @@ class _DriverTrackingScreenState extends ConsumerState<DriverTrackingScreen> {
       final normalizedPassengerDropoff = normalizeLocation(passenger.dropoffLocation);
       
       // Count pickups at each intermediate stop (excluding main origin)
-      if (normalizedPassengerPickup != normalizedOrigin) {
+      if (passenger.pickupLocationId != rideDetails.pickupLocationId &&
+          normalizedPassengerPickup != normalizedOrigin) {
         // Find matching stop in orderedRoute
         for (var stop in orderedRoute) {
-          if (normalizeLocation(stop) == normalizedPassengerPickup) {
-            pickupCounts[stop] = (pickupCounts[stop] ?? 0) + 1;
+          final stopName = stop['name'] ?? '';
+          if (passenger.pickupLocationId == stop['id'] || normalizeLocation(stopName) == normalizedPassengerPickup) {
+            pickupCounts[stopName] = (pickupCounts[stopName] ?? 0) + 1;
             break;
           }
         }
       }
       
       // Count dropoffs at each intermediate stop (excluding main destination)
-      if (normalizedPassengerDropoff != normalizedDestination) {
+      if (passenger.dropoffLocationId != rideDetails.dropoffLocationId &&
+          normalizedPassengerDropoff != normalizedDestination) {
         // Find matching stop in orderedRoute
         for (var stop in orderedRoute) {
-          if (normalizeLocation(stop) == normalizedPassengerDropoff) {
-            dropoffCounts[stop] = (dropoffCounts[stop] ?? 0) + 1;
+          final stopName = stop['name'] ?? '';
+          if (passenger.dropoffLocationId == stop['id'] || normalizeLocation(stopName) == normalizedPassengerDropoff) {
+            dropoffCounts[stopName] = (dropoffCounts[stopName] ?? 0) + 1;
             break;
           }
         }
@@ -385,7 +477,8 @@ class _DriverTrackingScreenState extends ConsumerState<DriverTrackingScreen> {
     // Create stops based on ordered route
     int cumulativeDuration = 0;
     for (int i = 0; i < orderedRoute.length; i++) {
-      final location = orderedRoute[i];
+      final location = orderedRoute[i]['name'] ?? '';
+      final locationId = orderedRoute[i]['id'];
       final isFirst = i == 0;
       final isLast = i == orderedRoute.length - 1;
       
@@ -425,13 +518,14 @@ class _DriverTrackingScreenState extends ConsumerState<DriverTrackingScreen> {
         }
       }
       
-      print('🚏 Stop: $location - Pickup: $pickupCount, Dropoff: $dropoffCount, SegDist: ${segmentDist?.toStringAsFixed(1)}km, SegDur: ${segmentDur}min');
+      print('🚏 Stop: $location (ID: $locationId) - Pickup: $pickupCount, Dropoff: $dropoffCount, SegDist: ${segmentDist?.toStringAsFixed(1)}km, SegDur: ${segmentDur}min');
       
       // Find coordinates for this stop
-      final coords = findCoordinates(location);
+      final coords = findCoordinates(locationId, location);
       print('   🎯 Coordinates for $location: ${coords?['lat']}, ${coords?['lng']}');
       
       stops.add(TrainStop(
+        id: locationId,
         name: location,
         distance: cumulativeDistance,
         time: departureTime.add(Duration(minutes: cumulativeDuration)),
@@ -684,67 +778,44 @@ class _DriverTrackingScreenState extends ConsumerState<DriverTrackingScreen> {
           
           SizedBox(height: AppSpacing.md),
           
-          // OTP and boarding status
-          Row(
-            children: [
-              Container(
-                padding: EdgeInsets.symmetric(
-                  horizontal: AppSpacing.sm,
-                  vertical: AppSpacing.xs,
-                ),
-                decoration: BoxDecoration(
+          // Boarding status
+          Container(
+            padding: EdgeInsets.symmetric(
+              horizontal: AppSpacing.sm,
+              vertical: AppSpacing.xs,
+            ),
+            decoration: BoxDecoration(
+              color: passenger.boardingStatus.toLowerCase() == 'boarded'
+                  ? AppColors.success.withOpacity(0.1)
+                  : AppColors.warning.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(AppSpacing.radiusSM),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  passenger.boardingStatus.toLowerCase() == 'boarded'
+                      ? Icons.check_circle
+                      : Icons.access_time,
+                  size: 16,
                   color: passenger.boardingStatus.toLowerCase() == 'boarded'
-                      ? AppColors.success.withOpacity(0.1)
-                      : AppColors.warning.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(AppSpacing.radiusSM),
+                      ? AppColors.success
+                      : AppColors.warning,
                 ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      passenger.boardingStatus.toLowerCase() == 'boarded' 
-                          ? Icons.check_circle 
-                          : Icons.access_time,
-                      size: 16,
-                      color: passenger.boardingStatus.toLowerCase() == 'boarded' 
-                          ? AppColors.success 
-                          : AppColors.warning,
-                    ),
-                    SizedBox(width: AppSpacing.xs),
-                    Text(
-                      passenger.boardingStatus.toLowerCase() == 'boarded' 
-                          ? 'Boarded' 
-                          : 'Pending',
-                      style: TextStyles.bodySmall.copyWith(
-                        color: passenger.boardingStatus.toLowerCase() == 'boarded' 
-                            ? AppColors.success 
-                            : AppColors.warning,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              SizedBox(width: AppSpacing.md),
-              Container(
-                padding: EdgeInsets.symmetric(
-                  horizontal: AppSpacing.sm,
-                  vertical: AppSpacing.xs,
-                ),
-                decoration: BoxDecoration(
-                  color: AppColors.info.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(AppSpacing.radiusSM),
-                ),
-                child: Text(
-                  'OTP: ${passenger.otp}',
+                SizedBox(width: AppSpacing.xs),
+                Text(
+                  passenger.boardingStatus.toLowerCase() == 'boarded'
+                      ? 'Boarded'
+                      : 'Pending',
                   style: TextStyles.bodySmall.copyWith(
-                    color: AppColors.info,
+                    color: passenger.boardingStatus.toLowerCase() == 'boarded'
+                        ? AppColors.success
+                        : AppColors.warning,
                     fontWeight: FontWeight.w600,
-                    letterSpacing: 1.5,
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
           
           SizedBox(height: AppSpacing.md),
@@ -1059,17 +1130,31 @@ class _DriverTrackingScreenState extends ConsumerState<DriverTrackingScreen> {
       itemBuilder: (context, index) {
         final stop = stops[index];
         final isCurrentStop = index == _currentStopIndex;
-        final isPassed = index < _currentStopIndex;
+        
+        // A stop is fully "passed" and checked off if we are strictly past it.
+        // Or if we are AT this current stop and have "arrived".
+        // For the sake of the track lines:
+        // Everything before `_currentStopIndex` is fully green.
+        final isPassed = index <= _currentStopIndex;
+        // BUT the line coming OUT of the current stop should only be green if we are tracking BETWEEN stops.
+        
         final isNext = index == _currentStopIndex + 1;
         
         // Check if vehicle is between this stop and the next
         final showVehicleBetween = vehiclePosition != null && 
+                                    vehiclePosition['atNodeIndex'] == null &&
                                     vehiclePosition['segmentIndex'] == index &&
                                     vehiclePosition['progress'] < 1.0;
+                                    
+        // Show vehicle ON the node if it's currently at this stop
+        final showVehicleHere = vehiclePosition != null && vehiclePosition['atNodeIndex'] == index;
+        
+        // Is vehicle departing dynamically?
+        final isVehicleDeparting = showVehicleBetween && index == _currentStopIndex;
         
         return Column(
           children: [
-            _buildStopItem(stop, isCurrentStop, isPassed, isNext, isDark, index == stops.length - 1, false),
+            _buildStopItem(stop, isCurrentStop, isPassed, isNext, isDark, index == stops.length - 1, showVehicleHere, isVehicleDeparting),
             
             // Show vehicle between stops if applicable
             if (showVehicleBetween && index < stops.length - 1)
@@ -1082,7 +1167,7 @@ class _DriverTrackingScreenState extends ConsumerState<DriverTrackingScreen> {
   
   /// Calculate vehicle position relative to stops
   Future<Map<String, dynamic>?> _calculateVehiclePosition(Position currentLocation, List<TrainStop> stops) async {
-    if (stops.length < 2) return null;
+    if (stops.length < 2) return {'atNodeIndex': _currentStopIndex};
     
     // Check if we have coordinates for stops
     bool hasCoordinates = false;
@@ -1095,23 +1180,40 @@ class _DriverTrackingScreenState extends ConsumerState<DriverTrackingScreen> {
     
     // If no stop coordinates available, just show vehicle at current stop index
     if (!hasCoordinates) {
-      debugPrint('⚠️  No stop coordinates available - showing vehicle at current stop index: $_currentStopIndex');
-      return {
-        'segmentIndex': _currentStopIndex,
-        'progress': 0.5, // Show in middle of segment
-      };
+      return {'atNodeIndex': _currentStopIndex};
     }
     
-    // Find closest segment (pair of stops)
+    // Check if we are physically close to ANY node (under 4km radius)
+    // Find the tightest overlapping node in case multiple nodes are close in dense areas
+    int? closestNodeIndex;
+    double minNodeDistance = 4.0;
+    for (int i = 0; i < stops.length; i++) {
+        if (stops[i].latitude != null && stops[i].longitude != null) {
+            final dist = _calculateDistance(
+               currentLocation.latitude, currentLocation.longitude, 
+               stops[i].latitude!, stops[i].longitude!
+            );
+            if (dist < minNodeDistance) {
+                minNodeDistance = dist;
+                closestNodeIndex = i;
+            }
+        }
+    }
+    
+    // Lock tracker directly onto this node if one matches
+    if (closestNodeIndex != null) {
+       return {'atNodeIndex': closestNodeIndex};
+    }
+
+    // Find closest segment (pair of stops) since we are 'between' nodes
     double minDistanceToSegment = double.infinity;
-    int closestSegmentIndex = 0;
+    int closestSegmentIndex = _currentStopIndex < stops.length - 1 ? _currentStopIndex : stops.length - 2;
     double progressOnSegment = 0.0;
     
     for (int i = 0; i < stops.length - 1; i++) {
-      // Get coordinates from stop objects
       if (stops[i].latitude != null && stops[i].longitude != null &&
           stops[i + 1].latitude != null && stops[i + 1].longitude != null) {
-        // Calculate distance from current position to both stops
+        
         final distToFrom = _calculateDistance(
           currentLocation.latitude, currentLocation.longitude,
           stops[i].latitude!, stops[i].longitude!,
@@ -1125,29 +1227,35 @@ class _DriverTrackingScreenState extends ConsumerState<DriverTrackingScreen> {
           stops[i + 1].latitude!, stops[i + 1].longitude!,
         );
         
-        // Check if vehicle is roughly on this segment
         final totalDist = distToFrom + distToTo;
         final deviation = (totalDist - segmentLength).abs();
         
         if (deviation < minDistanceToSegment) {
           minDistanceToSegment = deviation;
           closestSegmentIndex = i;
-          // Calculate progress along segment (0.0 = at from, 1.0 = at to)
           progressOnSegment = segmentLength > 0 ? distToFrom / segmentLength : 0.0;
         }
       }
     }
     
-    debugPrint('🚗 Vehicle on segment $closestSegmentIndex, progress: ${(progressOnSegment * 100).toStringAsFixed(1)}%');
+    // Ensure the segment is actually one we haven't fully passed or aren't far behind
+    if (closestSegmentIndex < _currentStopIndex) {
+        closestSegmentIndex = _currentStopIndex;
+        progressOnSegment = 0.0;
+    }
     
     return {
       'segmentIndex': closestSegmentIndex,
       'progress': progressOnSegment.clamp(0.0, 1.0),
+      'atNodeIndex': null,
     };
   }
   
   /// Build vehicle icon between stops
   Widget _buildVehicleBetweenStops(double progress, bool isDark) {
+    final vehicleY = (progress * 48).clamp(0.0, 48.0);
+    final vehicleCenterY = vehicleY + 12; // center point of the 24px icon
+
     return SizedBox(
       height: 60,
       child: Row(
@@ -1158,10 +1266,20 @@ class _DriverTrackingScreenState extends ConsumerState<DriverTrackingScreen> {
             child: Stack(
               clipBehavior: Clip.none,
               children: [
-                // Line segment
+                // Top half of line (green)
                 Positioned(
                   left: 16,
                   top: 0,
+                  height: vehicleCenterY,
+                  child: Container(
+                    width: 3,
+                    color: AppColors.success,
+                  ),
+                ),
+                // Bottom half of line (grey)
+                Positioned(
+                  left: 16,
+                  top: vehicleCenterY,
                   bottom: 0,
                   child: Container(
                     width: 3,
@@ -1171,7 +1289,7 @@ class _DriverTrackingScreenState extends ConsumerState<DriverTrackingScreen> {
                 // Vehicle icon at progress position
                 Positioned(
                   left: 5.5,
-                  top: (progress * 48).clamp(0.0, 48.0), // Clamp to prevent overflow, 48 = 60 - 12 (icon height)
+                  top: vehicleY,
                   child: Container(
                     width: 24,
                     height: 24,
@@ -1202,7 +1320,7 @@ class _DriverTrackingScreenState extends ConsumerState<DriverTrackingScreen> {
     );
   }
 
-  Widget _buildStopItem(TrainStop stop, bool isCurrent, bool isPassed, bool isNext, bool isDark, bool isLast, bool showVehicleHere) {
+  Widget _buildStopItem(TrainStop stop, bool isCurrent, bool isPassed, bool isNext, bool isDark, bool isLast, bool showVehicleHere, bool isVehicleDeparting) {
     return IntrinsicHeight(
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1249,23 +1367,19 @@ class _DriverTrackingScreenState extends ConsumerState<DriverTrackingScreen> {
                   width: 24,
                   height: 24,
                   decoration: BoxDecoration(
-                    color: isCurrent 
-                        ? AppColors.primaryYellow 
-                        : isPassed 
-                            ? AppColors.success 
-                            : Colors.grey[300],
+                    color: isPassed 
+                        ? AppColors.success 
+                        : Colors.grey[300],
                     shape: stop.type == StopType.intermediate ? BoxShape.circle : BoxShape.rectangle,
                     borderRadius: stop.type != StopType.intermediate ? BorderRadius.circular(4) : null,
                     border: Border.all(
-                      color: isCurrent 
-                          ? AppColors.primaryOrange 
-                          : isPassed 
-                              ? AppColors.success 
-                              : Colors.grey[400]!,
-                      width: isCurrent ? 3 : 2,
+                      color: isPassed 
+                          ? AppColors.success 
+                          : Colors.grey[400]!,
+                      width: showVehicleHere ? 3 : 2,
                     ),
                   ),
-                  child: isCurrent 
+                  child: showVehicleHere 
                       ? Icon(Icons.directions_car, size: 14, color: Colors.white)
                       : isPassed 
                           ? Icon(Icons.check, size: 14, color: Colors.white)
@@ -1277,7 +1391,14 @@ class _DriverTrackingScreenState extends ConsumerState<DriverTrackingScreen> {
                   Expanded(
                     child: Container(
                       width: 3,
-                      color: isPassed ? AppColors.success : Colors.grey[300],
+                      // The line below the node connects to the next segment.
+                      // If the vehicle has completely passed this node (`!isCurrent`), it's green.
+                      // If the vehicle is currently departing this node towards the next (`isCurrent` && `isVehicleDeparting`), it must be green to connect to the top of the next segment.
+                      // If the vehicle is definitively parked AT this node (`isCurrent` && `!isVehicleDeparting`), it remains grey.
+                      // If the node hasn't been reached at all (`!isPassed`), it's grey.
+                      color: isPassed && (!isCurrent || isVehicleDeparting) 
+                          ? AppColors.success 
+                          : Colors.grey[300],
                     ),
                   ),
               ],
@@ -1648,6 +1769,7 @@ class _DriverTrackingScreenState extends ConsumerState<DriverTrackingScreen> {
 
 // Data models for train-style stops
 class TrainStop {
+  final String? id;
   final String name;
   final double distance;
   final DateTime time; // Scheduled ETA
@@ -1662,6 +1784,7 @@ class TrainStop {
   final double? longitude; // Stop coordinates
   
   TrainStop({
+    this.id,
     required this.name,
     required this.distance,
     required this.time,

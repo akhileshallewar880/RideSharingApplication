@@ -474,49 +474,9 @@ class _RideHistoryScreenState extends ConsumerState<RideHistoryScreen> with Sing
             
             SizedBox(height: 16),
             
-            // OTP & Vehicle Details skeletons (side by side)
+            // Vehicle Details skeleton
             Row(
               children: [
-                Expanded(
-                  child: Container(
-                    padding: EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: isDark ? Colors.grey[850] : Colors.grey[100],
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Container(
-                          height: 12,
-                          width: 60,
-                          decoration: BoxDecoration(
-                            color: isDark ? Colors.grey[800] : Colors.grey[300],
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                        )
-                            .animate(onPlay: (controller) => controller.repeat())
-                            .shimmer(duration: 1500.ms, color: Colors.white.withOpacity(0.3)),
-                        
-                        SizedBox(height: 8),
-                        
-                        Container(
-                          height: 20,
-                          width: 80,
-                          decoration: BoxDecoration(
-                            color: isDark ? Colors.grey[800] : Colors.grey[300],
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                        )
-                            .animate(onPlay: (controller) => controller.repeat())
-                            .shimmer(duration: 1500.ms, color: Colors.white.withOpacity(0.3)),
-                      ],
-                    ),
-                  ),
-                ),
-                
-                SizedBox(width: 12),
-                
                 Expanded(
                   child: Container(
                     padding: EdgeInsets.all(12),
@@ -832,91 +792,7 @@ class _RideHistoryCard extends StatelessWidget {
             ),
             SizedBox(height: AppSpacing.sm),
 
-            // OTP Card - Only for upcoming rides (not active/verified)
-            if (isClickable && ride.otp != null && ride.otp!.isNotEmpty && !ride.isVerified)
-              Container(
-                padding: EdgeInsets.all(AppSpacing.md),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
-                      AppColors.primaryGreen,
-                      AppColors.primaryGreen.withOpacity(0.8),
-                    ],
-                  ),
-                  borderRadius: BorderRadius.circular(AppSpacing.radiusMD),
-                  boxShadow: [
-                    BoxShadow(
-                      color: AppColors.primaryGreen.withOpacity(0.3),
-                      blurRadius: 8,
-                      offset: Offset(0, 2),
-                    ),
-                  ],
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Row(
-                      children: [
-                        Container(
-                          padding: EdgeInsets.all(AppSpacing.xs),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.2),
-                            borderRadius: BorderRadius.circular(AppSpacing.radiusSM),
-                          ),
-                          child: Icon(
-                            Icons.key,
-                            size: 20,
-                            color: Colors.white,
-                          ),
-                        ),
-                        SizedBox(width: AppSpacing.sm),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Ride OTP',
-                              style: TextStyles.bodySmall.copyWith(
-                                color: Colors.white.withOpacity(0.9),
-                                fontSize: 11,
-                              ),
-                            ),
-                            SizedBox(height: 2),
-                            Text(
-                              ride.otp!,
-                              style: TextStyles.headingLarge.copyWith(
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
-                                letterSpacing: 4,
-                                fontSize: 24,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                    Container(
-                      padding: EdgeInsets.symmetric(
-                        horizontal: AppSpacing.sm,
-                        vertical: AppSpacing.xs,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.2),
-                        borderRadius: BorderRadius.circular(AppSpacing.radiusSM),
-                      ),
-                      child: Text(
-                        'Share with driver',
-                        style: TextStyles.bodySmall.copyWith(
-                          color: Colors.white,
-                          fontSize: 10,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            if (isClickable && ride.otp != null && ride.otp!.isNotEmpty)
-              SizedBox(height: AppSpacing.sm),
+
 
             // Seat Numbers - Display if available
             if (ride.selectedSeats != null && ride.selectedSeats!.isNotEmpty)
