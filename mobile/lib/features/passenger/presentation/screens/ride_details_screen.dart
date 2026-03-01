@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
-import 'package:qr_flutter/qr_flutter.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:allapalli_ride/app/themes/app_colors.dart';
 import 'package:allapalli_ride/app/themes/app_spacing.dart';
@@ -10,7 +8,7 @@ import 'package:allapalli_ride/shared/widgets/buttons.dart';
 import 'package:allapalli_ride/features/passenger/domain/models/vehicle_option.dart';
 import 'package:allapalli_ride/core/models/passenger_ride_models.dart';
 
-/// Ride details screen with QR code and booking information
+/// Ride details screen with booking confirmation information
 class RideDetailsScreen extends StatefulWidget {
   final String pickupLocation;
   final String dropoffLocation;
@@ -19,7 +17,7 @@ class RideDetailsScreen extends StatefulWidget {
   final DateTime travelDate;
   final String timeSlot;
   final BookingResponse? bookingResponse;
-  
+
   const RideDetailsScreen({
     super.key,
     required this.pickupLocation,
@@ -37,18 +35,17 @@ class RideDetailsScreen extends StatefulWidget {
 
 class _RideDetailsScreenState extends State<RideDetailsScreen> {
   final AudioPlayer _audioPlayer = AudioPlayer();
-  
+
   @override
   void dispose() {
     _audioPlayer.dispose();
     super.dispose();
   }
-  
+
   String get _bookingId => widget.bookingResponse?.bookingNumber ?? 'ALR${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}';
-  String get _otp => widget.bookingResponse?.otp ?? '${DateTime.now().millisecondsSinceEpoch % 10000}'.padLeft(4, '0');
   String get _dateStr => '${widget.travelDate.day}/${widget.travelDate.month}/${widget.travelDate.year}';
   int get _estimatedPrice => widget.bookingResponse?.totalFare.toInt() ?? (widget.vehicle.basePrice + (5 * widget.vehicle.pricePerKm));
-  
+
   Future<void> _playCancellationSound() async {
     try {
       await _audioPlayer.play(AssetSource('sounds/ride_cancellation.mp3'));
@@ -56,7 +53,7 @@ class _RideDetailsScreenState extends State<RideDetailsScreen> {
       print('Error playing cancellation sound: $e');
     }
   }
-  
+
   void _showRescheduleDialog(BuildContext context) {
     showDialog(
       context: context,
@@ -85,7 +82,7 @@ class _RideDetailsScreenState extends State<RideDetailsScreen> {
       ),
     );
   }
-  
+
   void _showCancelDialog(BuildContext context) {
     showDialog(
       context: context,
@@ -100,10 +97,10 @@ class _RideDetailsScreenState extends State<RideDetailsScreen> {
           ElevatedButton(
             onPressed: () async {
               Navigator.pop(context);
-              
+
               // Play cancellation sound
               await _playCancellationSound();
-              
+
               Navigator.pop(context); // Go back to home
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
@@ -121,32 +118,11 @@ class _RideDetailsScreenState extends State<RideDetailsScreen> {
       ),
     );
   }
-  
-  void _copyOtp(BuildContext context) {
-    Clipboard.setData(ClipboardData(text: _otp));
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('OTP copied to clipboard'),
-        duration: Duration(seconds: 2),
-        backgroundColor: AppColors.success,
-      ),
-    );
-  }
-  
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    
-    // Set white status bar
-    SystemChrome.setSystemUIOverlayStyle(
-      SystemUiOverlayStyle(
-        statusBarColor: Colors.white,
-        statusBarIconBrightness: Brightness.dark,
-        systemNavigationBarColor: isDark ? AppColors.darkSurface : Colors.white,
-        systemNavigationBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
-      ),
-    );
-    
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Ride Details'),
@@ -184,8 +160,8 @@ class _RideDetailsScreenState extends State<RideDetailsScreen> {
                         Text(
                           'ID: $_bookingId',
                           style: TextStyles.caption.copyWith(
-                            color: isDark 
-                                ? AppColors.darkTextSecondary 
+                            color: isDark
+                                ? AppColors.darkTextSecondary
                                 : AppColors.lightTextSecondary,
                           ),
                         ),
@@ -195,13 +171,13 @@ class _RideDetailsScreenState extends State<RideDetailsScreen> {
                 ],
               ),
             ).animate().fadeIn(duration: 400.ms).slideY(begin: -0.2, end: 0),
-            
+
             const SizedBox(height: AppSpacing.md),
-            
-            // QR Code & OTP Section - Compact
+
+            // Booking Summary Section
             Expanded(
               child: Container(
-                padding: const EdgeInsets.all(AppSpacing.md),
+                padding: const EdgeInsets.all(AppSpacing.lg),
                 decoration: BoxDecoration(
                   color: isDark ? AppColors.darkCardBg : AppColors.lightCardBg,
                   borderRadius: AppSpacing.borderRadiusMD,
@@ -212,72 +188,52 @@ class _RideDetailsScreenState extends State<RideDetailsScreen> {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
+                    Container(
+                      width: 80,
+                      height: 80,
+                      decoration: BoxDecoration(
+                        color: AppColors.success.withOpacity(0.1),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        Icons.directions_car,
+                        size: 44,
+                        color: AppColors.success,
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.lg),
                     Text(
-                      'Show QR Code to Driver',
-                      style: TextStyles.bodyLarge.copyWith(
+                      'Your ride is booked!',
+                      style: TextStyles.headingMedium.copyWith(
                         fontWeight: FontWeight.bold,
                       ),
                     ),
                     const SizedBox(height: AppSpacing.sm),
-                    Container(
-                      padding: const EdgeInsets.all(AppSpacing.sm),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: AppSpacing.borderRadiusMD,
-                      ),
-                      child: QrImageView(
-                        data: 'ALR:$_bookingId:$_otp',
-                        version: QrVersions.auto,
-                        size: 140.0,
-                        backgroundColor: Colors.white,
-                      ),
-                    ),
-                    const SizedBox(height: AppSpacing.sm),
                     Text(
-                      'OR',
-                      style: TextStyles.caption.copyWith(
-                        color: isDark 
-                            ? AppColors.darkTextSecondary 
+                      'Booking ID: $_bookingId',
+                      style: TextStyles.bodyMedium.copyWith(
+                        color: isDark
+                            ? AppColors.darkTextSecondary
                             : AppColors.lightTextSecondary,
                       ),
                     ),
-                    const SizedBox(height: AppSpacing.xs),
-                    InkWell(
-                      onTap: () => _copyOtp(context),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: AppSpacing.lg,
-                          vertical: AppSpacing.sm,
-                        ),
-                        decoration: BoxDecoration(
-                          color: AppColors.primaryYellow.withOpacity(0.2),
-                          borderRadius: AppSpacing.borderRadiusMD,
-                          border: Border.all(color: AppColors.primaryYellow, width: 2),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              _otp,
-                              style: TextStyles.headingLarge.copyWith(
-                                color: AppColors.primaryYellow,
-                                fontWeight: FontWeight.bold,
-                                letterSpacing: 6,
-                              ),
-                            ),
-                            const SizedBox(width: AppSpacing.sm),
-                            Icon(Icons.copy, color: AppColors.primaryYellow, size: 18),
-                          ],
-                        ),
-                      ),
-                    ),
+                    const SizedBox(height: AppSpacing.xl),
+                    _buildSummaryRow(Icons.location_on, 'From', widget.pickupLocation, AppColors.success, isDark),
+                    const SizedBox(height: AppSpacing.md),
+                    _buildSummaryRow(Icons.location_on, 'To', widget.dropoffLocation, AppColors.error, isDark),
+                    const SizedBox(height: AppSpacing.md),
+                    _buildSummaryRow(Icons.calendar_today, 'Date', _dateStr, AppColors.info, isDark),
+                    const SizedBox(height: AppSpacing.md),
+                    _buildSummaryRow(Icons.access_time, 'Time', widget.timeSlot, AppColors.info, isDark),
+                    const SizedBox(height: AppSpacing.md),
+                    _buildSummaryRow(Icons.payments, 'Fare', '₹$_estimatedPrice (Cash)', AppColors.primaryGreen, isDark),
                   ],
                 ),
               ).animate().fadeIn(delay: 100.ms).scale(begin: const Offset(0.95, 0.95), delay: 100.ms),
             ),
-            
+
             const SizedBox(height: AppSpacing.md),
-            
+
             // Ride Information - Compact
             Container(
               padding: const EdgeInsets.all(AppSpacing.md),
@@ -294,56 +250,9 @@ class _RideDetailsScreenState extends State<RideDetailsScreen> {
                     children: [
                       Expanded(
                         child: _CompactInfoRow(
-                          icon: Icons.location_on,
-                          iconColor: AppColors.success,
-                          label: widget.pickupLocation,
-                        ),
-                      ),
-                      Icon(Icons.arrow_forward, size: 16, color: isDark ? AppColors.darkTextTertiary : AppColors.lightTextTertiary),
-                      const SizedBox(width: AppSpacing.xs),
-                      Expanded(
-                        child: _CompactInfoRow(
-                          icon: Icons.location_on,
-                          iconColor: AppColors.error,
-                          label: widget.dropoffLocation,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: AppSpacing.sm),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _CompactInfoRow(
-                          icon: Icons.calendar_today,
-                          iconColor: AppColors.info,
-                          label: _dateStr,
-                        ),
-                      ),
-                      Expanded(
-                        child: _CompactInfoRow(
-                          icon: Icons.access_time,
-                          iconColor: AppColors.info,
-                          label: widget.timeSlot,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: AppSpacing.sm),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _CompactInfoRow(
                           icon: widget.vehicle.icon,
                           iconColor: AppColors.primaryYellow,
                           label: '${widget.vehicle.name} • ${widget.passengerCount} pax',
-                        ),
-                      ),
-                      Expanded(
-                        child: _CompactInfoRow(
-                          icon: Icons.payments,
-                          iconColor: AppColors.success,
-                          label: '₹$_estimatedPrice (Cash)',
                         ),
                       ),
                     ],
@@ -351,9 +260,9 @@ class _RideDetailsScreenState extends State<RideDetailsScreen> {
                 ],
               ),
             ).animate().fadeIn(delay: 200.ms).slideY(begin: 0.1, end: 0, delay: 200.ms),
-            
+
             const SizedBox(height: AppSpacing.md),
-            
+
             // Important Note - Compact
             Container(
               padding: const EdgeInsets.all(AppSpacing.sm),
@@ -368,7 +277,7 @@ class _RideDetailsScreenState extends State<RideDetailsScreen> {
                   const SizedBox(width: AppSpacing.sm),
                   Expanded(
                     child: Text(
-                      'Arrive 15 min early at bus stop • Show QR/OTP to driver',
+                      'Arrive 15 min early at the pickup point',
                       style: TextStyles.caption.copyWith(
                         color: AppColors.primaryYellow,
                         fontWeight: FontWeight.w600,
@@ -378,9 +287,9 @@ class _RideDetailsScreenState extends State<RideDetailsScreen> {
                 ],
               ),
             ).animate().fadeIn(delay: 300.ms),
-            
+
             const SizedBox(height: AppSpacing.md),
-            
+
             // Action Buttons
             Row(
               children: [
@@ -415,6 +324,31 @@ class _RideDetailsScreenState extends State<RideDetailsScreen> {
       ),
     );
   }
+
+  Widget _buildSummaryRow(IconData icon, String label, String value, Color iconColor, bool isDark) {
+    return Row(
+      children: [
+        Icon(icon, size: 18, color: iconColor),
+        const SizedBox(width: AppSpacing.sm),
+        Text(
+          '$label: ',
+          style: TextStyles.bodyMedium.copyWith(
+            color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
+          ),
+        ),
+        Expanded(
+          child: Text(
+            value,
+            style: TextStyles.bodyMedium.copyWith(
+              fontWeight: FontWeight.w600,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+      ],
+    );
+  }
 }
 
 // Compact info row widget
@@ -422,13 +356,13 @@ class _CompactInfoRow extends StatelessWidget {
   final IconData icon;
   final Color iconColor;
   final String label;
-  
+
   const _CompactInfoRow({
     required this.icon,
     required this.iconColor,
     required this.label,
   });
-  
+
   @override
   Widget build(BuildContext context) {
     return Row(

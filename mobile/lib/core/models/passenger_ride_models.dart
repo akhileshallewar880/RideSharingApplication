@@ -1,11 +1,13 @@
 /// Passenger ride related models
 
 class Location {
+  final String id;
   final String address;
   final double latitude;
   final double longitude;
 
   Location({
+    this.id = '',
     required this.address,
     required this.latitude,
     required this.longitude,
@@ -13,6 +15,7 @@ class Location {
 
   factory Location.fromJson(Map<String, dynamic> json) {
     return Location(
+      id: json['id'] ?? '',
       address: json['address'] ?? '',
       latitude: (json['latitude'] ?? 0.0).toDouble(),
       longitude: (json['longitude'] ?? 0.0).toDouble(),
@@ -20,6 +23,7 @@ class Location {
   }
 
   Map<String, dynamic> toJson() => {
+        'id': id,
         'address': address,
         'latitude': latitude,
         'longitude': longitude,
@@ -27,15 +31,15 @@ class Location {
 }
 
 class SearchRidesRequest {
-  final Location pickupLocation;
-  final Location dropoffLocation;
+  final String pickupLocationId;
+  final String dropoffLocationId;
   final String travelDate;
   final int passengerCount;
   final String? vehicleType;
 
   SearchRidesRequest({
-    required this.pickupLocation,
-    required this.dropoffLocation,
+    required this.pickupLocationId,
+    required this.dropoffLocationId,
     required this.travelDate,
     required this.passengerCount,
     this.vehicleType,
@@ -43,8 +47,8 @@ class SearchRidesRequest {
 
   Map<String, dynamic> toJson() {
     final map = {
-      'pickupLocation': pickupLocation.toJson(),
-      'dropoffLocation': dropoffLocation.toJson(),
+      'pickupLocationId': pickupLocationId,
+      'dropoffLocationId': dropoffLocationId,
       'travelDate': travelDate,
       'passengerCount': passengerCount,
     };
@@ -173,16 +177,16 @@ class AvailableRide {
 class BookRideRequest {
   final String rideId;
   final int passengerCount;
-  final Location pickupLocation;
-  final Location dropoffLocation;
+  final String pickupLocationId;
+  final String dropoffLocationId;
   final String paymentMethod;
   final List<String>? selectedSeats;
 
   BookRideRequest({
     required this.rideId,
     required this.passengerCount,
-    required this.pickupLocation,
-    required this.dropoffLocation,
+    required this.pickupLocationId,
+    required this.dropoffLocationId,
     required this.paymentMethod,
     this.selectedSeats,
   });
@@ -191,8 +195,8 @@ class BookRideRequest {
     final json = <String, dynamic>{
       'rideId': rideId,
       'passengerCount': passengerCount,
-      'pickupLocation': pickupLocation.toJson(),
-      'dropoffLocation': dropoffLocation.toJson(),
+      'pickupLocationId': pickupLocationId,
+      'dropoffLocationId': dropoffLocationId,
       'paymentMethod': paymentMethod,
     };
     

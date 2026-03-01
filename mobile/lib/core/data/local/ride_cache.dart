@@ -47,6 +47,15 @@ class CachedRide {
   @HiveField(13)
   final double? currentLongitude;
   
+  @HiveField(14)
+  final String? pickupLocationId;
+  
+  @HiveField(15)
+  final String? dropoffLocationId;
+  
+  @HiveField(16)
+  final List<String>? intermediateStopsIds;
+  
   CachedRide({
     required this.rideId,
     required this.rideNumber,
@@ -62,6 +71,9 @@ class CachedRide {
     required this.cachedAt,
     this.currentLatitude,
     this.currentLongitude,
+    this.pickupLocationId,
+    this.dropoffLocationId,
+    this.intermediateStopsIds,
   });
   
   CachedRide copyWith({
@@ -85,6 +97,9 @@ class CachedRide {
       cachedAt: DateTime.now(),
       currentLatitude: currentLatitude ?? this.currentLatitude,
       currentLongitude: currentLongitude ?? this.currentLongitude,
+      pickupLocationId: pickupLocationId,
+      dropoffLocationId: dropoffLocationId,
+      intermediateStopsIds: intermediateStopsIds,
     );
   }
 }
@@ -122,6 +137,12 @@ class CachedPassenger {
   @HiveField(9)
   final bool paymentCollected;
   
+  @HiveField(10)
+  final String? pickupLocationId;
+  
+  @HiveField(11)
+  final String? dropoffLocationId;
+  
   CachedPassenger({
     required this.bookingId,
     required this.passengerName,
@@ -133,6 +154,8 @@ class CachedPassenger {
     required this.paymentStatus,
     required this.totalFare,
     this.paymentCollected = false,
+    this.pickupLocationId,
+    this.dropoffLocationId,
   });
   
   CachedPassenger copyWith({
@@ -151,6 +174,8 @@ class CachedPassenger {
       paymentStatus: paymentStatus ?? this.paymentStatus,
       totalFare: totalFare,
       paymentCollected: paymentCollected ?? this.paymentCollected,
+      pickupLocationId: pickupLocationId,
+      dropoffLocationId: dropoffLocationId,
     );
   }
 }
@@ -185,6 +210,9 @@ class IntermediateStopData {
   @HiveField(8)
   final bool isPassed;
   
+  @HiveField(9)
+  final String? locationId;
+  
   IntermediateStopData({
     required this.locationName,
     required this.latitude,
@@ -195,6 +223,7 @@ class IntermediateStopData {
     required this.pickupPassengerNames,
     required this.dropoffPassengerNames,
     this.isPassed = false,
+    this.locationId,
   });
 }
 

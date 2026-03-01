@@ -830,16 +830,8 @@ class _PassengerHomeScreenState extends ConsumerState<PassengerHomeScreen> with 
     
     // Search for available rides
     final searchRequest = SearchRidesRequest(
-      pickupLocation: Location(
-        address: _selectedPickup!.fullAddress,
-        latitude: _selectedPickup!.latitude ?? 0.0,
-        longitude: _selectedPickup!.longitude ?? 0.0,
-      ),
-      dropoffLocation: Location(
-        address: _selectedDropoff!.fullAddress,
-        latitude: _selectedDropoff!.latitude ?? 0.0,
-        longitude: _selectedDropoff!.longitude ?? 0.0,
-      ),
+      pickupLocationId: _selectedPickup!.id,
+      dropoffLocationId: _selectedDropoff!.id,
       travelDate: formattedDate,
       passengerCount: _passengerCount,
     );
@@ -859,11 +851,13 @@ class _PassengerHomeScreenState extends ConsumerState<PassengerHomeScreen> with 
         MaterialPageRoute(
           builder: (context) => RideResultsScreen(
             pickupLocation: Location(
+              id: _selectedPickup!.id,
               address: _selectedPickup!.fullAddress,
               latitude: _selectedPickup!.latitude ?? 0.0,
               longitude: _selectedPickup!.longitude ?? 0.0,
             ),
             dropoffLocation: Location(
+              id: _selectedDropoff!.id,
               address: _selectedDropoff!.fullAddress,
               latitude: _selectedDropoff!.latitude ?? 0.0,
               longitude: _selectedDropoff!.longitude ?? 0.0,
@@ -1371,16 +1365,8 @@ class _PassengerHomeScreenState extends ConsumerState<PassengerHomeScreen> with 
     final bookRequest = BookRideRequest(
       rideId: ride.rideId,
       passengerCount: _passengerCount,
-      pickupLocation: Location(
-        address: _selectedPickup!.fullAddress,
-        latitude: _selectedPickup!.latitude ?? 0.0,
-        longitude: _selectedPickup!.longitude ?? 0.0,
-      ),
-      dropoffLocation: Location(
-        address: _selectedDropoff!.fullAddress,
-        latitude: _selectedDropoff!.latitude ?? 0.0,
-        longitude: _selectedDropoff!.longitude ?? 0.0,
-      ),
+      pickupLocationId: _selectedPickup!.id,
+      dropoffLocationId: _selectedDropoff!.id,
       paymentMethod: 'cash',
     );
     

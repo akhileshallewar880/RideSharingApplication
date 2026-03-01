@@ -69,9 +69,12 @@ class LocationDto {
 }
 
 class ScheduleRideRequest {
+  final String pickupLocationId;
+  final String dropoffLocationId;
   final LocationDto pickupLocation;
   final LocationDto dropoffLocation;
-  final List<String>? intermediateStops; // New: intermediate towns
+  final List<String>? intermediateStops; // stop names sent as "intermediateStops" (what server expects)
+  final List<String>? intermediateStopsIds; // stop IDs sent alongside names
   final String travelDate; // ISO 8601 date
   final String departureTime; // HH:mm format
   final int totalSeats;
@@ -84,9 +87,12 @@ class ScheduleRideRequest {
   final List<SegmentPrice>? segmentPrices; // New: pricing for route segments
 
   ScheduleRideRequest({
+    required this.pickupLocationId,
+    required this.dropoffLocationId,
     required this.pickupLocation,
     required this.dropoffLocation,
     this.intermediateStops,
+    this.intermediateStopsIds,
     required this.travelDate,
     required this.departureTime,
     required this.totalSeats,
@@ -100,10 +106,15 @@ class ScheduleRideRequest {
   });
 
   Map<String, dynamic> toJson() => {
+        'pickupLocationId': pickupLocationId,
+        'dropoffLocationId': dropoffLocationId,
         'pickupLocation': pickupLocation.toJson(),
         'dropoffLocation': dropoffLocation.toJson(),
+        // "intermediateStops" is what the server's ScheduleRideRequestDto.IntermediateStops maps to
         if (intermediateStops != null && intermediateStops!.isNotEmpty)
           'intermediateStops': intermediateStops,
+        if (intermediateStopsIds != null && intermediateStopsIds!.isNotEmpty)
+          'intermediateStopsIds': intermediateStopsIds,
         'travelDate': travelDate,
         'departureTime': departureTime,
         'totalSeats': totalSeats,
@@ -111,9 +122,9 @@ class ScheduleRideRequest {
         if (vehicleModelId != null) 'vehicleModelId': vehicleModelId,
         if (vehicleType != null) 'vehicleType': vehicleType,
         'scheduleReturnTrip': scheduleReturnTrip,
-        if (returnDepartureTime != null) 
+        if (returnDepartureTime != null)
           'returnDepartureTime': returnDepartureTime,
-        if (linkedReturnRideId != null) 
+        if (linkedReturnRideId != null)
           'linkedReturnRideId': linkedReturnRideId,
         if (segmentPrices != null && segmentPrices!.isNotEmpty)
           'segmentPrices': segmentPrices!.map((s) => s.toJson()).toList(),
@@ -155,8 +166,11 @@ class ScheduleRideResponse {
 class DriverRide {
   final String rideId;
   final String rideNumber;
+  final String pickupLocationId;
+  final String dropoffLocationId;
   final String pickupLocation;
   final String dropoffLocation;
+  final List<String>? intermediateStopsIds;
   final List<String>? intermediateStops; // New: intermediate towns
   final String departureTime;
   final String date; // Travel date
@@ -176,8 +190,11 @@ class DriverRide {
   DriverRide({
     required this.rideId,
     required this.rideNumber,
+    required this.pickupLocationId,
+    required this.dropoffLocationId,
     required this.pickupLocation,
     required this.dropoffLocation,
+    this.intermediateStopsIds,
     this.intermediateStops,
     required this.departureTime,
     required this.date,
@@ -199,8 +216,13 @@ class DriverRide {
     return DriverRide(
       rideId: json['rideId'] ?? '',
       rideNumber: json['rideNumber'] ?? '',
+      pickupLocationId: json['pickupLocationId'] ?? '',
+      dropoffLocationId: json['dropoffLocationId'] ?? '',
       pickupLocation: json['pickupLocation'] ?? '',
       dropoffLocation: json['dropoffLocation'] ?? '',
+      intermediateStopsIds: json['intermediateStopsIds'] != null
+          ? List<String>.from(json['intermediateStopsIds'])
+          : null,
       intermediateStops: json['intermediateStops'] != null
           ? List<String>.from(json['intermediateStops'])
           : null,
@@ -231,6 +253,8 @@ class PassengerInfo {
   final String passengerName;
   final String phoneNumber;
   final int passengerCount;
+  final String pickupLocationId;
+  final String dropoffLocationId;
   final String pickupLocation;
   final String dropoffLocation;
   final double? pickupLatitude;
@@ -248,6 +272,8 @@ class PassengerInfo {
     required this.passengerName,
     required this.phoneNumber,
     required this.passengerCount,
+    required this.pickupLocationId,
+    required this.dropoffLocationId,
     required this.pickupLocation,
     required this.dropoffLocation,
     this.pickupLatitude,
@@ -267,6 +293,8 @@ class PassengerInfo {
       passengerName: json['name'] ?? '',
       phoneNumber: json['phoneNumber'] ?? '',
       passengerCount: json['passengerCount'] ?? 0,
+      pickupLocationId: json['pickupLocationId'] ?? '',
+      dropoffLocationId: json['dropoffLocationId'] ?? '',
       pickupLocation: json['pickupLocation'] ?? '',
       dropoffLocation: json['dropoffLocation'] ?? '',
       pickupLatitude: json['pickupLatitude']?.toDouble(),
@@ -285,8 +313,15 @@ class PassengerInfo {
 class RideDetailsWithPassengers {
   final String rideId;
   final String rideNumber;
+  final String pickupLocationId;
+  final String dropoffLocationId;
   final String pickupLocation;
   final String dropoffLocation;
+  final double pickupLatitude;
+  final double pickupLongitude;
+  final double dropoffLatitude;
+  final double dropoffLongitude;
+  final List<String>? intermediateStopsIds;
   final List<String>? intermediateStops;
   final String departureTime;
   final String status;
@@ -300,8 +335,15 @@ class RideDetailsWithPassengers {
   RideDetailsWithPassengers({
     required this.rideId,
     required this.rideNumber,
+    required this.pickupLocationId,
+    required this.dropoffLocationId,
     required this.pickupLocation,
     required this.dropoffLocation,
+    this.pickupLatitude = 0.0,
+    this.pickupLongitude = 0.0,
+    this.dropoffLatitude = 0.0,
+    this.dropoffLongitude = 0.0,
+    this.intermediateStopsIds,
     this.intermediateStops,
     required this.departureTime,
     required this.status,
@@ -317,8 +359,17 @@ class RideDetailsWithPassengers {
     return RideDetailsWithPassengers(
       rideId: json['rideId'] ?? '',
       rideNumber: json['rideNumber'] ?? '',
+      pickupLocationId: json['pickupLocationId'] ?? '',
+      dropoffLocationId: json['dropoffLocationId'] ?? '',
       pickupLocation: json['pickupLocation'] ?? '',
       dropoffLocation: json['dropoffLocation'] ?? '',
+      pickupLatitude: (json['pickupLatitude'] as num?)?.toDouble() ?? 0.0,
+      pickupLongitude: (json['pickupLongitude'] as num?)?.toDouble() ?? 0.0,
+      dropoffLatitude: (json['dropoffLatitude'] as num?)?.toDouble() ?? 0.0,
+      dropoffLongitude: (json['dropoffLongitude'] as num?)?.toDouble() ?? 0.0,
+      intermediateStopsIds: json['intermediateStopsIds'] != null
+          ? List<String>.from(json['intermediateStopsIds'])
+          : null,
       intermediateStops: json['intermediateStops'] != null
           ? List<String>.from(json['intermediateStops'])
           : null,

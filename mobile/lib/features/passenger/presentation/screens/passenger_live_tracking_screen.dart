@@ -55,24 +55,17 @@ class _PassengerLiveTrackingScreenState extends ConsumerState<PassengerLiveTrack
     
     // Build list of stops
     final allStops = _buildStopsList();
-    
-    // Check if driver has started the ride - must have location AND ride must be active/in-progress
-    final rideStatus = widget.rideDetails.status.toLowerCase();
-    final isRideActive = rideStatus == 'active' || rideStatus == 'in-progress' || rideStatus == 'in_progress';
-    final hasDriverStarted = driverLocation != null && trackingState.isSocketConnected && isRideActive;
-    
-    // Find current stop based on driver location
-    if (hasDriverStarted) {
+
+    // Update current stop based on driver location
+    if (driverLocation != null) {
       _updateCurrentStop(driverLocation, allStops);
     }
-    
+
     // Calculate next stop and arrival time
     final nextStop = _getNextStop(allStops);
     final destinationStop = _getPassengerDestination(allStops);
     final arrivalTime = _getArrivalTime(allStops, destinationStop);
-    final statusText = hasDriverStarted 
-        ? (nextStop != null ? 'Heading towards' : 'Preparing to start')
-        : 'Driver yet to start';
+    final statusText = nextStop != null ? 'Heading towards' : 'En route';
     
     return Scaffold(
       backgroundColor: isDark ? AppColors.darkBackground : Colors.grey[50],
@@ -150,31 +143,17 @@ class _PassengerLiveTrackingScreenState extends ConsumerState<PassengerLiveTrack
                             fontSize: 13,
                           ),
                         ),
-                        if (hasDriverStarted) ...[
-                          SizedBox(height: 2),
-                          Text(
-                            nextStop?.name ?? widget.rideDetails.pickupLocation,
-                            style: TextStyles.headingMedium.copyWith(
-                              color: Colors.white,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 22,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
+                        SizedBox(height: 2),
+                        Text(
+                          nextStop?.name ?? widget.rideDetails.dropoffLocation,
+                          style: TextStyles.headingMedium.copyWith(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 22,
                           ),
-                        ] else ...[
-                          SizedBox(height: 2),
-                          Text(
-                            'Waiting for driver to begin',
-                            style: TextStyles.headingSmall.copyWith(
-                              color: Colors.white,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 18,
-                            ),
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ],
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
                         SizedBox(height: AppSpacing.sm),
                         Wrap(
                           spacing: 8,
@@ -185,15 +164,13 @@ class _PassengerLiveTrackingScreenState extends ConsumerState<PassengerLiveTrack
                               mainAxisSize: MainAxisSize.min,
                               children: [
                                 Icon(
-                                  hasDriverStarted ? Icons.schedule : Icons.access_time,
+                                  Icons.schedule,
                                   color: Colors.white,
                                   size: 16,
                                 ),
                                 SizedBox(width: 4),
                                 Text(
-                                  hasDriverStarted 
-                                      ? 'Arriving at ${_formatTime(arrivalTime)}'
-                                      : 'Scheduled: ${_formatTime(arrivalTime)}',
+                                  'Arriving at ${_formatTime(arrivalTime)}',
                                   style: TextStyles.bodyMedium.copyWith(
                                     color: Colors.white,
                                     fontWeight: FontWeight.w500,
@@ -211,7 +188,7 @@ class _PassengerLiveTrackingScreenState extends ConsumerState<PassengerLiveTrack
                               ),
                             ),
                             Text(
-                              hasDriverStarted ? 'On time' : 'Not started',
+                              trackingState.isSocketConnected ? 'Live' : 'Scheduled',
                               style: TextStyles.bodyMedium.copyWith(
                                 color: Colors.white,
                                 fontWeight: FontWeight.w500,
@@ -267,8 +244,6 @@ class _PassengerLiveTrackingScreenState extends ConsumerState<PassengerLiveTrack
   }
 
   Widget _buildStopsTimeline(List<TrainStop> stops, bool isDark, Position? driverLocation) {
-    final hasDriverStarted = driverLocation != null;
-    
     return Container(
       margin: EdgeInsets.all(AppSpacing.md),
       padding: EdgeInsets.all(AppSpacing.lg),
@@ -301,41 +276,7 @@ class _PassengerLiveTrackingScreenState extends ConsumerState<PassengerLiveTrack
                   fontWeight: FontWeight.bold,
                 ),
               ),
-              if (!hasDriverStarted) ...[
-                Spacer(),
-                Container(
-                  padding: EdgeInsets.symmetric(
-                    horizontal: AppSpacing.sm,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.orange.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: Colors.orange.withOpacity(0.3),
-                    ),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        Icons.schedule,
-                        size: 14,
-                        color: Colors.orange,
-                      ),
-                      SizedBox(width: 4),
-                      Text(
-                        'Waiting',
-                        style: TextStyles.bodySmall.copyWith(
-                          color: Colors.orange,
-                          fontWeight: FontWeight.w600,
-                          fontSize: 11,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
+
             ],
           ),
           SizedBox(height: AppSpacing.xl),

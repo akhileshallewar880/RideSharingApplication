@@ -24,8 +24,8 @@ class RideCheckoutScreen extends ConsumerStatefulWidget {
   final DateTime travelDate;
   final int passengerCount;
   
-  final Location pickupCoordinates;
-  final Location dropoffCoordinates;
+  final String pickupLocationId;
+  final String dropoffLocationId;
   
   const RideCheckoutScreen({
     super.key,
@@ -34,8 +34,8 @@ class RideCheckoutScreen extends ConsumerStatefulWidget {
     required this.dropoffLocation,
     required this.travelDate,
     required this.passengerCount,
-    required this.pickupCoordinates,
-    required this.dropoffCoordinates,
+    required this.pickupLocationId,
+    required this.dropoffLocationId,
   });
   
   @override
@@ -1895,8 +1895,8 @@ class _RideCheckoutScreenState extends ConsumerState<RideCheckoutScreen> {
     try {
       // First, verify the ride is still available and not cancelled
       final verificationRequest = SearchRidesRequest(
-        pickupLocation: widget.pickupCoordinates,
-        dropoffLocation: widget.dropoffCoordinates,
+        pickupLocationId: widget.pickupLocationId,
+        dropoffLocationId: widget.dropoffLocationId,
         travelDate: DateFormat('yyyy-MM-dd').format(widget.travelDate),
         passengerCount: _passengerCount,
       );
@@ -1930,8 +1930,8 @@ class _RideCheckoutScreenState extends ConsumerState<RideCheckoutScreen> {
       final bookRequest = BookRideRequest(
         rideId: widget.ride.rideId,
         passengerCount: _passengerCount,
-        pickupLocation: widget.pickupCoordinates,
-        dropoffLocation: widget.dropoffCoordinates,
+        pickupLocationId: widget.pickupLocationId,
+        dropoffLocationId: widget.dropoffLocationId,
         paymentMethod: _selectedUpiApp,
         selectedSeats: _selectedSeats.isEmpty ? null : _selectedSeats,
       );

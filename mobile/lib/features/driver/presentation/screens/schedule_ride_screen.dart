@@ -429,11 +429,11 @@ class _ScheduleRideScreenState extends ConsumerState<ScheduleRideScreen> {
     }
     
     if (_formKey.currentState!.validate()) {
-      // Prepare intermediate stops
-      final intermediateStops = _intermediateStopControllers
-          .where((controller) => controller.text.trim().isNotEmpty)
-          .map((controller) => controller.text.trim())
-          .toList();
+      // Prepare intermediate stop IDs and names
+      final validStops = _intermediateStops.where((loc) => loc != null).toList();
+      final intermediateStopsIds = validStops.map((loc) => loc!.id).toList();
+      // Server's ScheduleRideRequestDto.IntermediateStops expects stop names (not IDs)
+      final intermediateStopNames = validStops.map((loc) => loc!.name).toList();
 
       // Format travelDate (date only in ISO 8601)
       final travelDate = DateTime(
@@ -458,6 +458,8 @@ class _ScheduleRideScreenState extends ConsumerState<ScheduleRideScreen> {
       }
       
       final request = ScheduleRideRequest(
+        pickupLocationId: _selectedPickup!.id,
+        dropoffLocationId: _selectedDropoff!.id,
         pickupLocation: LocationDto(
           address: _selectedPickup!.fullAddress,
           latitude: _selectedPickup!.latitude ?? 0.0,
@@ -468,7 +470,8 @@ class _ScheduleRideScreenState extends ConsumerState<ScheduleRideScreen> {
           latitude: _selectedDropoff!.latitude ?? 0.0,
           longitude: _selectedDropoff!.longitude ?? 0.0,
         ),
-        intermediateStops: intermediateStops.isNotEmpty ? intermediateStops : null,
+        intermediateStops: intermediateStopNames.isNotEmpty ? intermediateStopNames : null,
+        intermediateStopsIds: intermediateStopsIds.isNotEmpty ? intermediateStopsIds : null,
         travelDate: travelDate,
         departureTime: departureTimeStr,
         totalSeats: int.parse(_totalSeatsController.text),
@@ -483,7 +486,7 @@ class _ScheduleRideScreenState extends ConsumerState<ScheduleRideScreen> {
       print('📤 Schedule Ride Request:');
       print('Pickup: ${_selectedPickup!.fullAddress}');
       print('Dropoff: ${_selectedDropoff!.fullAddress}');
-      print('Intermediate Stops: $intermediateStops');
+      print('Intermediate Stops IDs: $intermediateStopsIds');
       print('Travel Date: $travelDate');
       print('Departure Time: $departureTimeStr');
       print('Total Seats: ${_totalSeatsController.text}');

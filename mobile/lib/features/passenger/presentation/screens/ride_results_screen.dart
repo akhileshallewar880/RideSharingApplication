@@ -854,8 +854,8 @@ class _RideResultsScreenState extends ConsumerState<RideResultsScreen> {
   
   Future<void> _searchRidesForDate(DateTime date) async {
     final request = SearchRidesRequest(
-      pickupLocation: widget.pickupLocation,
-      dropoffLocation: widget.dropoffLocation,
+      pickupLocationId: widget.pickupLocation.id,
+      dropoffLocationId: widget.dropoffLocation.id,
       travelDate: DateFormat('yyyy-MM-dd').format(date),
       passengerCount: widget.passengerCount,
     );
@@ -1392,8 +1392,8 @@ class _RideResultsScreenState extends ConsumerState<RideResultsScreen> {
           dropoffLocation: widget.dropoffLocation.address,
           travelDate: widget.travelDate,
           passengerCount: widget.passengerCount,
-          pickupCoordinates: widget.pickupLocation,
-          dropoffCoordinates: widget.dropoffLocation,
+          pickupLocationId: widget.pickupLocation.id,
+          dropoffLocationId: widget.dropoffLocation.id,
         ),
       ),
     );
