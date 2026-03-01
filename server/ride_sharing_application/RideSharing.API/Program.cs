@@ -282,6 +282,33 @@ _ = Task.Run(async () =>
                 }
                 
                 logger.LogInformation("Application database schema creation completed: {0} created, {1} skipped", successCount, skipCount);
+
+                // Apply column additions for schema migrations (ADD COLUMN IF NOT EXISTS)
+                var columnMigrations = new[]
+                {
+                    // AddRouteStopsTimingJsonToRide - 2026-03-01
+                    @"IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS
+                        WHERE TABLE_NAME = 'Rides' AND COLUMN_NAME = 'RouteStopsTimingJson')
+                      BEGIN
+                          ALTER TABLE Rides ADD RouteStopsTimingJson NVARCHAR(MAX) NULL;
+                      END"
+                };
+
+                foreach (var colMigration in columnMigrations)
+                {
+                    try
+                    {
+                        using var cmd = appDbConnection.CreateCommand();
+                        cmd.CommandText = colMigration;
+                        await cmd.ExecuteNonQueryAsync();
+                    }
+                    catch (Exception colEx)
+                    {
+                        logger.LogWarning("Column migration warning: {Message}", colEx.Message);
+                    }
+                }
+
+                logger.LogInformation("Column migrations applied");
             }
             catch (Exception scriptEx)
             {
