@@ -52,14 +52,16 @@ class _PassengerLiveTrackingScreenState extends ConsumerState<PassengerLiveTrack
     final trackingState = ref.watch(locationTrackingProvider);
     final driverLocation = trackingState.driverLocation;
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    
+
+    // React to driver location changes — must NOT call setState inside build()
+    ref.listen<LocationTrackingState>(locationTrackingProvider, (previous, next) {
+      if (mounted && next.driverLocation != null) {
+        _updateCurrentStop(next.driverLocation!, _buildStopsList());
+      }
+    });
+
     // Build list of stops
     final allStops = _buildStopsList();
-
-    // Update current stop based on driver location
-    if (driverLocation != null) {
-      _updateCurrentStop(driverLocation, allStops);
-    }
 
     // Calculate next stop and arrival time
     final nextStop = _getNextStop(allStops);
@@ -274,6 +276,48 @@ class _PassengerLiveTrackingScreenState extends ConsumerState<PassengerLiveTrack
                 style: TextStyles.headingMedium.copyWith(
                   color: isDark ? Colors.white : AppColors.lightTextPrimary,
                   fontWeight: FontWeight.bold,
+                ),
+              ),
+              const Spacer(),
+              // Live / Scheduled indicator
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: driverLocation != null
+                      ? AppColors.primaryGreen.withValues(alpha: 0.12)
+                      : Colors.grey.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: driverLocation != null
+                        ? AppColors.primaryGreen.withValues(alpha: 0.4)
+                        : Colors.grey.withValues(alpha: 0.3),
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 6,
+                      height: 6,
+                      decoration: BoxDecoration(
+                        color: driverLocation != null
+                            ? AppColors.primaryGreen
+                            : Colors.grey,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                    SizedBox(width: 5),
+                    Text(
+                      driverLocation != null ? 'LIVE' : 'SCHEDULED',
+                      style: TextStyles.bodySmall.copyWith(
+                        color: driverLocation != null
+                            ? AppColors.primaryGreen
+                            : Colors.grey,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 10,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
@@ -615,53 +659,47 @@ class _PassengerLiveTrackingScreenState extends ConsumerState<PassengerLiveTrack
   }
 
   List<TrainStop> _buildStopsList() {
-    final stops = <TrainStop>[];
-    double cumulativeDistance = 0;
-    
-    // Parse departure time from scheduled time
     final departureTime = widget.rideDetails.scheduledDeparture != null
         ? DateTime.tryParse(widget.rideDetails.scheduledDeparture!) ?? DateTime.now()
         : DateTime.now();
-    
-    // Debug: Print intermediate stops
-    print('🚏 Building stops list:');
-    print('   Pickup: ${widget.rideDetails.pickupLocation}');
-    print('   Dropoff: ${widget.rideDetails.dropoffLocation}');
-    print('   Intermediate stops: ${widget.rideDetails.intermediateStops}');
-    
-    // Build route: pickup -> intermediate stops -> dropoff
-    final List<String> orderedRoute = [
-      widget.rideDetails.pickupLocation,
-    ];
-    
-    // Add intermediate stops if available
-    if (widget.rideDetails.intermediateStops != null && 
+
+    final passengerPickup = widget.rideDetails.pickupLocation;
+    final passengerDropoff = widget.rideDetails.dropoffLocation;
+
+    // Build the passenger's segment only.
+    // intermediateStops comes from the API and contains ALL intermediate stops
+    // of the full ride route.  If the passenger's dropoff is one of those
+    // intermediates, we must truncate the list at that point to avoid
+    // showing stops beyond their destination (and duplicating the dropoff name).
+    final List<String> fullRoute = [passengerPickup];
+    if (widget.rideDetails.intermediateStops != null &&
         widget.rideDetails.intermediateStops!.isNotEmpty) {
-      print('   ✅ Adding ${widget.rideDetails.intermediateStops!.length} intermediate stops');
-      orderedRoute.addAll(widget.rideDetails.intermediateStops!);
-    } else {
-      print('   ⚠️ No intermediate stops available');
+      fullRoute.addAll(widget.rideDetails.intermediateStops!);
     }
-    
-    orderedRoute.add(widget.rideDetails.dropoffLocation);
-    
-    print('   📍 Total stops in route: ${orderedRoute.length}');
-    
+
+    // Find where the passenger's dropoff sits in the full route.
+    final dropoffIdx = fullRoute.indexOf(passengerDropoff);
+    final List<String> orderedRoute;
+    if (dropoffIdx != -1) {
+      // Dropoff is one of the intermediate stops — trim everything after it.
+      orderedRoute = fullRoute.sublist(0, dropoffIdx + 1);
+    } else {
+      // Dropoff is the ride's final destination — append it.
+      orderedRoute = [...fullRoute, passengerDropoff];
+    }
+
+    final stops = <TrainStop>[];
+    double cumulativeDistance = 0;
     int cumulativeDuration = 0;
+
     for (int i = 0; i < orderedRoute.length; i++) {
       final location = orderedRoute[i];
       final isFirst = i == 0;
       final isLast = i == orderedRoute.length - 1;
-      
-      double? segmentDist;
-      int? segmentDur;
-      
-      if (!isFirst) {
-        // Estimate distance and duration
-        segmentDist = 20.0; // Default estimate
-        segmentDur = 30; // Default estimate
-      }
-      
+
+      const segmentDist = 20.0; // km estimate per segment
+      const segmentDur = 30;    // minutes estimate per segment
+
       stops.add(TrainStop(
         name: location,
         distance: cumulativeDistance,
@@ -669,80 +707,46 @@ class _PassengerLiveTrackingScreenState extends ConsumerState<PassengerLiveTrack
         type: isFirst ? StopType.start : (isLast ? StopType.end : StopType.intermediate),
         pickupCount: isFirst ? 1 : 0,
         dropoffCount: isLast ? 1 : 0,
-        segmentDistance: segmentDist,
-        segmentDuration: segmentDur,
+        segmentDistance: isFirst ? null : segmentDist,
+        segmentDuration: isFirst ? null : segmentDur,
       ));
-      
-      if (!isLast && segmentDist != null) {
+
+      if (!isLast) {
         cumulativeDistance += segmentDist;
-        cumulativeDuration += segmentDur ?? 30;
+        cumulativeDuration += segmentDur;
       }
     }
-    
+
     return stops;
   }
 
   void _updateCurrentStop(Position driverLocation, List<TrainStop> stops) {
-    // Find the stop closest to driver's current location using real GPS distance
+    // Stop coordinates are not available in RideHistoryItem, so we use
+    // time-based progression: advance to the highest stop whose scheduled
+    // arrival time has already passed.  This gives realistic progression
+    // driven by each incoming driver location update (socket ping).
     if (stops.isEmpty) return;
-    
-    // Get intermediate stops with coordinates from tracking state
-    final trackingState = ref.read(locationTrackingProvider);
-    final intermediateStopDataList = trackingState.intermediateStops;
-    
-    // Helper to find coordinates for a location
-    Map<String, double>? findCoordinates(String locationName) {
-      final normalized = locationName.split(',').first.trim().toLowerCase();
-      
-      for (var stopData in intermediateStopDataList) {
-        if (stopData.locationName.split(',').first.trim().toLowerCase() == normalized) {
-          return {
-            'lat': stopData.latitude,
-            'lng': stopData.longitude,
-          };
-        }
-      }
-      return null;
-    }
-    
-    // Find closest stop by GPS distance
-    double minDistance = double.infinity;
-    int closestStopIndex = _currentStopIndex;
-    
-    for (int i = 0; i < stops.length; i++) {
-      final coords = findCoordinates(stops[i].name);
-      
-      if (coords != null) {
-        final distance = _calculateDistance(
-          driverLocation.latitude,
-          driverLocation.longitude,
-          coords['lat']!,
-          coords['lng']!,
-        );
-        
-        if (distance < minDistance) {
-          minDistance = distance;
-          closestStopIndex = i;
-        }
+
+    final now = DateTime.now();
+    int newIndex = _currentStopIndex;
+
+    // Walk forward only — never go backwards
+    for (int i = _currentStopIndex + 1; i < stops.length; i++) {
+      if (now.isAfter(stops[i].time)) {
+        newIndex = i;
+      } else {
+        break; // stops are ordered chronologically
       }
     }
-    
-    // Update current stop if:
-    // 1. Within 4km of any stop (including destination)
-    // 2. The closest stop is at or ahead of current position
-    // 3. OR if it's the last stop (destination) and within 4km
-    final isDestination = closestStopIndex == stops.length - 1;
-    final shouldUpdate = minDistance < 4.0 && 
-                        (closestStopIndex >= _currentStopIndex || isDestination);
-    
-    if (shouldUpdate && _currentStopIndex != closestStopIndex) {
+
+    if (newIndex != _currentStopIndex) {
+      final closestStopIndex = newIndex;
+      final minDistance = 0.0; // not calculated — time-based
       setState(() {
         _currentStopIndex = closestStopIndex;
       });
+      _checkDestinationReached(stops, minDistance, closestStopIndex);
     }
-    
-    // Check if driver reached passenger's drop location
-    _checkDestinationReached(stops, minDistance, closestStopIndex);
   }
   
   void _checkDestinationReached(List<TrainStop> stops, double minDistance, int closestStopIndex) {
@@ -893,10 +897,6 @@ class _PassengerLiveTrackingScreenState extends ConsumerState<PassengerLiveTrack
     );
   }
   
-  double _calculateDistance(double lat1, double lon1, double lat2, double lon2) {
-    return Geolocator.distanceBetween(lat1, lon1, lat2, lon2) / 1000; // Convert to km
-  }
-
   double _calculateProgress(List<TrainStop> stops, Position driverLocation) {
     if (stops.isEmpty) return 0.0;
     return min(1.0, (_currentStopIndex + 0.5) / stops.length);

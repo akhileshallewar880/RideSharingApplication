@@ -324,6 +324,39 @@ class DriverRideNotifier extends StateNotifier<DriverRideState> {
     }
   }
 
+  /// Update intermediate stops (no admin approval required)
+  Future<bool> updateIntermediateStops(
+    String rideId,
+    List<String>? stops,
+    List<String>? stopIds,
+  ) async {
+    print('🗺️ Updating intermediate stops for ride: $rideId');
+    state = state.copyWith(isLoading: true, errorMessage: null);
+    try {
+      final request = UpdateIntermediateStopsRequest(
+        intermediateStops: stops,
+        intermediateStopIds: stopIds,
+      );
+      final response = await _service.updateIntermediateStops(rideId, request);
+
+      if (response.success) {
+        print('✅ Intermediate stops updated successfully');
+        await loadActiveRides();
+        if (state.currentRideDetails?.rideId == rideId) {
+          await loadRideDetails(rideId);
+        }
+        return true;
+      } else {
+        state = state.copyWith(isLoading: false, errorMessage: response.message);
+        return false;
+      }
+    } catch (e) {
+      print('❌ Error updating intermediate stops: $e');
+      state = state.copyWith(isLoading: false, errorMessage: e.toString());
+      return false;
+    }
+  }
+
   /// Update ride schedule
   Future<bool> updateRideSchedule(
     String rideId,

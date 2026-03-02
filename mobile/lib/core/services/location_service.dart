@@ -64,14 +64,6 @@ class LocationService {
     }
   }
   
-  /// Check if a location is within service area (Legacy sync method)
-  /// Deprecated: Use isLocationInServiceAreaAsync instead
-  /// Always returns true for backward compatibility
-  bool isLocationInServiceArea(double latitude, double longitude) {
-    // This method is deprecated - use async version instead
-    return true;
-  }
-  
   /// Calculate distance between two coordinates in kilometers
   /// Uses Haversine formula
   double _calculateDistance(double lat1, double lon1, double lat2, double lon2) {
@@ -180,25 +172,4 @@ class LocationService {
     }
   }
   
-  /// Check if a location is within service area by querying Cities API
-  /// Returns true if the location exists in our database
-  Future<bool> isLocationInServiceAreaAsync(double latitude, double longitude) async {
-    try {
-      final response = await _dio.get('/locations/check-service-area',
-        queryParameters: {
-          'latitude': latitude,
-          'longitude': longitude,
-        }
-      );
-      
-      if (response.statusCode == 200 && response.data != null) {
-        return response.data['inServiceArea'] as bool? ?? false;
-      }
-      
-      return false;
-    } catch (e) {
-      print('Error checking service area: $e');
-      return false;
-    }
-  }
 }

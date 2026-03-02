@@ -861,3 +861,41 @@ class UpdateRideScheduleResponse {
   }
 }
 
+// Update intermediate stops request and response
+class UpdateIntermediateStopsRequest {
+  final List<String>? intermediateStops;
+  final List<String>? intermediateStopIds;
+
+  UpdateIntermediateStopsRequest({
+    this.intermediateStops,
+    this.intermediateStopIds,
+  });
+
+  Map<String, dynamic> toJson() => {
+        if (intermediateStops != null) 'intermediateStops': intermediateStops,
+        if (intermediateStopIds != null) 'intermediateStopIds': intermediateStopIds,
+      };
+}
+
+class UpdateIntermediateStopsResponse {
+  final String rideId;
+  final List<String>? intermediateStops;
+  final String updatedAt;
+
+  UpdateIntermediateStopsResponse({
+    required this.rideId,
+    this.intermediateStops,
+    required this.updatedAt,
+  });
+
+  factory UpdateIntermediateStopsResponse.fromJson(Map<String, dynamic> json) {
+    return UpdateIntermediateStopsResponse(
+      rideId: json['rideId']?.toString() ?? '',
+      intermediateStops: json['intermediateStops'] != null
+          ? List<String>.from(json['intermediateStops'])
+          : null,
+      updatedAt: json['updatedAt']?.toString() ?? '',
+    );
+  }
+}
+

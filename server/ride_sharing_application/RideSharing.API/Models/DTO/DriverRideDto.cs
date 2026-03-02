@@ -267,4 +267,10 @@ namespace RideSharing.API.Models.DTO
         public string DepartureTime { get; set; }
         public DateTime UpdatedAt { get; set; }
     }
+
+    public class UpdateIntermediateStopsDto
+    {
+        public List<string>? IntermediateStops { get; set; }
+        public List<string>? IntermediateStopIds { get; set; }
+    }
 }

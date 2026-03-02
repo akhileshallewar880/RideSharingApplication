@@ -1,23 +1,26 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'dart:convert';
 import 'dart:math' as math;
 import '../../../core/providers/live_tracking_provider.dart';
 
-/// Stop types for the timeline
+// ─────────────────────────────────────────────────────────────
+//  Stop type enum
+// ─────────────────────────────────────────────────────────────
 enum StopType { start, intermediate, end }
 
-/// Train-style stop data model
+// ─────────────────────────────────────────────────────────────
+//  TrainStop data model (mirrors driver screen's TrainStop)
+// ─────────────────────────────────────────────────────────────
 class TrainStop {
   final String name;
-  final DateTime time;
+  final DateTime time; // Scheduled ETA
   final StopType type;
   final int pickupCount;
   final int dropoffCount;
-  final double? segmentDistance;
-  final double distance;
-  final DateTime? actualArrivalTime;
-  final bool isPassed;
+  final double? segmentDistance; // Incoming distance: prev stop → this stop
+  final double distance; // Cumulative distance from origin
+  final double? latitude;
+  final double? longitude;
 
   TrainStop({
     required this.name,
@@ -27,12 +30,14 @@ class TrainStop {
     required this.dropoffCount,
     this.segmentDistance,
     required this.distance,
-    this.actualArrivalTime,
-    this.isPassed = false,
+    this.latitude,
+    this.longitude,
   });
 }
 
-/// Widget to display a train-style tracking timeline for a ride
+// ─────────────────────────────────────────────────────────────
+//  RideTrackingTimeline widget
+// ─────────────────────────────────────────────────────────────
 class RideTrackingTimeline extends ConsumerStatefulWidget {
   final dynamic ride;
   final bool isDark;
@@ -44,14 +49,26 @@ class RideTrackingTimeline extends ConsumerStatefulWidget {
   }) : super(key: key);
 
   @override
-  ConsumerState<RideTrackingTimeline> createState() => _RideTrackingTimelineState();
+  ConsumerState<RideTrackingTimeline> createState() =>
+      _RideTrackingTimelineState();
 }
 
 class _RideTrackingTimelineState extends ConsumerState<RideTrackingTimeline> {
+  // ── Mirrors _currentStopIndex in DriverTrackingScreen ──
+  int _currentStopIndex = 0;
+
+  // Actual arrival times keyed by stop index
+  final Map<int, DateTime> _arrivalTimes = {};
+
+  // Cached stop list (route doesn't change during a ride)
+  List<TrainStop>? _cachedStops;
+
+  // Guard to avoid re-scheduling update callbacks for the same location
+  String? _lastLocationKey;
+
   @override
   void initState() {
     super.initState();
-    // Start tracking this ride
     final rideId = widget.ride['rideId']?.toString();
     if (rideId != null && rideId.isNotEmpty) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -64,24 +81,307 @@ class _RideTrackingTimelineState extends ConsumerState<RideTrackingTimeline> {
 
   @override
   void dispose() {
-    // Stop tracking when dialog closes
     final rideId = widget.ride['rideId']?.toString();
-    if (rideId != null && rideId.isNotEmpty && mounted) {
+    if (rideId != null && rideId.isNotEmpty) {
       try {
         ref.read(liveTrackingProvider.notifier).stopTrackingRide(rideId);
-      } catch (e) {
-        // Ignore errors during disposal
-      }
+      } catch (_) {}
     }
     super.dispose();
   }
 
+  // ─────────────────────────────────────────────────────────────
+  //  Stop list builder (pure data, no GPS logic)
+  // ─────────────────────────────────────────────────────────────
+  List<TrainStop> _getStops() {
+    _cachedStops ??= _buildStopsList();
+    return _cachedStops!;
+  }
+
+  List<TrainStop> _buildStopsList() {
+    try {
+      final pickup = widget.ride['pickupLocation']?.toString() ?? '';
+      final dropoff = widget.ride['dropoffLocation']?.toString() ?? '';
+      if (pickup.isEmpty || dropoff.isEmpty) return [];
+
+      final intermediateRaw = widget.ride['intermediateStops'];
+      final List<String> intermediates = intermediateRaw is List
+          ? intermediateRaw.map((s) => s.toString()).toList()
+          : [];
+
+      final orderedRoute = <String>[pickup, ...intermediates, dropoff];
+      final n = orderedRoute.length;
+
+      final totalDistance = _parseDouble(widget.ride['distance']);
+      final totalDuration = (widget.ride['duration'] as int?) ?? 0;
+      final numSegments = math.max(1, n - 1);
+      final perSegDist = totalDistance > 0 ? totalDistance / numSegments : null;
+      final perSegDur =
+          totalDuration > 0 ? (totalDuration / numSegments).round() : 0;
+
+      // Pickup / dropoff coordinates (only these two are available from API)
+      final pickupLat = (widget.ride['pickupLatitude'] as num?)?.toDouble();
+      final pickupLng = (widget.ride['pickupLongitude'] as num?)?.toDouble();
+      final dropoffLat = (widget.ride['dropoffLatitude'] as num?)?.toDouble();
+      final dropoffLng = (widget.ride['dropoffLongitude'] as num?)?.toDouble();
+
+      // Parse departure time (HH:mm) on the scheduled date
+      final scheduledTime =
+          widget.ride['scheduledTime'] != null
+              ? DateTime.tryParse(widget.ride['scheduledTime'].toString()) ??
+                  DateTime.now()
+              : DateTime.now();
+
+      DateTime startTime = scheduledTime;
+      if (widget.ride['departureTime'] != null) {
+        try {
+          final parts = widget.ride['departureTime'].toString().split(':');
+          if (parts.length >= 2) {
+            startTime = DateTime(
+              scheduledTime.year,
+              scheduledTime.month,
+              scheduledTime.day,
+              int.parse(parts[0]),
+              int.parse(parts[1]),
+            );
+          }
+        } catch (_) {}
+      }
+
+      final stops = <TrainStop>[];
+      double cumulativeDist = 0.0;
+      int cumulativeMin = 0;
+
+      for (int i = 0; i < n; i++) {
+        final isFirst = i == 0;
+        final isLast = i == n - 1;
+
+        // Accumulate segment before this stop
+        if (!isFirst) {
+          cumulativeDist += perSegDist ?? 0.0;
+          cumulativeMin += perSegDur;
+        }
+
+        stops.add(TrainStop(
+          name: orderedRoute[i],
+          time: startTime.add(Duration(minutes: cumulativeMin)),
+          type: isFirst
+              ? StopType.start
+              : isLast
+                  ? StopType.end
+                  : StopType.intermediate,
+          pickupCount: 0,
+          dropoffCount: 0,
+          // Incoming segment distance (null for origin → no label shown)
+          segmentDistance: isFirst ? null : perSegDist,
+          distance: cumulativeDist,
+          // Coordinates only for pickup and dropoff
+          latitude: isFirst ? pickupLat : (isLast ? dropoffLat : null),
+          longitude: isFirst ? pickupLng : (isLast ? dropoffLng : null),
+        ));
+      }
+
+      return stops;
+    } catch (e) {
+      print('Error building stops: $e');
+      return [];
+    }
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  //  GPS: update _currentStopIndex (mirrors _updateCurrentStop)
+  // ─────────────────────────────────────────────────────────────
+  void _updateCurrentStopImpl(
+      RideLocation driverLocation, List<TrainStop> stops) {
+    if (stops.isEmpty) return;
+    final n = stops.length;
+
+    // 1. Haversine check against stops with known coordinates (4 km radius)
+    double minDist = double.infinity;
+    int closestIdx = _currentStopIndex;
+    for (int i = 0; i < n; i++) {
+      if (stops[i].latitude != null && stops[i].longitude != null) {
+        final d = _haversine(
+          driverLocation.latitude,
+          driverLocation.longitude,
+          stops[i].latitude!,
+          stops[i].longitude!,
+        );
+        if (d < minDist) {
+          minDist = d;
+          closestIdx = i;
+        }
+      }
+    }
+
+    final isDestination = closestIdx == n - 1;
+    if (minDist < 4.0 &&
+        (closestIdx > _currentStopIndex ||
+            (isDestination && closestIdx >= _currentStopIndex))) {
+      setState(() {
+        for (int i = _currentStopIndex; i <= closestIdx; i++) {
+          _arrivalTimes[i] ??= DateTime.now();
+        }
+        _currentStopIndex = closestIdx;
+      });
+      return;
+    }
+
+    if (minDist < 4.0 && closestIdx == _currentStopIndex) {
+      setState(() {
+        _arrivalTimes[closestIdx] ??= DateTime.now();
+      });
+      return;
+    }
+
+    // 2. Fallback: GPS progress ratio for intermediate stops without coords
+    final pickupLat = stops.first.latitude;
+    final pickupLng = stops.first.longitude;
+    final dropoffLat = stops.last.latitude;
+    final dropoffLng = stops.last.longitude;
+    if (pickupLat == null ||
+        pickupLng == null ||
+        dropoffLat == null ||
+        dropoffLng == null) return;
+
+    final progress = _computeDriverProgress(
+      driverLocation.latitude,
+      driverLocation.longitude,
+      pickupLat,
+      pickupLng,
+      dropoffLat,
+      dropoffLng,
+    );
+
+    // Equal-interval thresholds for stops
+    int newIdx = _currentStopIndex;
+    for (int i = _currentStopIndex + 1; i < n; i++) {
+      final threshold = n == 1 ? 1.0 : i / (n - 1).toDouble();
+      if (progress >= threshold - 0.03) newIdx = i;
+    }
+
+    if (newIdx > _currentStopIndex) {
+      setState(() {
+        for (int i = _currentStopIndex; i <= newIdx; i++) {
+          _arrivalTimes[i] ??= DateTime.now();
+        }
+        _currentStopIndex = newIdx;
+      });
+    }
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  //  Vehicle position (mirrors _calculateVehiclePosition)
+  // ─────────────────────────────────────────────────────────────
+  Map<String, dynamic> _calculateVehiclePosition(
+      RideLocation driverLocation, List<TrainStop> stops) {
+    if (stops.length < 2) return {'atNodeIndex': _currentStopIndex};
+
+    // Check if vehicle is within 4 km of any node with coordinates
+    double minNodeDist = 4.0;
+    int? closestNode;
+    for (int i = 0; i < stops.length; i++) {
+      if (stops[i].latitude != null && stops[i].longitude != null) {
+        final d = _haversine(
+          driverLocation.latitude,
+          driverLocation.longitude,
+          stops[i].latitude!,
+          stops[i].longitude!,
+        );
+        if (d < minNodeDist) {
+          minNodeDist = d;
+          closestNode = i;
+        }
+      }
+    }
+    if (closestNode != null) return {'atNodeIndex': closestNode};
+
+    // Find the closest segment
+    double minDev = double.infinity;
+    int segIdx = _currentStopIndex < stops.length - 1
+        ? _currentStopIndex
+        : stops.length - 2;
+    double progress = 0.0;
+
+    for (int i = 0; i < stops.length - 1; i++) {
+      if (stops[i].latitude != null &&
+          stops[i].longitude != null &&
+          stops[i + 1].latitude != null &&
+          stops[i + 1].longitude != null) {
+        final dFrom = _haversine(
+          driverLocation.latitude,
+          driverLocation.longitude,
+          stops[i].latitude!,
+          stops[i].longitude!,
+        );
+        final dTo = _haversine(
+          driverLocation.latitude,
+          driverLocation.longitude,
+          stops[i + 1].latitude!,
+          stops[i + 1].longitude!,
+        );
+        final segLen = _haversine(
+          stops[i].latitude!,
+          stops[i].longitude!,
+          stops[i + 1].latitude!,
+          stops[i + 1].longitude!,
+        );
+        final dev = ((dFrom + dTo) - segLen).abs();
+        if (dev < minDev) {
+          minDev = dev;
+          segIdx = i;
+          progress = segLen > 0 ? (dFrom / segLen).clamp(0.0, 1.0) : 0.0;
+        }
+      }
+    }
+
+    // If no segment had both endpoints with coordinates, we can't determine
+    // where between stops the vehicle is — pin it to the current stop node.
+    if (minDev == double.infinity) {
+      return {'atNodeIndex': _currentStopIndex};
+    }
+
+    if (segIdx < _currentStopIndex) {
+      segIdx = _currentStopIndex;
+      progress = 0.0;
+    }
+
+    return {'segmentIndex': segIdx, 'progress': progress, 'atNodeIndex': null};
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  //  Build
+  // ─────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
     final trackingState = ref.watch(liveTrackingProvider);
     final rideId = widget.ride['rideId']?.toString();
-    final driverLocation = rideId != null ? trackingState.rideLocations[rideId] : null;
-    final stops = _buildStopsList(driverLocation: driverLocation);
+    final driverLocation =
+        rideId != null ? trackingState.rideLocations[rideId] : null;
+
+    final stops = _getStops();
+
+    // Schedule stop-index update only when driver location changes
+    if (driverLocation != null && stops.isNotEmpty) {
+      final key =
+          '${driverLocation.latitude},${driverLocation.longitude}';
+      if (key != _lastLocationKey) {
+        _lastLocationKey = key;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          _updateCurrentStopImpl(driverLocation, stops);
+        });
+      }
+    }
+
+    // If ride completed, pin to last stop
+    final status = widget.ride['status']?.toString().toLowerCase() ?? '';
+    if (status == 'completed' && _currentStopIndex < stops.length - 1) {
+      _currentStopIndex = stops.length - 1;
+      for (int i = 0; i < stops.length; i++) {
+        _arrivalTimes[i] ??= stops[i].time;
+      }
+    }
 
     if (stops.isEmpty) {
       return Center(
@@ -94,10 +394,7 @@ class _RideTrackingTimelineState extends ConsumerState<RideTrackingTimeline> {
               const SizedBox(height: 16),
               Text(
                 'No route information available',
-                style: TextStyle(
-                  fontSize: 16,
-                  color: Colors.grey.shade600,
-                ),
+                style: TextStyle(fontSize: 16, color: Colors.grey.shade600),
               ),
             ],
           ),
@@ -105,173 +402,68 @@ class _RideTrackingTimelineState extends ConsumerState<RideTrackingTimeline> {
       );
     }
 
+    // Vehicle position (synchronous, no async needed)
+    Map<String, dynamic>? vehiclePosition;
+    if (driverLocation != null) {
+      vehiclePosition = _calculateVehiclePosition(driverLocation, stops);
+    }
+
     return Container(
       constraints: const BoxConstraints(maxHeight: 600),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Icon(Icons.route, size: 20, color: Colors.orange.shade700),
-                    const SizedBox(width: 8),
-                    Text(
-                      'Route Timeline',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: widget.isDark ? Colors.white : Colors.grey.shade800,
-                      ),
-                    ),
-                    const Spacer(),
-                    _buildStatusChip(),
-                  ],
-                ),
-                // Driver location indicator
-                if (driverLocation != null) ...[
-                  const SizedBox(height: 12),
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.green.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.green.shade300),
-                    ),
-                    child: Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(6),
-                          decoration: BoxDecoration(
-                            color: Colors.green,
-                            shape: BoxShape.circle,
-                          ),
-                          child: const Icon(
-                            Icons.location_on,
-                            color: Colors.white,
-                            size: 16,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Driver Location',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 13,
-                                  color: Colors.green.shade800,
-                                ),
-                              ),
-                              const SizedBox(height: 2),
-                              Text(
-                                'Lat: ${driverLocation.latitude.toStringAsFixed(6)}, Lng: ${driverLocation.longitude.toStringAsFixed(6)}',
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  color: Colors.grey.shade600,
-                                ),
-                              ),
-                              Text(
-                                'Last update: ${_formatTimestamp(driverLocation.lastUpdate)}',
-                                style: TextStyle(
-                                  fontSize: 10,
-                                  color: Colors.grey.shade500,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 4,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Colors.green,
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: const [
-                              Icon(
-                                Icons.circle,
-                                size: 8,
-                                color: Colors.white,
-                              ),
-                              SizedBox(width: 4),
-                              Text(
-                                'LIVE',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 10,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ] else if (trackingState.isConnected) ...[
-                  const SizedBox(height: 12),
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: Colors.orange.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.orange.shade300),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        SizedBox(
-                          width: 12,
-                          height: 12,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            valueColor: AlwaysStoppedAnimation<Color>(Colors.orange),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          'Waiting for driver location...',
-                          style: TextStyle(
-                            fontSize: 11,
-                            color: Colors.orange.shade700,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
+          // ── Header ──
+          _buildHeader(driverLocation, trackingState.isConnected),
           const Divider(height: 1),
 
-          // Timeline
+          // ── Timeline ──
           Expanded(
             child: ListView.builder(
-              padding: const EdgeInsets.all(16),
               itemCount: stops.length,
+              padding: const EdgeInsets.symmetric(vertical: 16),
               itemBuilder: (context, index) {
                 final stop = stops[index];
+                final isCurrentStop = index == _currentStopIndex;
+                // Strictly before current → green and checked
+                final isPassed = index < _currentStopIndex;
+                final isNext = index == _currentStopIndex + 1;
                 final isLast = index == stops.length - 1;
-                final isCurrent = _isCurrentStop(stop, stops, index);
 
-                return _buildStopItem(
-                  stop,
-                  isCurrent,
-                  stop.isPassed,
-                  isLast,
-                  widget.isDark,
+                // Vehicle is travelling between this stop and the next
+                final showVehicleBetween = vehiclePosition != null &&
+                    vehiclePosition['atNodeIndex'] == null &&
+                    vehiclePosition['segmentIndex'] == index &&
+                    (vehiclePosition['progress'] as double) < 1.0;
+
+                // Vehicle is parked at this stop's node
+                final showVehicleHere = vehiclePosition != null &&
+                    vehiclePosition['atNodeIndex'] == index;
+
+                // Vehicle is departing (between stops, and this is current)
+                final isVehicleDeparting =
+                    showVehicleBetween && index == _currentStopIndex;
+
+                return Column(
+                  children: [
+                    _buildStopItem(
+                      stop,
+                      isCurrentStop,
+                      isPassed,
+                      isNext,
+                      widget.isDark,
+                      isLast,
+                      showVehicleHere,
+                      isVehicleDeparting,
+                      _arrivalTimes[index],
+                    ),
+                    // Animated vehicle between two stops
+                    if (showVehicleBetween && !isLast)
+                      _buildVehicleBetweenStops(
+                        vehiclePosition['progress'] as double,
+                        widget.isDark,
+                      ),
+                  ],
                 );
               },
             ),
@@ -281,11 +473,147 @@ class _RideTrackingTimelineState extends ConsumerState<RideTrackingTimeline> {
     );
   }
 
+  // ─────────────────────────────────────────────────────────────
+  //  Header: driver location / waiting indicator / status chip
+  // ─────────────────────────────────────────────────────────────
+  Widget _buildHeader(RideLocation? driverLocation, bool isConnected) {
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.route, size: 20, color: Colors.orange.shade700),
+              const SizedBox(width: 8),
+              Text(
+                'Route Timeline',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: widget.isDark ? Colors.white : Colors.grey.shade800,
+                ),
+              ),
+              const Spacer(),
+              _buildStatusChip(),
+            ],
+          ),
+          const SizedBox(height: 12),
+          if (driverLocation != null) ...[
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.green.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.green.shade300),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: const BoxDecoration(
+                      color: Colors.green,
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.location_on,
+                        color: Colors.white, size: 16),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Driver Location',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 13,
+                            color: Colors.green.shade800,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          'Lat: ${driverLocation.latitude.toStringAsFixed(6)}, '
+                          'Lng: ${driverLocation.longitude.toStringAsFixed(6)}',
+                          style: TextStyle(
+                              fontSize: 11, color: Colors.grey.shade600),
+                        ),
+                        Text(
+                          'Last update: ${_formatTimestamp(driverLocation.lastUpdate)}',
+                          style: TextStyle(
+                              fontSize: 10, color: Colors.grey.shade500),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.green,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: const [
+                        Icon(Icons.circle, size: 8, color: Colors.white),
+                        SizedBox(width: 4),
+                        Text(
+                          'LIVE',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 10,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ] else if (isConnected) ...[
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.orange.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.orange.shade300),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  SizedBox(
+                    width: 12,
+                    height: 12,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      valueColor:
+                          AlwaysStoppedAnimation<Color>(Colors.orange),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Waiting for driver location...',
+                    style:
+                        TextStyle(fontSize: 11, color: Colors.orange.shade700),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  //  Status chip
+  // ─────────────────────────────────────────────────────────────
   Widget _buildStatusChip() {
     final status = widget.ride['status'] ?? 'unknown';
     Color statusColor;
     IconData statusIcon;
-
     switch (status.toString().toLowerCase()) {
       case 'completed':
         statusColor = Colors.green;
@@ -308,7 +636,6 @@ class _RideTrackingTimelineState extends ConsumerState<RideTrackingTimeline> {
         statusColor = Colors.grey;
         statusIcon = Icons.help_outline;
     }
-
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
@@ -324,93 +651,139 @@ class _RideTrackingTimelineState extends ConsumerState<RideTrackingTimeline> {
           Text(
             status.toString().toUpperCase().replaceAll('_', ' '),
             style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.bold,
-              color: statusColor,
-            ),
+                fontSize: 11,
+                fontWeight: FontWeight.bold,
+                color: statusColor),
           ),
         ],
       ),
     );
   }
 
-  bool _isCurrentStop(TrainStop stop, List<TrainStop> stops, int index) {
-    // If ride is completed, no current stop
-    final status = widget.ride['status']?.toString().toLowerCase() ?? '';
-    if (status == 'completed') return false;
+  // ─────────────────────────────────────────────────────────────
+  //  Vehicle between stops (mirrors driver screen's widget)
+  // ─────────────────────────────────────────────────────────────
+  Widget _buildVehicleBetweenStops(double progress, bool isDark) {
+    final vehicleY = (progress * 48).clamp(0.0, 48.0);
+    final vehicleCenterY = vehicleY + 13; // half of 26px icon
 
-    // Find first non-passed stop
-    for (int i = 0; i < stops.length; i++) {
-      if (!stops[i].isPassed) {
-        return i == index;
-      }
-    }
-    return false;
+    return SizedBox(
+      height: 60,
+      child: Row(
+        children: [
+          const SizedBox(width: 60), // matches distance column
+          SizedBox(
+            width: 40,
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                // Green top half of line
+                Positioned(
+                  left: 18,
+                  top: 0,
+                  height: vehicleCenterY,
+                  child: Container(width: 3, color: Colors.green),
+                ),
+                // Grey bottom half
+                Positioned(
+                  left: 18,
+                  top: vehicleCenterY,
+                  bottom: 0,
+                  child: Container(width: 3, color: Colors.grey.shade300),
+                ),
+                // Vehicle icon at progress position
+                Positioned(
+                  left: 7,
+                  top: vehicleY,
+                  child: Container(
+                    width: 26,
+                    height: 26,
+                    decoration: BoxDecoration(
+                      color: Colors.orange,
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                          color: Colors.orange.shade700, width: 3),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.orange.withOpacity(0.5),
+                          blurRadius: 8,
+                          spreadRadius: 2,
+                        ),
+                      ],
+                    ),
+                    child: const Icon(Icons.directions_car,
+                        size: 14, color: Colors.white),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+        ],
+      ),
+    );
   }
 
+  // ─────────────────────────────────────────────────────────────
+  //  Stop item (mirrors driver screen's _buildStopItem)
+  // ─────────────────────────────────────────────────────────────
   Widget _buildStopItem(
     TrainStop stop,
     bool isCurrent,
     bool isPassed,
-    bool isLast,
+    bool isNext,
     bool isDark,
+    bool isLast,
+    bool showVehicleHere,
+    bool isVehicleDeparting,
+    DateTime? actualArrival,
   ) {
     return IntrinsicHeight(
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Distance column
-          SizedBox(
+          // ── Distance column ──
+          Container(
             width: 60,
-            child: Padding(
-              padding: const EdgeInsets.only(top: 12),
-              child: stop.segmentDistance != null
-                  ? Text(
-                      '${stop.segmentDistance!.toStringAsFixed(0)}km',
-                      style: TextStyle(
-                        color: isDark
-                            ? Colors.amber.shade400
-                            : Colors.orange.shade700,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 12,
-                      ),
-                    )
-                  : Text(
-                      '${stop.distance.toStringAsFixed(0)}km',
-                      style: TextStyle(
-                        color: isDark
-                            ? Colors.white60
-                            : Colors.grey.shade500,
-                        fontWeight: FontWeight.w600,
-                        fontSize: 11,
-                      ),
+            alignment: Alignment.topCenter,
+            padding: const EdgeInsets.only(top: 16),
+            child: stop.segmentDistance != null
+                ? Text(
+                    '${stop.segmentDistance!.toStringAsFixed(0)}km',
+                    style: TextStyle(
+                      color: isDark
+                          ? Colors.amber.shade400
+                          : Colors.orange.shade700,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 12,
                     ),
-            ),
+                  )
+                : const SizedBox.shrink(), // no label for origin
           ),
 
-          // Timeline column
+          // ── Timeline column ──
           SizedBox(
             width: 40,
             child: Column(
               children: [
-                // Top line
+                // Top line (green if this stop has been reached)
                 if (stop.type != StopType.start)
                   Container(
                     width: 3,
                     height: 20,
-                    color: isPassed ? Colors.green : Colors.grey.shade300,
+                    color: isPassed || isCurrent
+                        ? Colors.green
+                        : Colors.grey.shade300,
                   ),
 
-                // Stop indicator
+                // Stop node
                 Container(
                   width: 26,
                   height: 26,
                   decoration: BoxDecoration(
-                    color: isCurrent
-                        ? Colors.orange
-                        : isPassed
-                            ? Colors.green
-                            : Colors.grey.shade300,
+                    color: isPassed || isCurrent
+                        ? Colors.green
+                        : Colors.grey.shade300,
                     shape: stop.type == StopType.intermediate
                         ? BoxShape.circle
                         : BoxShape.rectangle,
@@ -418,48 +791,51 @@ class _RideTrackingTimelineState extends ConsumerState<RideTrackingTimeline> {
                         ? BorderRadius.circular(4)
                         : null,
                     border: Border.all(
-                      color: isCurrent
-                          ? Colors.orange.shade700
-                          : isPassed
-                              ? Colors.green.shade700
-                              : Colors.grey.shade400,
-                      width: isCurrent ? 3 : 2,
+                      color: isPassed || isCurrent
+                          ? Colors.green.shade700
+                          : Colors.grey.shade400,
+                      width: showVehicleHere ? 3 : 2,
                     ),
                   ),
-                  child: isCurrent
+                  child: showVehicleHere
                       ? const Icon(Icons.directions_car,
                           size: 14, color: Colors.white)
-                      : isPassed
+                      : (isPassed || isCurrent)
                           ? const Icon(Icons.check,
                               size: 14, color: Colors.white)
                           : null,
                 ),
 
                 // Bottom line
+                // Green only when vehicle has left this stop:
+                //   isPassed (strictly before current) → always green
+                //   isCurrent + departing              → green
                 if (!isLast)
                   Expanded(
                     child: Container(
                       width: 3,
-                      color: isPassed ? Colors.green : Colors.grey.shade300,
+                      color: isPassed || isVehicleDeparting
+                          ? Colors.green
+                          : Colors.grey.shade300,
                     ),
                   ),
               ],
             ),
           ),
 
-          // Stop info column
+          // ── Stop info column ──
           Expanded(
             child: Container(
-              padding: const EdgeInsets.all(12),
-              margin: const EdgeInsets.only(bottom: 12, right: 8),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              margin: const EdgeInsets.only(bottom: 8),
               decoration: BoxDecoration(
                 color: isCurrent
-                    ? Colors.orange.withOpacity(0.1)
-                    : Colors.transparent,
+                    ? Colors.orange.withOpacity(0.08)
+                    : isNext
+                        ? Colors.blue.withOpacity(0.04)
+                        : Colors.transparent,
                 borderRadius: BorderRadius.circular(8),
-                border: isCurrent
-                    ? Border.all(color: Colors.orange.shade200, width: 1)
-                    : null,
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -482,14 +858,14 @@ class _RideTrackingTimelineState extends ConsumerState<RideTrackingTimeline> {
                                     : Colors.grey.shade800,
                               ),
                             ),
-                            const SizedBox(height: 4),
+                            const SizedBox(height: 2),
                             Text(
                               _formatTime(stop.time),
                               style: TextStyle(
                                 color: isDark
                                     ? Colors.white54
                                     : Colors.grey.shade500,
-                                fontSize: 11,
+                                fontSize: 10,
                               ),
                             ),
                           ],
@@ -498,12 +874,10 @@ class _RideTrackingTimelineState extends ConsumerState<RideTrackingTimeline> {
                       if (isCurrent)
                         Container(
                           padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 4,
-                          ),
+                              horizontal: 8, vertical: 2),
                           decoration: BoxDecoration(
                             color: Colors.orange,
-                            borderRadius: BorderRadius.circular(4),
+                            borderRadius: BorderRadius.circular(6),
                           ),
                           child: const Text(
                             'CURRENT',
@@ -517,79 +891,40 @@ class _RideTrackingTimelineState extends ConsumerState<RideTrackingTimeline> {
                     ],
                   ),
 
-                  // Pickup/Dropoff counts
+                  // Pickup / dropoff counts (shown when > 0)
                   if (stop.pickupCount > 0 || stop.dropoffCount > 0) ...[
-                    const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 12,
-                      runSpacing: 4,
+                    const SizedBox(height: 4),
+                    Row(
                       children: [
-                        if (stop.pickupCount > 0)
-                          Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(Icons.arrow_circle_up,
-                                  size: 14, color: Colors.green.shade600),
-                              const SizedBox(width: 4),
-                              Text(
-                                '${stop.pickupCount} pickup${stop.pickupCount > 1 ? 's' : ''}',
-                                style: TextStyle(
-                                  color: Colors.green.shade600,
-                                  fontWeight: FontWeight.w600,
-                                  fontSize: 12,
-                                ),
-                              ),
-                            ],
-                          ),
-                        if (stop.dropoffCount > 0)
-                          Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(Icons.arrow_circle_down,
-                                  size: 14, color: Colors.red.shade600),
-                              const SizedBox(width: 4),
-                              Text(
-                                '${stop.dropoffCount} drop${stop.dropoffCount > 1 ? 's' : ''}',
-                                style: TextStyle(
-                                  color: Colors.red.shade600,
-                                  fontWeight: FontWeight.w600,
-                                  fontSize: 12,
-                                ),
-                              ),
-                            ],
-                          ),
-                      ],
-                    ),
-                  ],
-
-                  // Actual arrival time if available
-                  if (stop.actualArrivalTime != null) ...[
-                    const SizedBox(height: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.green.shade50,
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Icons.check_circle,
-                              size: 12, color: Colors.green.shade600),
+                        if (stop.pickupCount > 0) ...[
+                          Icon(Icons.arrow_circle_up,
+                              size: 14, color: Colors.green.shade600),
                           const SizedBox(width: 4),
                           Text(
-                            'Arrived: ${_formatTime(stop.actualArrivalTime!)}',
+                            '${stop.pickupCount} pickup',
                             style: TextStyle(
                               color: Colors.green.shade600,
-                              fontSize: 11,
-                              fontWeight: FontWeight.w500,
+                              fontWeight: FontWeight.w600,
+                              fontSize: 12,
                             ),
                           ),
                         ],
-                      ),
+                        if (stop.pickupCount > 0 && stop.dropoffCount > 0)
+                          const SizedBox(width: 12),
+                        if (stop.dropoffCount > 0) ...[
+                          Icon(Icons.arrow_circle_down,
+                              size: 14, color: Colors.red.shade600),
+                          const SizedBox(width: 4),
+                          Text(
+                            '${stop.dropoffCount} drop',
+                            style: TextStyle(
+                              color: Colors.red.shade600,
+                              fontWeight: FontWeight.w600,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ],
                     ),
                   ],
                 ],
@@ -597,385 +932,93 @@ class _RideTrackingTimelineState extends ConsumerState<RideTrackingTimeline> {
             ),
           ),
 
-          // Time column (actual arrival)
-          SizedBox(
+          // ── Actual arrival time column ──
+          Container(
             width: 60,
-            child: Padding(
-              padding: const EdgeInsets.only(top: 12),
-              child: stop.actualArrivalTime != null
-                  ? Text(
-                      _formatTime(stop.actualArrivalTime!),
-                      style: TextStyle(
-                        color: Colors.green.shade600,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 12,
-                      ),
-                      textAlign: TextAlign.right,
-                    )
-                  : isPassed
-                      ? Icon(Icons.check_circle,
-                          size: 16, color: Colors.green.shade600)
-                      : const SizedBox.shrink(),
-            ),
+            alignment: Alignment.topCenter,
+            padding: const EdgeInsets.only(top: 16),
+            child: _buildActualArrivalTime(
+                stop, isPassed, isCurrent, isDark, actualArrival),
           ),
         ],
       ),
     );
   }
 
+  // ─────────────────────────────────────────────────────────────
+  //  Arrival time (mirrors driver screen's _buildActualArrivalTime)
+  // ─────────────────────────────────────────────────────────────
+  Widget _buildActualArrivalTime(
+    TrainStop stop,
+    bool isPassed,
+    bool isCurrent,
+    bool isDark,
+    DateTime? actualArrival,
+  ) {
+    if (!isPassed && !isCurrent) {
+      return Text(
+        '-',
+        style: TextStyle(
+          color: isDark ? Colors.white38 : Colors.grey.shade400,
+          fontWeight: FontWeight.w500,
+          fontSize: 13,
+        ),
+      );
+    }
+
+    final actualTime = actualArrival ?? (isCurrent ? DateTime.now() : null);
+    if (actualTime == null) {
+      return Text(
+        '-',
+        style: TextStyle(
+          color: isDark ? Colors.white38 : Colors.grey.shade400,
+          fontWeight: FontWeight.w500,
+          fontSize: 13,
+        ),
+      );
+    }
+
+    final delayMinutes = actualTime.difference(stop.time).inMinutes;
+    final textColor = delayMinutes <= 0
+        ? Colors.green
+        : delayMinutes <= 5
+            ? Colors.orange
+            : Colors.red;
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          _formatTime(actualTime),
+          style: TextStyle(
+            color: textColor,
+            fontWeight: FontWeight.bold,
+            fontSize: 12,
+          ),
+        ),
+        if (delayMinutes > 0)
+          Text(
+            '+${delayMinutes}m',
+            style: TextStyle(color: textColor, fontSize: 9),
+          ),
+      ],
+    );
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  //  Helpers
+  // ─────────────────────────────────────────────────────────────
   String _formatTime(DateTime time) {
-    final hour = time.hour.toString().padLeft(2, '0');
-    final minute = time.minute.toString().padLeft(2, '0');
-    return '$hour:$minute';
+    return '${time.hour.toString().padLeft(2, '0')}:'
+        '${time.minute.toString().padLeft(2, '0')}';
   }
-  
+
   String _formatTimestamp(DateTime timestamp) {
-    final now = DateTime.now();
-    final difference = now.difference(timestamp);
-    
-    if (difference.inSeconds < 10) {
-      return 'Just now';
-    } else if (difference.inSeconds < 60) {
-      return '${difference.inSeconds}s ago';
-    } else if (difference.inMinutes < 60) {
-      return '${difference.inMinutes}m ago';
-    } else {
-      return '${difference.inHours}h ago';
-    }
-  }
-
-  List<TrainStop> _buildStopsList({RideLocation? driverLocation}) {
-    try {
-      final List<TrainStop> stops = [];
-      
-      // Get passengers data
-      final passengers = widget.ride['passengers'] as List<dynamic>? ?? [];
-      
-      // Parse segment prices if available for distances
-      final segmentPricesRaw = widget.ride['segmentPrices'];
-      List<dynamic> segmentPrices = [];
-      
-      if (segmentPricesRaw != null) {
-        if (segmentPricesRaw is String) {
-          try {
-            segmentPrices = jsonDecode(segmentPricesRaw) as List<dynamic>;
-          } catch (e) {
-            print('Error parsing segment prices: $e');
-          }
-        } else if (segmentPricesRaw is List) {
-          segmentPrices = segmentPricesRaw;
-        }
-      }
-
-      // Build unique locations map with counts
-      final Map<String, Map<String, dynamic>> locationMap = {};
-
-      // If we have passengers, count them at each location
-      for (var passenger in passengers) {
-        final pickup = _normalizeLocation(passenger['pickupLocation'] ?? '');
-        final dropoff = _normalizeLocation(passenger['dropoffLocation'] ?? '');
-
-        // Count pickups
-        if (pickup.isNotEmpty) {
-          locationMap[pickup] = locationMap[pickup] ?? {
-            'pickupCount': 0,
-            'dropoffCount': 0,
-            'fullName': passenger['pickupLocation'] ?? pickup,
-          };
-          locationMap[pickup]!['pickupCount'] = 
-              (locationMap[pickup]!['pickupCount'] as int) + 1;
-        }
-
-        // Count dropoffs
-        if (dropoff.isNotEmpty) {
-          locationMap[dropoff] = locationMap[dropoff] ?? {
-            'pickupCount': 0,
-            'dropoffCount': 0,
-            'fullName': passenger['dropoffLocation'] ?? dropoff,
-          };
-          locationMap[dropoff]!['dropoffCount'] = 
-              (locationMap[dropoff]!['dropoffCount'] as int) + 1;
-        }
-      }
-
-      // If no passengers but we have segment prices, build from segments
-      if (locationMap.isEmpty && segmentPrices.isNotEmpty) {
-        for (var segment in segmentPrices) {
-          final fromLocation = segment['fromLocation']?.toString() ?? 
-                              segment['FromLocation']?.toString() ?? '';
-          final toLocation = segment['toLocation']?.toString() ?? 
-                            segment['ToLocation']?.toString() ?? '';
-          
-          if (fromLocation.isNotEmpty) {
-            final normalized = _normalizeLocation(fromLocation);
-            locationMap[normalized] = locationMap[normalized] ?? {
-              'pickupCount': 0,
-              'dropoffCount': 0,
-              'fullName': fromLocation,
-            };
-          }
-          
-          if (toLocation.isNotEmpty) {
-            final normalized = _normalizeLocation(toLocation);
-            locationMap[normalized] = locationMap[normalized] ?? {
-              'pickupCount': 0,
-              'dropoffCount': 0,
-              'fullName': toLocation,
-            };
-          }
-        }
-      }
-
-      // If still empty, use pickup and dropoff from ride
-      if (locationMap.isEmpty) {
-        final pickup = widget.ride['pickupLocation']?.toString() ?? '';
-        final dropoff = widget.ride['dropoffLocation']?.toString() ?? '';
-        
-        if (pickup.isNotEmpty) {
-          locationMap[_normalizeLocation(pickup)] = {
-            'pickupCount': 0,
-            'dropoffCount': 0,
-            'fullName': pickup,
-          };
-        }
-        
-        if (dropoff.isNotEmpty) {
-          locationMap[_normalizeLocation(dropoff)] = {
-            'pickupCount': 0,
-            'dropoffCount': 0,
-            'fullName': dropoff,
-          };
-        }
-      }
-
-      if (locationMap.isEmpty) {
-        return stops;
-      }
-
-      // Get pickup and dropoff locations from ride
-      final pickupLocation = _normalizeLocation(widget.ride['pickupLocation'] ?? '');
-      final dropoffLocation = _normalizeLocation(widget.ride['dropoffLocation'] ?? '');
-      
-      // Get intermediate stops from ride data
-      final intermediateStopsRaw = widget.ride['intermediateStops'];
-      List<String> intermediateStops = [];
-      if (intermediateStopsRaw != null) {
-        if (intermediateStopsRaw is List) {
-          intermediateStops = intermediateStopsRaw.map((s) => s.toString()).toList();
-        }
-      }
-
-      // Build ordered route
-      final List<String> orderedLocations = [];
-      final Set<String> addedLocations = {};
-
-      // Add start location
-      if (pickupLocation.isNotEmpty && locationMap.containsKey(pickupLocation)) {
-        orderedLocations.add(pickupLocation);
-        addedLocations.add(pickupLocation);
-      }
-
-      // Add intermediate stops in order
-      for (var stop in intermediateStops) {
-        final normalized = _normalizeLocation(stop);
-        if (normalized.isNotEmpty && !addedLocations.contains(normalized)) {
-          // Ensure this location exists in our location map
-          if (!locationMap.containsKey(normalized)) {
-            locationMap[normalized] = {
-              'pickupCount': 0,
-              'dropoffCount': 0,
-              'fullName': stop,
-            };
-          }
-          orderedLocations.add(normalized);
-          addedLocations.add(normalized);
-        }
-      }
-
-      // Add any remaining stops from segment prices that aren't already added
-      for (var segment in segmentPrices) {
-        final from = _normalizeLocation(segment['from'] ?? segment['fromLocation'] ?? segment['FromLocation'] ?? '');
-        final to = _normalizeLocation(segment['to'] ?? segment['toLocation'] ?? segment['ToLocation'] ?? '');
-
-        if (from.isNotEmpty && !addedLocations.contains(from) && locationMap.containsKey(from)) {
-          orderedLocations.add(from);
-          addedLocations.add(from);
-        }
-        if (to.isNotEmpty && !addedLocations.contains(to) && locationMap.containsKey(to)) {
-          orderedLocations.add(to);
-          addedLocations.add(to);
-        }
-      }
-
-      // Add dropoff location if not already added
-      if (dropoffLocation.isNotEmpty && 
-          !addedLocations.contains(dropoffLocation) && 
-          locationMap.containsKey(dropoffLocation)) {
-        orderedLocations.add(dropoffLocation);
-        addedLocations.add(dropoffLocation);
-      }
-
-      // GPS-based progress setup
-      final status = widget.ride['status']?.toString().toLowerCase() ?? '';
-      final totalDistance = _parseDouble(widget.ride['distance']);
-
-      final pickupLat = (widget.ride['pickupLatitude'] as num?)?.toDouble();
-      final pickupLng = (widget.ride['pickupLongitude'] as num?)?.toDouble();
-      final dropoffLat = (widget.ride['dropoffLatitude'] as num?)?.toDouble();
-      final dropoffLng = (widget.ride['dropoffLongitude'] as num?)?.toDouble();
-      final hasCoords = pickupLat != null && pickupLng != null &&
-                        dropoffLat != null && dropoffLng != null;
-
-      double? driverProgress;
-      if (driverLocation != null && hasCoords) {
-        driverProgress = _computeDriverProgress(
-          driverLocation.latitude, driverLocation.longitude,
-          pickupLat, pickupLng, dropoffLat, dropoffLng,
-        );
-      }
-
-      // Create TrainStop objects
-      double cumulativeDistance = 0.0;
-      int cumulativeMinutes = 0;
-      final scheduledTime = widget.ride['scheduledTime'] != null
-          ? DateTime.parse(widget.ride['scheduledTime'].toString())
-          : DateTime.now();
-      
-      // Parse departure time (HH:mm format) and set it on scheduled date
-      DateTime startTime = scheduledTime;
-      if (widget.ride['departureTime'] != null) {
-        try {
-          final timeParts = widget.ride['departureTime'].toString().split(':');
-          if (timeParts.length >= 2) {
-            final hour = int.parse(timeParts[0]);
-            final minute = int.parse(timeParts[1]);
-            startTime = DateTime(
-              scheduledTime.year,
-              scheduledTime.month,
-              scheduledTime.day,
-              hour,
-              minute,
-            );
-          }
-        } catch (e) {
-          print('Error parsing departure time: $e');
-        }
-      }
-      
-      // Get total duration for calculating segment times
-      final totalDuration = widget.ride['duration'] as int? ?? 0;
-
-      for (int i = 0; i < orderedLocations.length; i++) {
-        final location = orderedLocations[i];
-        final locationData = locationMap[location]!;
-        
-        // Find segment distance and duration
-        double? segmentDistance;
-        int? segmentDuration;
-        if (i < orderedLocations.length - 1) {
-          final nextLocation = orderedLocations[i + 1];
-          
-          // Find matching segment
-          for (var segment in segmentPrices) {
-            final from = _normalizeLocation(
-              segment['from'] ?? 
-              segment['fromLocation'] ?? 
-              segment['FromLocation'] ?? ''
-            );
-            final to = _normalizeLocation(
-              segment['to'] ?? 
-              segment['toLocation'] ?? 
-              segment['ToLocation'] ?? ''
-            );
-            
-            if (from == location && to == nextLocation) {
-              segmentDistance = _parseDouble(
-                segment['distance'] ?? 
-                segment['Distance'] ?? 
-                segment['distanceKm'] ?? 0
-              );
-              segmentDuration = segment['duration'] as int? ?? 
-                               segment['Duration'] as int? ?? 
-                               segment['durationMinutes'] as int?;
-              break;
-            }
-          }
-          
-          // If no segment data found, estimate based on proportion of total
-          if (segmentDistance == null && totalDistance > 0) {
-            // Estimate this segment as equal portion of remaining distance
-            final remainingStops = orderedLocations.length - i - 1;
-            segmentDistance = (totalDistance - cumulativeDistance) / remainingStops;
-          }
-          
-          if (segmentDuration == null && totalDuration > 0 && segmentDistance != null) {
-            // Estimate duration proportionally to distance
-            segmentDuration = ((segmentDistance / totalDistance) * totalDuration).round();
-          }
-        }
-
-        if (segmentDistance != null) {
-          cumulativeDistance += segmentDistance;
-        }
-        
-        if (segmentDuration != null) {
-          cumulativeMinutes += segmentDuration;
-        }
-
-        // Determine stop type
-        StopType stopType;
-        if (i == 0) {
-          stopType = StopType.start;
-        } else if (i == orderedLocations.length - 1) {
-          stopType = StopType.end;
-        } else {
-          stopType = StopType.intermediate;
-        }
-
-        // Calculate estimated arrival time
-        final estimatedTime = startTime.add(Duration(minutes: cumulativeMinutes));
-
-        // Check if stop has been passed using GPS progress when available
-        // Distance to reach THIS stop = cumulativeDistance minus the outgoing segment just added
-        final distanceToThisStop = cumulativeDistance - (segmentDistance ?? 0.0);
-        bool isPassed;
-        if (status == 'completed') {
-          isPassed = true;
-        } else if (driverProgress != null && totalDistance > 0) {
-          // Driver progress 0.0 = at pickup, 1.0 = at dropoff
-          // Stop fraction = how far along the route this stop is
-          final stopFraction = distanceToThisStop / totalDistance;
-          // 3% buffer so a stop becomes "current" only when driver clearly passes it
-          isPassed = driverProgress > stopFraction + 0.03;
-        } else if (status == 'in_progress') {
-          // Fallback when no GPS: only mark pickup as passed
-          isPassed = i == 0;
-        } else {
-          isPassed = false;
-        }
-
-        stops.add(TrainStop(
-          name: locationData['fullName'] as String,
-          time: estimatedTime,
-          type: stopType,
-          pickupCount: locationData['pickupCount'] as int,
-          dropoffCount: locationData['dropoffCount'] as int,
-          segmentDistance: segmentDistance,
-          distance: cumulativeDistance,
-          actualArrivalTime: isPassed ? estimatedTime : null,
-          isPassed: isPassed,
-        ));
-      }
-
-      return stops;
-    } catch (e) {
-      print('Error building stops list: $e');
-      return [];
-    }
-  }
-
-  String _normalizeLocation(String location) {
-    return location.split(',').first.trim().toLowerCase();
+    final diff = DateTime.now().difference(timestamp);
+    if (diff.inSeconds < 10) return 'Just now';
+    if (diff.inSeconds < 60) return '${diff.inSeconds}s ago';
+    if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
+    return '${diff.inHours}h ago';
   }
 
   double _parseDouble(dynamic value) {
@@ -986,21 +1029,35 @@ class _RideTrackingTimelineState extends ConsumerState<RideTrackingTimeline> {
     return 0.0;
   }
 
-  /// Projects driver position onto the pickup→dropoff line.
-  /// Returns a value in [0, 1]: 0 = at pickup, 1 = at dropoff.
+  /// Distance ratio driver progress — handles non-straight routes correctly.
   double _computeDriverProgress(
-    double driverLat, double driverLng,
-    double pickupLat, double pickupLng,
-    double dropoffLat, double dropoffLng,
+    double driverLat,
+    double driverLng,
+    double pickupLat,
+    double pickupLng,
+    double dropoffLat,
+    double dropoffLng,
   ) {
-    final dx = dropoffLng - pickupLng;
-    final dy = dropoffLat - pickupLat;
-    final len2 = dx * dx + dy * dy;
-    if (len2 == 0) return 0.0;
-    final pdx = driverLng - pickupLng;
-    final pdy = driverLat - pickupLat;
-    final t = (pdx * dx + pdy * dy) / len2;
-    // Use math.sqrt to keep the dart:math import active (avoids unused import warning)
-    return t.clamp(0.0, math.sqrt(1.0));
+    final dFromPickup =
+        _haversine(driverLat, driverLng, pickupLat, pickupLng);
+    final dFromDropoff =
+        _haversine(driverLat, driverLng, dropoffLat, dropoffLng);
+    final total = dFromPickup + dFromDropoff;
+    if (total == 0) return 0.0;
+    return (dFromPickup / total).clamp(0.0, 1.0);
   }
+
+  double _haversine(double lat1, double lng1, double lat2, double lng2) {
+    const R = 6371.0;
+    final dLat = _toRad(lat2 - lat1);
+    final dLng = _toRad(lng2 - lng1);
+    final a = math.sin(dLat / 2) * math.sin(dLat / 2) +
+        math.cos(_toRad(lat1)) *
+            math.cos(_toRad(lat2)) *
+            math.sin(dLng / 2) *
+            math.sin(dLng / 2);
+    return R * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a));
+  }
+
+  double _toRad(double deg) => deg * math.pi / 180;
 }

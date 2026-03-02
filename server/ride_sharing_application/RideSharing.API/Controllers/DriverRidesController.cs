@@ -1079,6 +1079,67 @@ namespace RideSharing.API.Controllers
         }
 
         /// <summary>
+        /// Update intermediate stops for a scheduled ride (no admin approval required)
+        /// </summary>
+        [HttpPut("{rideId}/intermediate-stops")]
+        public async Task<IActionResult> UpdateIntermediateStops(Guid rideId, [FromBody] UpdateIntermediateStopsDto request)
+        {
+            try
+            {
+                var userId = User.FindFirst("userId")?.Value;
+                if (string.IsNullOrEmpty(userId) || !Guid.TryParse(userId, out var userGuid))
+                    return Unauthorized(ApiResponseDto<object>.ErrorResponse("Invalid token"));
+
+                var driver = await _driverRepository.GetDriverByUserIdAsync(userGuid);
+                if (driver == null)
+                    return BadRequest(ApiResponseDto<object>.ErrorResponse("Driver profile not found"));
+
+                var ride = await _rideRepository.GetRideByIdAsync(rideId);
+                if (ride == null || ride.DriverId != driver.Id)
+                    return NotFound(ApiResponseDto<object>.ErrorResponse("Ride not found"));
+
+                if (ride.Status != "scheduled")
+                    return BadRequest(ApiResponseDto<object>.ErrorResponse("Can only update intermediate stops for scheduled rides"));
+
+                if (ride.BookedSeats > 0)
+                    return BadRequest(ApiResponseDto<object>.ErrorResponse("Cannot update intermediate stops after passengers have booked"));
+
+                var departureDateTime = ride.TravelDate.Date.Add(ride.DepartureTime);
+                if ((departureDateTime - DateTime.Now).TotalMinutes < 15)
+                    return BadRequest(ApiResponseDto<object>.ErrorResponse("Cannot update intermediate stops within 15 minutes of departure"));
+
+                // Serialize updated stops
+                ride.IntermediateStops = request.IntermediateStops != null && request.IntermediateStops.Any()
+                    ? System.Text.Json.JsonSerializer.Serialize(request.IntermediateStops)
+                    : null;
+
+                if (request.IntermediateStopIds != null && request.IntermediateStopIds.Any())
+                    ride.IntermediateStopIds = System.Text.Json.JsonSerializer.Serialize(request.IntermediateStopIds);
+                else
+                    ride.IntermediateStopIds = null;
+
+                // Clear segment prices when stops change (they are no longer valid)
+                ride.SegmentPrices = null;
+                ride.UpdatedAt = DateTime.UtcNow;
+                await _context.SaveChangesAsync();
+
+                _logger.LogInformation("Driver {DriverId} updated intermediate stops for ride {RideId}: {Stops}", driver.Id, rideId, ride.IntermediateStops);
+
+                return Ok(ApiResponseDto<object>.SuccessResponse(new
+                {
+                    rideId,
+                    intermediateStops = request.IntermediateStops,
+                    updatedAt = ride.UpdatedAt
+                }, "Intermediate stops updated successfully"));
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error updating intermediate stops for ride {RideId}", rideId);
+                return StatusCode(500, ApiResponseDto<object>.ErrorResponse("An error occurred while updating intermediate stops"));
+            }
+        }
+
+        /// <summary>
         /// Update schedule (date and time) for a ride
         /// </summary>
         [HttpPut("{rideId}/schedule")]

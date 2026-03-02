@@ -18,7 +18,6 @@ import 'package:allapalli_ride/features/passenger/presentation/screens/ride_hist
 import 'package:allapalli_ride/features/passenger/presentation/screens/location_search_screen.dart';
 import 'package:allapalli_ride/features/passenger/presentation/screens/ride_results_screen.dart';
 import 'package:allapalli_ride/shared/utils/permission_manager.dart';
-import 'package:allapalli_ride/features/passenger/presentation/screens/area_not_served_screen.dart';
 import 'package:allapalli_ride/features/passenger/presentation/screens/passenger_live_tracking_screen.dart';
 import 'package:allapalli_ride/features/passenger/presentation/widgets/location_search_field.dart';
 import 'package:allapalli_ride/features/passenger/presentation/widgets/ride_search_loading_screen.dart';
@@ -545,65 +544,31 @@ class _PassengerHomeScreenState extends ConsumerState<PassengerHomeScreen> with 
       }
       
       print('✅ Location detected: ${position.latitude}, ${position.longitude}');
-      
-      // Check if location is in service area using async API
-      final isInServiceArea = await locationService.isLocationInServiceAreaAsync(
+
+      // Auto-populate nearest pickup location from detected coordinates
+      final address = await locationService.getAddressFromCoordinates(
         position.latitude,
         position.longitude,
       );
-      
-      print('🌍 Service area check: ${isInServiceArea ? "INSIDE" : "OUTSIDE"}');
-      
-      if (!isInServiceArea) {
-        // User is outside service area
-        final address = await locationService.getAddressFromCoordinates(
-          position.latitude,
-          position.longitude,
-        );
-        
-        print('❌ User outside service area: $address');
-        
-        if (mounted) {
-          // Navigate to "Not Served" screen
-          Navigator.of(context).pushReplacement(
-            MaterialPageRoute(
-              builder: (context) => AreaNotServedScreen(
-                currentLocation: address ?? 'Current Location',
-              ),
-            ),
-          );
-        }
-      } else {
-        // User is in service area - find and auto-populate nearest location
-        // Get address and search for nearest location in our database
-        final address = await locationService.getAddressFromCoordinates(
-          position.latitude,
-          position.longitude,
-        );
-        
-        print('📍 Reverse geocoded address: $address');
-        
-        if (address != null && address.isNotEmpty) {
-          // Extract city/locality from address (usually first part before comma)
-          final locationQuery = address.split(',').first.trim();
-          print('🔍 Searching for location: $locationQuery');
-          
-          // Search for the location in our database
-          final locations = await locationService.searchLocations(locationQuery);
-          
-          if (locations.isNotEmpty && mounted) {
-            final nearestLocation = locations.first; // Take the first/best match
-            print('📍 Found nearest location: ${nearestLocation.name}');
-            
-            setState(() {
-              _selectedPickup = nearestLocation;
-              _pickupController.text = _formatLocationDisplay(nearestLocation);
-            });
-            
-            // Location set silently - no message shown
-          } else {
-            print('⚠️ No matching location found in database for: $locationQuery');
-          }
+
+      print('📍 Reverse geocoded address: $address');
+
+      if (address != null && address.isNotEmpty) {
+        final locationQuery = address.split(',').first.trim();
+        print('🔍 Searching for location: $locationQuery');
+
+        final locations = await locationService.searchLocations(locationQuery);
+
+        if (locations.isNotEmpty && mounted) {
+          final nearestLocation = locations.first;
+          print('📍 Found nearest location: ${nearestLocation.name}');
+
+          setState(() {
+            _selectedPickup = nearestLocation;
+            _pickupController.text = _formatLocationDisplay(nearestLocation);
+          });
+        } else {
+          print('⚠️ No matching location found in database for: $locationQuery');
         }
       }
     } catch (e) {

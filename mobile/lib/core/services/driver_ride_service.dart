@@ -263,4 +263,27 @@ class DriverRideService {
       rethrow;
     }
   }
+
+  /// Update intermediate stops for a ride (no admin approval required)
+  Future<ApiResponse<UpdateIntermediateStopsResponse>> updateIntermediateStops(
+    String rideId,
+    UpdateIntermediateStopsRequest request,
+  ) async {
+    try {
+      print('🗺️ Updating intermediate stops for ride: $rideId');
+      final response = await _dio.put(
+        '$_baseUrl/$rideId/intermediate-stops',
+        data: request.toJson(),
+      );
+
+      print('✅ Intermediate stops update response: ${response.data}');
+      return ApiResponse.fromJson(
+        response.data,
+        (json) => UpdateIntermediateStopsResponse.fromJson(json as Map<String, dynamic>),
+      );
+    } catch (e) {
+      print('❌ Error updating intermediate stops: $e');
+      rethrow;
+    }
+  }
 }

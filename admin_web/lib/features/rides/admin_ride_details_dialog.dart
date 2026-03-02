@@ -207,13 +207,63 @@ class _AdminRideDetailsDialogState extends State<AdminRideDetailsDialog> with Si
                 Icons.trip_origin,
                 Colors.green,
               ),
-              const SizedBox(height: 8),
+              if (widget.ride.intermediateStops != null &&
+                  widget.ride.intermediateStops!.isNotEmpty) ...[
+                const SizedBox(height: 4),
+                ...widget.ride.intermediateStops!.asMap().entries.map((entry) {
+                  final index = entry.key;
+                  final stop = entry.value;
+                  return Column(
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.only(left: 12, top: 2, bottom: 2),
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 2,
+                              height: 12,
+                              color: Colors.grey.shade300,
+                            ),
+                          ],
+                        ),
+                      ),
+                      _buildRouteInfo(
+                        'Stop ${index + 1}',
+                        stop,
+                        Icons.circle,
+                        Colors.orange,
+                      ),
+                    ],
+                  );
+                }),
+                const SizedBox(height: 4),
+              ] else
+                const SizedBox(height: 8),
               _buildRouteInfo(
                 'Dropoff',
                 widget.ride.dropoffLocation,
                 Icons.location_on,
                 Colors.red,
               ),
+              if (widget.ride.intermediateStops == null ||
+                  widget.ride.intermediateStops!.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Row(
+                    children: [
+                      Icon(Icons.info_outline, size: 14, color: Colors.grey.shade500),
+                      const SizedBox(width: 4),
+                      Text(
+                        'No intermediate stops — driver-managed',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey.shade500,
+                          fontStyle: FontStyle.italic,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               if (widget.ride.distance != null || widget.ride.duration != null) ...[
                 const SizedBox(height: 12),
                 Container(

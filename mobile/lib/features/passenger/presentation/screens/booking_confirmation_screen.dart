@@ -8,13 +8,11 @@ import 'package:allapalli_ride/features/passenger/presentation/screens/passenger
 
 class BookingConfirmationScreen extends StatefulWidget {
   final String bookingId;
-  final String otp;
   final List<String>? selectedSeats;
-  
+
   const BookingConfirmationScreen({
     super.key,
     required this.bookingId,
-    required this.otp,
     this.selectedSeats,
   });
   
@@ -188,38 +186,6 @@ class _BookingConfirmationScreenState extends State<BookingConfirmationScreen>
                               widget.bookingId,
                               style: TextStyles.bodyMedium.copyWith(
                                 fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: AppSpacing.md),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(
-                              'OTP',
-                              style: TextStyles.bodyMedium.copyWith(
-                                color: isDark 
-                                    ? AppColors.darkTextSecondary 
-                                    : AppColors.lightTextSecondary,
-                              ),
-                            ),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 16,
-                                vertical: 8,
-                              ),
-                              decoration: BoxDecoration(
-                                color: AppColors.primaryGreen.withOpacity(0.1),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Text(
-                                widget.otp,
-                                style: TextStyles.headingMedium.copyWith(
-                                  fontWeight: FontWeight.bold,
-                                  color: AppColors.primaryGreen,
-                                  letterSpacing: 4,
-                                ),
                               ),
                             ),
                           ],

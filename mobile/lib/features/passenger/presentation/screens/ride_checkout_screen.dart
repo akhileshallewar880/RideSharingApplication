@@ -2080,7 +2080,6 @@ class _RideCheckoutScreenState extends ConsumerState<RideCheckoutScreen> {
               MaterialPageRoute(
                 builder: (context) => BookingConfirmationScreen(
                   bookingId: state.currentBooking!.bookingNumber,
-                  otp: state.currentBooking!.otp,
                   selectedSeats: state.currentBooking!.selectedSeats,
                 ),
               ),

@@ -431,7 +431,71 @@ class _DriverTripDetailsScreenState extends ConsumerState<DriverTripDetailsScree
       ),
     );
   }
-  
+
+  void _showEditIntermediateStopsDialog() async {
+    final currentStops = List<String>.from(widget.ride.intermediateStops ?? []);
+    final result = await showDialog<List<String>>(
+      context: context,
+      builder: (context) => _IntermediateStopsEditorDialog(currentStops: currentStops),
+    );
+
+    if (result != null) {
+      await _updateIntermediateStops(result);
+    }
+  }
+
+  Future<void> _updateIntermediateStops(List<String> newStops) async {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(child: CircularProgressIndicator()),
+    );
+
+    try {
+      final success = await ref
+          .read(driverRideNotifierProvider.notifier)
+          .updateIntermediateStops(
+            widget.ride.rideId,
+            newStops.isEmpty ? null : newStops,
+            null,
+          );
+
+      if (mounted) Navigator.pop(context);
+
+      if (success) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Intermediate stops updated successfully'),
+              backgroundColor: AppColors.success,
+            ),
+          );
+          Navigator.pop(context);
+        }
+      } else {
+        final error = ref.read(driverRideNotifierProvider).errorMessage;
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(error ?? 'Failed to update stops'),
+              backgroundColor: AppColors.error,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) Navigator.pop(context);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: $e'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    }
+  }
+
   Future<void> _updatePrice(double newPrice) async {
     // Show loading
     showDialog(
@@ -862,13 +926,25 @@ class _DriverTripDetailsScreenState extends ConsumerState<DriverTripDetailsScree
             _ActionButton(
               icon: Icons.route,
               title: 'Edit Segment Prices',
-              subtitle: _canEditRide() 
-                  ? 'Set prices for route segments' 
+              subtitle: _canEditRide()
+                  ? 'Set prices for route segments'
                   : _getEditDisabledReason(),
               color: _canEditRide() ? AppColors.primaryYellow : Colors.grey,
               onTap: _canEditRide() ? _showEditSegmentPricesDialog : null,
             ).animate().fadeIn(delay: 700.ms).slideX(begin: -0.2, end: 0),
-            
+
+            const SizedBox(height: AppSpacing.md),
+
+            _ActionButton(
+              icon: Icons.alt_route,
+              title: 'Edit Intermediate Stops',
+              subtitle: _canEditRide()
+                  ? 'Add or update stops along the route'
+                  : _getEditDisabledReason(),
+              color: _canEditRide() ? const Color(0xFF7B1FA2) : Colors.grey,
+              onTap: _canEditRide() ? _showEditIntermediateStopsDialog : null,
+            ).animate().fadeIn(delay: 750.ms).slideX(begin: -0.2, end: 0),
+
             // Live Tracking Button (appears when trip is active/in-progress)
             if (_isRideActive()) ...[
               const SizedBox(height: AppSpacing.md),
@@ -2391,6 +2467,177 @@ class _EditSegmentPricesBottomSheet extends StatelessWidget {
         ],
       ),
     ),
+    );
+  }
+}
+
+// ─── Intermediate Stops Editor Dialog ────────────────────────────────────────
+
+class _IntermediateStopsEditorDialog extends StatefulWidget {
+  final List<String> currentStops;
+
+  const _IntermediateStopsEditorDialog({required this.currentStops});
+
+  @override
+  State<_IntermediateStopsEditorDialog> createState() =>
+      _IntermediateStopsEditorDialogState();
+}
+
+class _IntermediateStopsEditorDialogState
+    extends State<_IntermediateStopsEditorDialog> {
+  late List<TextEditingController> _controllers;
+
+  @override
+  void initState() {
+    super.initState();
+    _controllers = widget.currentStops.isNotEmpty
+        ? widget.currentStops
+            .map((s) => TextEditingController(text: s))
+            .toList()
+        : [TextEditingController()];
+  }
+
+  @override
+  void dispose() {
+    for (final c in _controllers) {
+      c.dispose();
+    }
+    super.dispose();
+  }
+
+  void _addStop() {
+    setState(() => _controllers.add(TextEditingController()));
+  }
+
+  void _removeStop(int index) {
+    setState(() {
+      _controllers[index].dispose();
+      _controllers.removeAt(index);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return AlertDialog(
+      backgroundColor: isDark ? AppColors.darkSurface : Colors.white,
+      title: Row(
+        children: [
+          const Icon(Icons.alt_route, color: Color(0xFF7B1FA2)),
+          const SizedBox(width: 8),
+          Text(
+            'Intermediate Stops',
+            style: TextStyles.headingSmall.copyWith(
+              color: isDark ? Colors.white : AppColors.lightTextPrimary,
+            ),
+          ),
+        ],
+      ),
+      content: SizedBox(
+        width: double.maxFinite,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'Add towns/cities the route passes through. Segment prices will be reset.',
+                style: TextStyles.bodySmall.copyWith(
+                  color: isDark
+                      ? AppColors.darkTextSecondary
+                      : AppColors.lightTextSecondary,
+                ),
+              ),
+              const SizedBox(height: AppSpacing.md),
+              ...List.generate(_controllers.length, (i) {
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 24,
+                        height: 24,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF7B1FA2).withOpacity(0.15),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Center(
+                          child: Text(
+                            '${i + 1}',
+                            style: const TextStyle(
+                              color: Color(0xFF7B1FA2),
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: AppSpacing.sm),
+                      Expanded(
+                        child: TextField(
+                          controller: _controllers[i],
+                          decoration: InputDecoration(
+                            hintText: 'Stop name (e.g. Mul)',
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 10,
+                            ),
+                          ),
+                          style: TextStyle(
+                            color:
+                                isDark ? Colors.white : AppColors.lightTextPrimary,
+                          ),
+                          textCapitalization: TextCapitalization.words,
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.remove_circle_outline,
+                            color: AppColors.error),
+                        onPressed: () => _removeStop(i),
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                      ),
+                    ],
+                  ),
+                );
+              }),
+              const SizedBox(height: AppSpacing.sm),
+              TextButton.icon(
+                onPressed: _addStop,
+                icon: const Icon(Icons.add_circle_outline,
+                    color: Color(0xFF7B1FA2)),
+                label: const Text(
+                  'Add Stop',
+                  style: TextStyle(color: Color(0xFF7B1FA2)),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        ElevatedButton(
+          onPressed: () {
+            final stops = _controllers
+                .map((c) => c.text.trim())
+                .where((s) => s.isNotEmpty)
+                .toList();
+            Navigator.pop(context, stops);
+          },
+          style: ElevatedButton.styleFrom(
+            backgroundColor: const Color(0xFF7B1FA2),
+            foregroundColor: Colors.white,
+          ),
+          child: const Text('Save Stops'),
+        ),
+      ],
     );
   }
 }

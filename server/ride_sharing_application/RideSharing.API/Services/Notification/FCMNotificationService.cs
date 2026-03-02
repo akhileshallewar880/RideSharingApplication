@@ -81,14 +81,14 @@ public class FCMNotificationService
                 Notification = new FcmNotification
                 {
                     Title = "Booking Confirmed! 🎉",
-                    Body = $"Your booking is confirmed. OTP: {booking.OTP}"
+                    Body = $"Your booking #{booking.BookingNumber} is confirmed. Have a great ride!"
                 },
                 Data = new Dictionary<string, string>
                 {
                     { "type", "booking_confirmed" },
                     { "bookingId", booking.Id.ToString() },
                     { "rideId", booking.RideId.ToString() },
-                    { "otp", booking.OTP }
+                    { "bookingNumber", booking.BookingNumber }
                 },
                 Android = BuildAndroidConfig(),
                 Apns = BuildApnsConfig()

@@ -77,26 +77,42 @@ class RideLocation {
 // Live tracking notifier
 class LiveTrackingNotifier extends StateNotifier<LiveTrackingState> {
   final SignalRService _signalRService;
-  
+
+  // Ride IDs requested via trackRide() before the connection was ready.
+  // They are joined in bulk once _initializeSignalR() completes.
+  final Set<String> _pendingRideJoins = {};
+
   LiveTrackingNotifier(this._signalRService) : super(const LiveTrackingState()) {
     _initializeSignalR();
   }
-  
+
   /// Initialize SignalR connection and event handlers
   Future<void> _initializeSignalR() async {
     state = state.copyWith(isLoading: true);
-    
+
     try {
       // Setup event handlers
       _signalRService.onLocationUpdate = _handleLocationUpdate;
       _signalRService.onRideStatusUpdate = _handleRideStatusUpdate;
-      
+
       // Connect to SignalR
       await _signalRService.initialize();
-      
+
       // Join all rides room for monitoring
       await _signalRService.joinAllRidesRoom();
-      
+
+      // Join any ride rooms that were requested before connection was ready
+      final pending = Set<String>.from(_pendingRideJoins);
+      _pendingRideJoins.clear();
+      for (final rideId in pending) {
+        try {
+          await _signalRService.joinRideRoom(rideId);
+          print('✅ Now tracking (deferred) ride: $rideId');
+        } catch (e) {
+          print('❌ Error joining deferred ride room $rideId: $e');
+        }
+      }
+
       state = state.copyWith(
         isConnected: true,
         isLoading: false,
@@ -139,13 +155,21 @@ class LiveTrackingNotifier extends StateNotifier<LiveTrackingState> {
     }
   }
   
-  /// Track specific ride
+  /// Track specific ride — joins the ride room immediately if connected,
+  /// or queues the join to be retried once the connection is established.
   Future<void> trackRide(String rideId) async {
+    if (!_signalRService.isConnected) {
+      _pendingRideJoins.add(rideId);
+      print('⏳ Queued ride tracking until connected: $rideId');
+      return;
+    }
     try {
       await _signalRService.joinRideRoom(rideId);
       print('✅ Now tracking ride: $rideId');
     } catch (e) {
-      print('❌ Error tracking ride: $e');
+      print('❌ Error tracking ride $rideId: $e');
+      // Queue for retry on next reconnect
+      _pendingRideJoins.add(rideId);
     }
   }
   
